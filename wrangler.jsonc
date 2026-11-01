@@ -1,10 +1,11 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "finance-tracker",
+  "account_id": "ccb29477c084a5316363b74fa9e2baf1",
   "main": "cloudflare/worker.mjs",
   "compatibility_date": "2026-10-30",
   "compatibility_flags": ["nodejs_compat"],
   "assets": {"directory": "./web", "binding": "ASSETS", "run_worker_first": ["/api/*"]},
-  "d1_databases": [{"binding":"DB", "database_name":"finance-tracker", "database_id":"00000000-0000-0000-0000-000000000000", "migrations_dir":"cloudflare/migrations"}],
+  "d1_databases": [{"binding":"DB", "database_name":"finance-tracker", "database_id":"eb690d32-a342-4153-bee5-2220ee604f97", "migrations_dir":"cloudflare/migrations"}],
   "observability": {"enabled":true}
 }
