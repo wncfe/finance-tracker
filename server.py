@@ -54,10 +54,11 @@ class Handler(BaseHTTPRequestHandler):
     def user(self,db):
         return db.execute('SELECT users.id,login,state,revision FROM users JOIN sessions ON sessions.user=users.id WHERE token=? AND expires>?',(self.token(),time.time())).fetchone()
     def do_GET(self):
+        if self.path=='/api/config': return self.send(200,{'invitationRequired':False})
         if self.path=='/api/state':
             with connect() as db: user=self.user(db)
             return self.send(200,{'login':user[1],'state':json.loads(user[2]),'revision':user[3]}) if user else self.send(401,{'error':'Войдите в аккаунт'})
-        files={'/':'index.html','/app.js':'app.js','/style.css':'style.css'}
+        files={'/':'index.html','/app.js':'app.js','/pickers.js':'pickers.js','/style.css':'style.css'}
         filename=files.get(urlparse(self.path).path)
         requested=urlparse(self.path).path
         if requested.startswith('/icons/') and requested.count('/')==2 and requested.endswith('.svg') and (ROOT/'web'/requested[1:]).is_file():

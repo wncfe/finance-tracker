@@ -1,0 +1,11 @@
+CREATE TABLE users (
+ id INTEGER PRIMARY KEY,
+ login TEXT NOT NULL UNIQUE,
+ salt TEXT NOT NULL,
+ password TEXT NOT NULL,
+ state TEXT NOT NULL DEFAULT '{"months":{}}',
+ revision INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE sessions (token TEXT PRIMARY KEY, user INTEGER NOT NULL REFERENCES users(id), expires INTEGER NOT NULL);
+CREATE INDEX sessions_expiry ON sessions(expires);
+CREATE TABLE attempts (ip TEXT PRIMARY KEY, count INTEGER NOT NULL, until INTEGER NOT NULL);
