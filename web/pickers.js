@@ -29,5 +29,5 @@ function attachSelect(select){
 }
 const syncMonth=attachPicker($('month'),'month'),syncDate=attachPicker($('expenseform').elements.date,'date'),syncFilter=attachSelect($('filter')),syncClose=attachSelect($('closemode'));
 const originalRender=render,originalRenderWeek=renderWeek;
-render=function(){originalRender();syncMonth();syncFilter();syncClose()};renderWeek=function(){originalRenderWeek();syncDate()};
+render=function(){originalRender();syncMonth();syncFilter();syncClose()};renderWeek=function(){originalRenderWeek();syncDate();updateCloseAvailability()};
 syncMonth();syncDate();syncFilter();syncClose();

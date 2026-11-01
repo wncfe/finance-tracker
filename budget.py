@@ -101,6 +101,8 @@ def apply(state, action):
             rebalance(m, ids, effective-sum(v['limit'] for j,v in enumerate(m['weeks']) if v['closed'] or j==i)+w['limit']-value)
             w['limit'] = value
         elif kind == 'close':
+            if any(not previous['closed'] for previous in m['weeks'][:i]):
+                raise ValueError('Сначала закройте предыдущие недели')
             mode = action['mode']
             if mode not in ('next','remaining','month'):
                 raise ValueError('Выберите способ распределения')
