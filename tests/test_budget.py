@@ -27,6 +27,24 @@ class BudgetTests(unittest.TestCase):
         b=budget.apply(self.state,{'month':'2026-11','type':'close','week':2,'mode':'month'})
         self.assertEqual(a['months']['2026-11']['weeks'][0]['limit'],self.state['months']['2026-11']['weeks'][0]['limit'])
         self.assertNotEqual(a['months']['2026-11']['weeks'][0]['limit'],b['months']['2026-11']['weeks'][0]['limit'])
+    def test_next_week_only(self):
+        for expense in (1000,20000):
+            s=budget.apply(self.state,{'month':'2026-11','type':'expense','week':0,'amount':expense,'date':'2026-11-01','category':'Кафе'})
+            before=s['months']['2026-11']['weeks']
+            result=budget.apply(s,{'month':'2026-11','type':'close','week':0,'mode':'next'})
+            after=result['months']['2026-11']['weeks']
+            self.assertEqual(after[1]['limit'],before[1]['limit']+before[0]['limit']-expense)
+            self.assertEqual(after[2:],before[2:])
+            self.assertEqual(sum(w['limit'] for w in after),300000)
+    def test_next_skips_closed_and_keeps_final_residual(self):
+        self.act(type='close',week=1,mode='next')
+        fixed=self.state['months']['2026-11']['weeks'][1]['limit']
+        m=self.act(type='close',week=0,mode='next')
+        self.assertEqual(m['weeks'][1]['limit'],fixed)
+        self.assertEqual(m['weeks'][2]['limit'],150000)
+        previous=m['weeks'][5]['limit']
+        m=self.act(type='close',week=5,mode='next')
+        self.assertEqual(m['weeks'][5]['limit'],previous)
     def test_overspending_rebalances(self):
         self.act(type='expense',week=0,amount=50000,date='2026-11-01',category='Кафе',note='Обед')
         m=self.act(type='close',week=0,mode='remaining')

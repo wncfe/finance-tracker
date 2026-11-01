@@ -38,6 +38,17 @@ const assert=require('node:assert/strict');
   await page.locator('.history .select-trigger').click();
   await page.locator('.picker[open] [data-option="2"]').click();
   assert.equal(await page.locator('#history .entry').count(),1);
-  assert.deepEqual(errors,[]);console.log('Browser checks passed: auth, expense, reload, icons, desktop, mobile 390/360/320. Screenshots: '+dir);
+  const before=(await page.evaluate(()=>fetch('/api/state').then(r=>r.json()))).state.months['2026-11'];
+  await page.locator('[data-week="1"]').click();
+  await page.locator('#closeform').locator('..').locator('summary').click();
+  await page.locator('#closeform .picker-trigger').click();
+  assert.equal(await page.locator('.picker[open] [data-option]').count(),3);
+  await page.locator('.picker[open] [data-option="0"]').click();
+  await page.locator('#closeform>button').click();
+  await page.waitForFunction(()=>document.querySelector('#weekeditable').hidden);
+  const after=(await page.evaluate(()=>fetch('/api/state').then(r=>r.json()))).state.months['2026-11'];
+  assert.equal(after.weeks[2].limit,before.weeks[2].limit+before.weeks[1].limit-45990);
+  assert.deepEqual(after.weeks.slice(3),before.weeks.slice(3));
+  assert.deepEqual(errors,[]);console.log('Browser checks passed: auth, expense, reload, icons, desktop, mobile 390/360/320, next-week closure. Screenshots: '+dir);
  }finally{if(browser)await browser.close();server.kill()}
 })().catch(e=>{console.error(e);process.exitCode=1});

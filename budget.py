@@ -102,9 +102,11 @@ def apply(state, action):
             w['limit'] = value
         elif kind == 'close':
             mode = action['mode']
-            if mode not in ('remaining','month'):
+            if mode not in ('next','remaining','month'):
                 raise ValueError('Выберите способ распределения')
             ids = [j for j,v in enumerate(m['weeks']) if not v['closed'] and j != i and (mode=='month' or j>i)]
+            if mode == 'next':
+                ids = ids[:1]
             if ids:
                 total = sum(m['weeks'][j]['limit'] for j in ids)+w['limit']-spent(m,i)
                 rebalance(m, ids, total)

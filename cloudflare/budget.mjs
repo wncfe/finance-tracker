@@ -18,7 +18,7 @@ export function apply(original,action){
   if(type==='expense'){validDate(action.date,key,w);check(categories.includes(action.category),'Неизвестная категория');const note=String(action.note||'').trim();check(note.length<=200,'Описание слишком длинное');m.expenses.push({id:crypto.randomUUID().replaceAll('-',''),week:i,amount:amount(action.amount,true),date:action.date,category:action.category,note})}
   else if(type==='delete'){m.expenses=m.expenses.filter(e=>!(e.id===action.id&&e.week===i))}
   else if(type==='limit'){const value=amount(action.amount);rebalance(m,open().filter(j=>j!==i),effective-closedTotal()-value);w.limit=value}
-  else if(type==='close'){check(['remaining','month'].includes(action.mode),'Выберите способ распределения');const ids=open().filter(j=>j!==i&&(action.mode==='month'||j>i));if(ids.length){rebalance(m,ids,ids.reduce((s,j)=>s+m.weeks[j].limit,0)+w.limit-spent(m,i));w.limit=spent(m,i)}w.closed=true}
+  else if(type==='close'){check(['next','remaining','month'].includes(action.mode),'Выберите способ распределения');let ids=open().filter(j=>j!==i&&(action.mode==='month'||j>i));if(action.mode==='next')ids=ids.slice(0,1);if(ids.length){rebalance(m,ids,ids.reduce((s,j)=>s+m.weeks[j].limit,0)+w.limit-spent(m,i));w.limit=spent(m,i)}w.closed=true}
   else throw Error('Неизвестное действие');
  }
  return state;

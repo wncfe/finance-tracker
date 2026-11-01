@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {apply,validate} from '../cloudflare/budget.mjs';
 const actions=[];
 for(let year=2024;year<=2027;year++)for(let month=1;month<=12;month++)actions.push({type:'budget',month:`${year}-${String(month).padStart(2,'0')}`,amount:1234567});
-actions.push({type:'expense',month:'2026-11',week:0,amount:12345,date:'2026-11-01',category:'Кафе',note:'Обед'},{type:'limit',month:'2026-11',week:2,amount:300000},{type:'close',month:'2026-11',week:0,mode:'remaining'},{type:'close',month:'2026-11',week:2,mode:'month'});
+actions.push({type:'expense',month:'2026-11',week:0,amount:12345,date:'2026-11-01',category:'Кафе',note:'Обед'},{type:'limit',month:'2026-11',week:2,amount:300000},{type:'close',month:'2026-11',week:0,mode:'next'},{type:'close',month:'2026-11',week:2,mode:'month'});
 for(const week of [1,3,4,5])actions.push({type:'close',month:'2026-11',week,mode:'remaining'});
 actions.push({type:'transfer',month:'2026-12',amount:100000});
 const python=spawnSync('python',['-X','utf8','-c',"import sys,json,budget; s={'months':{}}; states=[]\nfor a in json.load(sys.stdin):\n s=budget.apply(s,a); states.append(s)\nprint(json.dumps(states))"],{input:JSON.stringify(actions),encoding:'utf-8'});
