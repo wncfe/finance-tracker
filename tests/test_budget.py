@@ -60,8 +60,6 @@ class BudgetTests(unittest.TestCase):
         self.assertEqual(sum(w['limit'] for w in m['weeks'][1:]),350000)
         m=self.act(type='limit',week=1,amount=50000)
         self.assertEqual(sum(w['limit'] for w in m['weeks'][1:]),350000)
-        budget.validate_state(self.state)
-        self.assertEqual(budget.migrate({'format':'po-nedelyam','version':2,**self.state}),self.state)
         self.assertEqual(sum(budget.accounted(w) for w in m['weeks']),400000)
         with self.assertRaises(ValueError): self.act(type='expense',week=0,amount=1,date='2026-11-01',category='Кафе')
     def test_last_week_keeps_residual(self):
@@ -73,20 +71,69 @@ class BudgetTests(unittest.TestCase):
         self.assertEqual(self.state['months']['2026-11']['outgoing'],200000)
         with self.assertRaises(ValueError): budget.apply(self.state,{'month':'2026-12','type':'transfer','amount':200000})
         self.assertEqual(self.state['months']['2026-12']['incoming'],200000)
-        budget.validate_state(self.state)
-        self.assertEqual(budget.migrate({'format':'po-nedelyam','version':2,**self.state}),self.state)
     def test_transfer_and_budget_failure_atomic(self):
         snapshot=copy.deepcopy(self.state)
         with self.assertRaises(ValueError): self.act(type='limit',week=1,amount=9999999)
         self.assertEqual(snapshot,self.state)
         with self.assertRaises(ValueError): budget.apply(self.state,{'month':'2026-12','type':'transfer','amount':1})
-    def test_restore(self):
-        state=budget.migrate({'format':'po-nedelyam','version':2,**self.state})
-        self.assertEqual(state,self.state)
-        legacy=budget.migrate({'format':'po-nedelyam','version':1,'months':{'2026-11':{'budget':300000,'spent':[1000,0,0,0,0,0],'closed':1}}})
-        self.assertEqual(budget.spent(legacy['months']['2026-11']),1000)
-        budget.validate_state(legacy)
     def test_invalid_date(self):
         with self.assertRaises(ValueError): self.act(type='expense',week=0,amount=1,date='2026-11-02',category='Кафе')
 
 if __name__=='__main__': unittest.main()
+
+class CorrectionTests(unittest.TestCase):
+    def initial(self):
+        return budget.apply({'months': {}}, {'month':'2026-11','type':'budget','amount':300000})
+
+    def action(self, state, kind, **fields):
+        return budget.apply(state, dict(month='2026-11', type=kind, **fields))
+
+    def closed(self):
+        state = self.initial()
+        for week in range(6):
+            state = self.action(state, 'close', week=week, mode='next')
+        return state
+
+    def test_reopen_preserves_expenses_and_prefix(self):
+        state = self.initial()
+        state = self.action(state, 'expense', week=0, amount=2000, date='2026-11-01', category='Кафе')
+        for week in range(3): state = self.action(state, 'close', week=week, mode='remaining')
+        prefix = copy.deepcopy(state['months']['2026-11']['weeks'][0])
+        expenses = copy.deepcopy(state['months']['2026-11']['expenses'])
+        state = self.action(state, 'reopen', week=1)
+        m = state['months']['2026-11']
+        self.assertEqual(m['weeks'][0], prefix)
+        self.assertEqual(m['expenses'], expenses)
+        self.assertTrue(all(not w['closed'] and 'settled' not in w for w in m['weeks'][1:]))
+        self.assertEqual(sum(budget.accounted(w) for w in m['weeks']), 300000)
+        with self.assertRaises(ValueError): self.action(state, 'close', week=2, mode='next')
+
+    def test_closed_expense_can_be_corrected(self):
+        state = self.action(self.initial(), 'expense', week=0, amount=1000, date='2026-11-01', category='Кафе')
+        state = self.action(state, 'close', week=0, mode='next')
+        state = self.action(state, 'reopen', week=0)
+        state = self.action(state, 'delete', week=0, id=state['months']['2026-11']['expenses'][0]['id'])
+        state = self.action(state, 'expense', week=0, amount=2000, date='2026-11-01', category='Кафе')
+        state = self.action(state, 'close', week=0, mode='remaining')
+        self.assertEqual(sum(w['limit'] for w in state['months']['2026-11']['weeks'][1:]), 298000)
+
+    def test_transfer_then_budget_and_reopen(self):
+        state = budget.apply(self.closed(), {'month':'2026-12','type':'transfer','amount':200000})
+        state = self.action(state, 'budget', amount=300000)
+        m = state['months']['2026-11']
+        self.assertEqual(sum(budget.accounted(w) for w in m['weeks']),100000)
+        state = self.action(state, 'budget', amount=250000)
+        state = self.action(state, 'reopen', week=0)
+        self.assertEqual(sum(w['limit'] for w in state['months']['2026-11']['weeks']),50000)
+        snapshot = copy.deepcopy(state)
+        with self.assertRaises(ValueError):
+            self.action(state, 'expense', week=0, amount=50001, date='2026-11-01', category='Кафе')
+        self.assertEqual(state, snapshot)
+        self.assertEqual(state['months']['2026-12']['incoming'],200000)
+
+    def test_existing_transferred_state_is_compatible(self):
+        state = budget.apply(self.closed(), {'month':'2026-12','type':'transfer','amount':200000})
+        # Production data written by the previous version retained the gross residual.
+        state['months']['2026-11']['weeks'][-1]['limit'] += 200000
+        state = self.action(state, 'budget', amount=300000)
+        self.assertEqual(state['months']['2026-11']['weeks'][-1]['limit'],100000)

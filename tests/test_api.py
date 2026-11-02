@@ -1,5 +1,6 @@
 import http.cookiejar
 import json
+import uuid
 from pathlib import Path
 import tempfile
 import threading
@@ -25,6 +26,7 @@ class ApiTests(unittest.TestCase):
     def client(self):
         return urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
     def request(self,client,path,data=None,origin=None):
+        if path == 'action': data = dict(data, operationId=data.get('operationId', uuid.uuid4().hex))
         headers={'Content-Type':'application/json'}
         if origin: headers['Origin']=origin
         req=urllib.request.Request(self.url+'/api/'+path,data=json.dumps(data).encode() if data is not None else None,headers=headers)
@@ -47,3 +49,16 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(self.request(a,'state')[0],401)
         self.assertEqual(self.request(a,'login',{'login':'alice','password':'test-password-123'})[0],200)
         self.assertEqual(self.request(a,'state')[1]['state'],result['state'])
+
+    def test_operation_retry_and_removed_import(self):
+        client=self.client()
+        self.assertEqual(self.request(client,'register',{'login':'retry-user','password':'test-password-123'})[0],200)
+        body={'revision':0,'operationId':uuid.uuid4().hex,'action':{'type':'expense','month':'2026-11','week':0,'amount':100,'date':'2026-11-01','category':'Кафе'}}
+        first=self.request(client,'action',body)
+        second=self.request(client,'action',body)
+        self.assertEqual(first,second)
+        self.assertEqual(first[1]['revision'],1)
+        self.assertEqual(len(second[1]['state']['months']['2026-11']['expenses']),1)
+        changed=dict(body,action=dict(body['action'],amount=200))
+        self.assertEqual(self.request(client,'action',changed)[0],409)
+        self.assertEqual(self.request(client,'import',{'revision':1,'backup':{}})[0],404)

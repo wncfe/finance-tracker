@@ -55,6 +55,26 @@ def accounted(w):
     # Settlement funds future weeks without rewriting the historical limit.
     return w.get('settled', w['limit'])
 
+def effective_budget(m):
+    return m['budget'] + m['incoming'] - m['outgoing']
+
+
+def redistribute(m):
+    """Closed weeks retain history; the final week holds the month residual."""
+    available = effective_budget(m)
+    if m['outgoing'] and available < spent(m):
+        raise ValueError('Средства уже перенесены в следующий месяц')
+    ids = [i for i, w in enumerate(m['weeks']) if not w['closed']]
+    if ids:
+        rebalance(m, ids, available - sum(accounted(w) for w in m['weeks'] if w['closed']))
+    else:
+        residual = available - sum(accounted(w) for w in m['weeks'][:-1])
+        if residual < 0:
+            raise ValueError('Бюджета недостаточно для закрытых недель')
+        m['weeks'][-1]['limit'] = residual
+        m['weeks'][-1].pop('settled', None)
+
+
 def apply(state, action):
     state = copy.deepcopy(state)
     key = action['month']
@@ -64,8 +84,7 @@ def apply(state, action):
     effective = m['budget'] + m['incoming'] - m['outgoing']
     if kind == 'budget':
         m['budget'] = amount(action['amount'])
-        ids = [i for i,w in enumerate(m['weeks']) if not w['closed']]
-        rebalance(m, ids, m['budget']+m['incoming']-m['outgoing']-sum(accounted(w) for w in m['weeks'] if w['closed']))
+        redistribute(m)
     elif kind == 'transfer':
         y, mon = map(int,key.split('-'))
         previous = (dt.date(y,mon,1)-dt.timedelta(days=1)).strftime('%Y-%m')
@@ -77,13 +96,21 @@ def apply(state, action):
             raise ValueError('Недостаточно остатка для переноса')
         source['outgoing'] += value
         m['incoming'] += value
-        ids = [i for i,w in enumerate(m['weeks']) if not w['closed']]
-        rebalance(m, ids, effective+value-sum(accounted(w) for w in m['weeks'] if w['closed']))
+        redistribute(source)
+        redistribute(m)
     else:
         i = action.get('week')
         if type(i) is not int or not 0 <= i < len(m['weeks']):
             raise ValueError('Некорректная неделя')
         w = m['weeks'][i]
+        if kind == 'reopen':
+            if not w['closed']:
+                raise ValueError('Неделя уже открыта')
+            for future in m['weeks'][i:]:
+                future['closed'] = False
+                future.pop('settled', None)
+            redistribute(m)
+            return state
         if w['closed']:
             raise ValueError('Неделя закрыта')
         if kind == 'expense':
@@ -97,6 +124,8 @@ def apply(state, action):
             if len(note)>200:
                 raise ValueError('Описание слишком длинное')
             m['expenses'].append({'id':uuid.uuid4().hex,'week':i,'amount':amount(action['amount'], True),'date':date.isoformat(),'category':category,'note':note})
+            if m['outgoing'] and spent(m) > effective:
+                raise ValueError('Средства уже перенесены в следующий месяц')
         elif kind == 'delete':
             m['expenses'] = [e for e in m['expenses'] if not(e['id']==action['id'] and e['week']==i)]
         elif kind == 'limit':
@@ -121,64 +150,3 @@ def apply(state, action):
         else:
             raise ValueError('Неизвестное действие')
     return state
-
-def migrate(raw):
-    if raw.get('format') == 'po-nedelyam' and raw.get('version') == 2:
-        return validate_state({'months':raw.get('months')})
-    if raw.get('format') != 'po-nedelyam' or raw.get('version') != 1 or not isinstance(raw.get('months'),dict):
-        raise ValueError('Ожидается резервная копия старой версии')
-    state = {'months':{}}
-    for key, old in raw['months'].items():
-        m = ensure(state,key)
-        m['budget'] = amount(old['budget'])
-        rebalance(m,list(range(len(m['weeks']))),m['budget'])
-        if len(old['spent'])!=len(m['weeks']) or type(old['closed']) is not int or not 0<=old['closed']<=len(m['weeks']):
-            raise ValueError('Некорректные недели')
-        for i,w in enumerate(m['weeks']):
-            value=amount(old['spent'][i])
-            if value:
-                m['expenses'].append({'id':uuid.uuid4().hex,'week':i,'amount':value,'date':f"{key}-{w['start']:02}",'category':'Другое','note':'Импорт: итог недели'})
-            w['closed'] = i<old['closed']
-            if w['closed']:
-                w['limit'] = value
-        ids=[i for i,w in enumerate(m['weeks']) if not w['closed']]
-        remaining=m['budget']-sum(w['limit'] for w in m['weeks'] if w['closed'])
-        if remaining<0:
-            raise ValueError('Старый месяц перерасходован: увеличьте бюджет перед импортом')
-        if ids:
-            rebalance(m,ids,remaining)
-        elif remaining:
-            m['weeks'][-1]['limit']+=remaining
-    return state
-
-def validate_state(raw):
-    if not isinstance(raw,dict) or not isinstance(raw.get('months'),dict) or len(raw['months'])>1300:
-        raise ValueError('Некорректная резервная копия')
-    for key,m in raw['months'].items():
-        expected=weeks(key)
-        if not isinstance(m,dict) or len(m['weeks'])!=len(expected) or len(m['expenses'])>100000:
-            raise ValueError('Некорректный месяц')
-        total=amount(m['budget'])+amount(m['incoming'])
-        outgoing=amount(m['outgoing'])
-        if outgoing and (not all(w['closed'] for w in m['weeks']) or outgoing>total-spent(m)):
-            raise ValueError('Некорректный перенос')
-        for index,(w,base) in enumerate(zip(m['weeks'],expected)):
-            if any(w[k]!=base[k] for k in ('start','end','days')) or type(w['closed']) is not bool:
-                raise ValueError('Некорректная неделя')
-            amount(w['limit'])
-            if 'settled' in w:
-                amount(w['settled'])
-                if not w['closed'] or w['settled'] != spent(m,index):
-                    raise ValueError('Некорректный расчёт закрытой недели')
-        if sum(accounted(w) for w in m['weeks'])!=total:
-            raise ValueError('Сумма лимитов не совпадает с бюджетом')
-        ids=set()
-        for e in m['expenses']:
-            amount(e['amount'],True)
-            if type(e['week']) is not int or not 0<=e['week']<len(expected) or e['category'] not in CATEGORIES or not isinstance(e['note'],str) or len(e['note'])>200 or not isinstance(e['id'],str) or not e['id'] or len(e['id'])>100 or e['id'] in ids:
-                raise ValueError('Некорректная трата')
-            ids.add(e['id'])
-            date=dt.date.fromisoformat(e['date']);w=expected[e['week']]
-            if date.strftime('%Y-%m')!=key or not w['start']<=date.day<=w['end']:
-                raise ValueError('Некорректная дата траты')
-    return copy.deepcopy(raw)

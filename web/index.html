@@ -1,8 +1,202 @@
 <!doctype html>
-<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#183f36"><title>По неделям — финансы</title><link rel="stylesheet" href="/style.css"><script defer src="/app.js"></script><script defer src="/pickers.js"></script></head>
-<body><header><a class="brand" href="/">≋ <span>По неделям<small>Личный бюджет</small></span></a><button id="logout" hidden>Выйти</button></header>
-<main id="auth"><section class="auth card"><span class="eyebrow">ПО НЕДЕЛЯМ</span><h1>Твои финансы.<br>В одном месте.</h1><form id="authform"><label>Логин<input name="login" autocomplete="username" minlength="3" maxlength="80" required></label><label>Пароль<input name="password" type="password" autocomplete="current-password" minlength="10" maxlength="256" required></label><label id="inviteLabel" hidden>Код приглашения<input name="invite" autocomplete="off"></label><button class="primary" type="submit">Войти</button><button type="button" id="register">Создать аккаунт</button><p class="muted">Пароль — минимум 10 символов.</p></form></section></main>
-<main id="dashboard" hidden><div class="top"><div><span class="eyebrow">ОБЗОР ФИНАНСОВ</span><h1 id="title"></h1></div><div class="monthnav"><button id="prev" aria-label="Предыдущий месяц">←</button><input id="month" type="month" min="2000-01" max="2100-12" aria-label="Месяц"><button id="next" aria-label="Следующий месяц">→</button></div></div>
-<div class="layout"><section><div class="hero"><span>Осталось на месяц</span><div id="balance" class="balance"></div><div class="herofoot"><div>Доступный бюджет<strong id="total"></strong></div><div>Потрачено<strong id="spent"></strong></div></div></div><div class="sectionhead"><h2>Недели месяца</h2><span class="muted" id="weekcount"></span></div><div id="weeks" class="weeks"></div><section class="card history"><div class="sectionhead"><h2>История трат</h2><select id="filter" aria-label="Фильтр недели"></select></div><div id="history"></div></section></section>
-<aside><section class="card"><span class="eyebrow">ПЛАНИРОВАНИЕ</span><h2>Бюджет месяца</h2><form id="budgetform"><label>Сумма, ₽<input id="budget" type="number" inputmode="decimal" min="0" max="100000000" step="0.01" required></label><button class="primary">Сохранить бюджет</button></form><div id="transferinfo" class="muted"></div><form id="transferform"><label>Из прошлого месяца, ₽<input id="transferamount" type="number" inputmode="decimal" min="0.01" step="0.01" required></label><button>Перенести остаток</button></form></section><section class="card"><h2>По категориям</h2><div id="categories"></div></section><section class="card"><h2>Данные</h2><button id="export">Скачать резервную копию ↓</button><label class="file">Импорт старого бюджета<input id="import" type="file" accept="application/json,.json"></label><p class="muted" id="saveStatus">Все изменения сохранены на сервере</p></section></aside></div></main>
-<dialog id="weekdialog" aria-labelledby="weektitle"><div class="dialoghead"><div><span class="eyebrow" id="weekdates"></span><h2 id="weektitle"></h2></div><button id="dismiss" aria-label="Закрыть окно">✕</button></div><div id="weeksummary" class="summary"></div><div id="weekeditable"><form id="expenseform"><h3>Добавить трату</h3><div class="formgrid"><label>Сумма, ₽<input name="amount" type="number" inputmode="decimal" min="0.01" max="100000000" step="0.01" required></label><label>Дата<input name="date" type="date" required></label></div><div id="categorybuttons" class="chips" role="group" aria-label="Категория"></div><label>Что купил<input name="note" maxlength="200" placeholder="Например, продукты на ужин"></label><button class="primary">Добавить трату</button></form><details><summary>Изменить лимит недели</summary><form id="limitform"><label>Новый лимит, ₽<input id="limit" type="number" inputmode="decimal" min="0" step="0.01" required></label><button>Перераспределить лимиты</button></form></details><details><summary>Закрыть неделю</summary><p id="closenote" class="muted" role="status" hidden></p><form id="closeform"><label>Куда распределить остаток<select id="closemode"><option value="next">На следующую неделю</option><option value="remaining">На оставшиеся недели</option></select></label><button>Закрыть и распределить</button></form></details></div><h3>Траты недели</h3><div id="weekexpenses"></div></dialog><div id="toast" role="status" hidden></div></body></html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#183f36" />
+    <title>По неделям — финансы</title>
+    <link rel="stylesheet" href="/style.css" />
+    <script defer src="/api-client.js"></script>
+    <script defer src="/app.js"></script>
+    <script defer src="/pickers.js"></script>
+  </head>
+  <body>
+    <header>
+      <a class="brand" href="/"
+        >≋ <span>По неделям<small>Личный бюджет</small></span></a
+      ><button id="logout" hidden>Выйти</button>
+    </header>
+    <main id="auth">
+      <section class="auth card">
+        <span class="eyebrow">ПО НЕДЕЛЯМ</span>
+        <h1>Твои финансы.<br />В одном месте.</h1>
+        <form id="authform">
+          <label
+            >Логин<input
+              name="login"
+              autocomplete="username"
+              minlength="3"
+              maxlength="80"
+              required /></label
+          ><label
+            >Пароль<input
+              name="password"
+              type="password"
+              autocomplete="current-password"
+              minlength="10"
+              maxlength="256"
+              required /></label
+          ><label id="inviteLabel" hidden
+            >Код приглашения<input name="invite" autocomplete="off" /></label
+          ><button class="primary" type="submit">Войти</button
+          ><button type="button" id="register">Создать аккаунт</button>
+          <p class="muted">Пароль — минимум 10 символов.</p>
+        </form>
+      </section>
+    </main>
+    <main id="dashboard" hidden>
+      <div class="top">
+        <div>
+          <span class="eyebrow">ОБЗОР ФИНАНСОВ</span>
+          <h1 id="title"></h1>
+        </div>
+        <div class="monthnav">
+          <button id="prev" aria-label="Предыдущий месяц">←</button
+          ><input
+            id="month"
+            type="month"
+            min="2000-01"
+            max="2100-12"
+            aria-label="Месяц"
+          /><button id="next" aria-label="Следующий месяц">→</button>
+        </div>
+      </div>
+      <div class="layout">
+        <section>
+          <div class="hero">
+            <span>Осталось на месяц</span>
+            <div id="balance" class="balance"></div>
+            <div class="herofoot">
+              <div>Доступный бюджет<strong id="total"></strong></div>
+              <div>Потрачено<strong id="spent"></strong></div>
+            </div>
+          </div>
+          <div class="sectionhead">
+            <h2>Недели месяца</h2>
+            <span class="muted" id="weekcount"></span>
+          </div>
+          <div id="weeks" class="weeks"></div>
+          <section class="card history">
+            <div class="sectionhead">
+              <h2>История трат</h2>
+              <select id="filter" aria-label="Фильтр недели"></select>
+            </div>
+            <div id="history"></div>
+          </section>
+        </section>
+        <aside>
+          <section class="card">
+            <span class="eyebrow">ПЛАНИРОВАНИЕ</span>
+            <h2>Бюджет месяца</h2>
+            <form id="budgetform">
+              <label
+                >Сумма, ₽<input
+                  id="budget"
+                  type="number"
+                  inputmode="decimal"
+                  min="0"
+                  max="100000000"
+                  step="0.01"
+                  required /></label
+              ><button class="primary">Сохранить бюджет</button>
+            </form>
+            <div id="transferinfo" class="muted"></div>
+            <form id="transferform">
+              <label
+                >Из прошлого месяца, ₽<input
+                  id="transferamount"
+                  type="number"
+                  inputmode="decimal"
+                  min="0.01"
+                  step="0.01"
+                  required /></label
+              ><button>Перенести остаток</button>
+            </form>
+          </section>
+          <section class="card">
+            <h2>По категориям</h2>
+            <div id="categories"></div>
+          </section>
+          <section class="card">
+            <h2>Данные</h2>
+            <p class="muted" id="saveStatus">
+              Все изменения сохранены на сервере
+            </p>
+          </section>
+        </aside>
+      </div>
+    </main>
+    <dialog id="weekdialog" aria-labelledby="weektitle">
+      <div class="dialoghead">
+        <div>
+          <span class="eyebrow" id="weekdates"></span>
+          <h2 id="weektitle"></h2>
+        </div>
+        <button id="dismiss" aria-label="Закрыть окно">✕</button>
+      </div>
+      <div id="weeksummary" class="summary"></div>
+      <button id="reopen" hidden>Открыть неделю для исправлений</button>
+      <div id="weekeditable">
+        <form id="expenseform">
+          <h3>Добавить трату</h3>
+          <div class="formgrid">
+            <label
+              >Сумма, ₽<input
+                name="amount"
+                type="number"
+                inputmode="decimal"
+                min="0.01"
+                max="100000000"
+                step="0.01"
+                required /></label
+            ><label>Дата<input name="date" type="date" required /></label>
+          </div>
+          <div
+            id="categorybuttons"
+            class="chips"
+            role="group"
+            aria-label="Категория"
+          ></div>
+          <label
+            >Что купил<input
+              name="note"
+              maxlength="200"
+              placeholder="Например, продукты на ужин" /></label
+          ><button class="primary">Добавить трату</button>
+        </form>
+        <details>
+          <summary>Изменить лимит недели</summary>
+          <form id="limitform">
+            <label
+              >Новый лимит, ₽<input
+                id="limit"
+                type="number"
+                inputmode="decimal"
+                min="0"
+                step="0.01"
+                required /></label
+            ><button>Перераспределить лимиты</button>
+          </form>
+        </details>
+        <details>
+          <summary>Закрыть неделю</summary>
+          <p id="closenote" class="muted" role="status" hidden></p>
+          <form id="closeform">
+            <label
+              >Куда распределить остаток<select id="closemode">
+                <option value="next">На следующую неделю</option>
+                <option value="remaining">На оставшиеся недели</option>
+              </select></label
+            ><button>Закрыть и распределить</button>
+          </form>
+        </details>
+      </div>
+      <h3>Траты недели</h3>
+      <div id="weekexpenses"></div>
+    </dialog>
+    <div id="toast" role="status" hidden></div>
+  </body>
+</html>

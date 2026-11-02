@@ -12,6 +12,7 @@ from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from http.cookies import SimpleCookie
 from urllib.parse import urlparse
 import budget
+import re
 
 ROOT = Path(__file__).resolve().parent
 DB = ROOT / 'data' / 'finance.sqlite3'
@@ -29,6 +30,7 @@ def init():
     DB.parent.mkdir(exist_ok=True)
     with connect() as db:
         db.executescript('''CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, login TEXT UNIQUE, salt TEXT, password TEXT, state TEXT, revision INTEGER DEFAULT 0);
+        CREATE TABLE IF NOT EXISTS operations(user INTEGER REFERENCES users(id), id TEXT, payload TEXT, PRIMARY KEY(user,id));
         CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY, user INTEGER REFERENCES users(id), expires REAL);
         CREATE TABLE IF NOT EXISTS attempts(ip TEXT PRIMARY KEY, count INTEGER, until REAL);''')
 
@@ -58,7 +60,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.path=='/api/state':
             with connect() as db: user=self.user(db)
             return self.send(200,{'login':user[1],'state':json.loads(user[2]),'revision':user[3]}) if user else self.send(401,{'error':'Войдите в аккаунт'})
-        files={'/':'index.html','/app.js':'app.js','/pickers.js':'pickers.js','/style.css':'style.css'}
+        files={'/':'index.html','/app.js':'app.js','/pickers.js':'pickers.js','/api-client.js':'api-client.js','/style.css':'style.css'}
         filename=files.get(urlparse(self.path).path)
         requested=urlparse(self.path).path
         if requested.startswith('/icons/') and requested.count('/')==2 and requested.endswith('.svg') and (ROOT/'web'/requested[1:]).is_file():
@@ -108,13 +110,21 @@ class Handler(BaseHTTPRequestHandler):
                 if self.path=='/api/logout':
                     db.execute('DELETE FROM sessions WHERE token=?',(self.token(),)); db.commit()
                     return self.send(200,{},'session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0')
-                if data.get('revision')!=user[3]: return self.send(409,{'error':'Данные изменены в другой вкладке. Обновите страницу'})
-                state=json.loads(user[2])
-                if self.path=='/api/action': state=budget.apply(state,data['action'])
-                elif self.path=='/api/import':
-                    if state['months']: raise ValueError('Импорт доступен только в пустой аккаунт, чтобы не затереть записи')
-                    state=budget.migrate(data['backup'])
-                else: return self.send(404,{'error':'Не найдено'})
+                if self.path != '/api/action':
+                    return self.send(404, {'error': 'Не найдено'})
+                operation_id = data.get('operationId', '')
+                if not isinstance(operation_id, str) or not re.fullmatch(r'[a-zA-Z0-9-]{16,80}', operation_id):
+                    raise ValueError('Некорректный идентификатор операции')
+                payload = hashlib.sha256(json.dumps(data['action'], sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+                receipt = db.execute('SELECT payload FROM operations WHERE user=? AND id=?', (user[0], operation_id)).fetchone()
+                if receipt:
+                    if receipt[0] != payload:
+                        return self.send(409, {'error': 'Идентификатор операции уже использован'})
+                    return self.send(200, {'state': json.loads(user[2]), 'revision': user[3]})
+                if data.get('revision') != user[3]:
+                    return self.send(409, {'error': 'Данные изменены в другой вкладке. Обновите страницу'})
+                state = budget.apply(json.loads(user[2]), data['action'])
+                db.execute('INSERT INTO operations VALUES(?,?,?)', (user[0], operation_id, payload))
                 db.execute('UPDATE users SET state=?,revision=revision+1 WHERE id=?',(json.dumps(state),user[0])); db.commit()
                 self.send(200,{'state':state,'revision':user[3]+1})
         except (ValueError,KeyError,TypeError,IndexError) as exc: self.send(400,{'error':str(exc)})
