@@ -51,6 +51,10 @@ def ensure(state, key):
 def spent(m, i=None):
     return sum(e['amount'] for e in m['expenses'] if i is None or e['week'] == i)
 
+def accounted(w):
+    # Settlement funds future weeks without rewriting the historical limit.
+    return w.get('settled', w['limit'])
+
 def apply(state, action):
     state = copy.deepcopy(state)
     key = action['month']
@@ -61,7 +65,7 @@ def apply(state, action):
     if kind == 'budget':
         m['budget'] = amount(action['amount'])
         ids = [i for i,w in enumerate(m['weeks']) if not w['closed']]
-        rebalance(m, ids, m['budget']+m['incoming']-m['outgoing']-sum(w['limit'] for w in m['weeks'] if w['closed']))
+        rebalance(m, ids, m['budget']+m['incoming']-m['outgoing']-sum(accounted(w) for w in m['weeks'] if w['closed']))
     elif kind == 'transfer':
         y, mon = map(int,key.split('-'))
         previous = (dt.date(y,mon,1)-dt.timedelta(days=1)).strftime('%Y-%m')
@@ -74,7 +78,7 @@ def apply(state, action):
         source['outgoing'] += value
         m['incoming'] += value
         ids = [i for i,w in enumerate(m['weeks']) if not w['closed']]
-        rebalance(m, ids, effective+value-sum(w['limit'] for w in m['weeks'] if w['closed']))
+        rebalance(m, ids, effective+value-sum(accounted(w) for w in m['weeks'] if w['closed']))
     else:
         i = action.get('week')
         if type(i) is not int or not 0 <= i < len(m['weeks']):
@@ -98,7 +102,7 @@ def apply(state, action):
         elif kind == 'limit':
             value = amount(action['amount'])
             ids = [j for j,v in enumerate(m['weeks']) if not v['closed'] and j != i]
-            rebalance(m, ids, effective-sum(v['limit'] for j,v in enumerate(m['weeks']) if v['closed'] or j==i)+w['limit']-value)
+            rebalance(m, ids, effective-sum(accounted(v) for v in m['weeks'] if v['closed'])-value)
             w['limit'] = value
         elif kind == 'close':
             if any(not previous['closed'] for previous in m['weeks'][:i]):
@@ -112,7 +116,7 @@ def apply(state, action):
             if ids:
                 total = sum(m['weeks'][j]['limit'] for j in ids)+w['limit']-spent(m,i)
                 rebalance(m, ids, total)
-                w['limit'] = spent(m,i)
+                w['settled'] = spent(m,i)
             w['closed'] = True
         else:
             raise ValueError('Неизвестное действие')
@@ -158,11 +162,15 @@ def validate_state(raw):
         outgoing=amount(m['outgoing'])
         if outgoing and (not all(w['closed'] for w in m['weeks']) or outgoing>total-spent(m)):
             raise ValueError('Некорректный перенос')
-        for w,base in zip(m['weeks'],expected):
+        for index,(w,base) in enumerate(zip(m['weeks'],expected)):
             if any(w[k]!=base[k] for k in ('start','end','days')) or type(w['closed']) is not bool:
                 raise ValueError('Некорректная неделя')
             amount(w['limit'])
-        if sum(w['limit'] for w in m['weeks'])!=total:
+            if 'settled' in w:
+                amount(w['settled'])
+                if not w['closed'] or w['settled'] != spent(m,index):
+                    raise ValueError('Некорректный расчёт закрытой недели')
+        if sum(accounted(w) for w in m['weeks'])!=total:
             raise ValueError('Сумма лимитов не совпадает с бюджетом')
         ids=set()
         for e in m['expenses']:

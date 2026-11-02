@@ -6,11 +6,12 @@ export function allocate(total,weights){check(total>=0,'Бюджета недо�
 function rebalance(m,ids,total){allocate(total,ids.map(i=>m.weeks[i].days)).forEach((n,j)=>m.weeks[ids[j]].limit=n)}
 function ensure(state,key){weeks(key);return state.months[key]??=( {budget:0,incoming:0,outgoing:0,weeks:weeks(key).map(w=>({...w,limit:0,closed:false})),expenses:[]})}
 export const spent=(m,i)=>m.expenses.filter(e=>i===undefined||e.week===i).reduce((s,e)=>s+e.amount,0);
+const accounted=w=>w.settled??w.limit;
 function previous(key){const [y,m]=key.split('-').map(Number),d=new Date(Date.UTC(y,m-1,0));return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}`}
 function validDate(value,key,w){check(typeof value==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(value),'Некорректная дата');const d=new Date(value+'T12:00:00Z');check(!isNaN(d)&&d.toISOString().slice(0,10)===value&&value.slice(0,7)===key&&d.getUTCDate()>=w.start&&d.getUTCDate()<=w.end,'Дата должна попадать в выбранную неделю')}
 export function apply(original,action){
  const state=structuredClone(original),key=action.month,m=ensure(state,key),effective=m.budget+m.incoming-m.outgoing,type=action.type;
- const open=()=>m.weeks.flatMap((w,i)=>w.closed?[]:[i]),closedTotal=()=>m.weeks.filter(w=>w.closed).reduce((s,w)=>s+w.limit,0);
+ const open=()=>m.weeks.flatMap((w,i)=>w.closed?[]:[i]),closedTotal=()=>m.weeks.filter(w=>w.closed).reduce((s,w)=>s+accounted(w),0);
  if(type==='budget'){m.budget=amount(action.amount);rebalance(m,open(),m.budget+m.incoming-m.outgoing-closedTotal())}
  else if(type==='transfer'){const source=state.months[previous(key)];check(source&&source.weeks.every(w=>w.closed),'Сначала закройте все недели предыдущего месяца');const value=amount(action.amount,true);check(value<=source.budget+source.incoming-source.outgoing-spent(source),'Недостаточно остатка для переноса');source.outgoing+=value;m.incoming+=value;rebalance(m,open(),effective+value-closedTotal())}
  else{
@@ -18,7 +19,7 @@ export function apply(original,action){
   if(type==='expense'){validDate(action.date,key,w);check(categories.includes(action.category),'Неизвестная категория');const note=String(action.note||'').trim();check(note.length<=200,'Описание слишком длинное');m.expenses.push({id:crypto.randomUUID().replaceAll('-',''),week:i,amount:amount(action.amount,true),date:action.date,category:action.category,note})}
   else if(type==='delete'){m.expenses=m.expenses.filter(e=>!(e.id===action.id&&e.week===i))}
   else if(type==='limit'){const value=amount(action.amount);rebalance(m,open().filter(j=>j!==i),effective-closedTotal()-value);w.limit=value}
-  else if(type==='close'){check(m.weeks.slice(0,i).every(w=>w.closed),'Сначала закройте предыдущие недели');check(['next','remaining','month'].includes(action.mode),'Выберите способ распределения');let ids=open().filter(j=>j>i);if(action.mode==='next')ids=ids.slice(0,1);if(ids.length){rebalance(m,ids,ids.reduce((s,j)=>s+m.weeks[j].limit,0)+w.limit-spent(m,i));w.limit=spent(m,i)}w.closed=true}
+  else if(type==='close'){check(m.weeks.slice(0,i).every(w=>w.closed),'Сначала закройте предыдущие недели');check(['next','remaining','month'].includes(action.mode),'Выберите способ распределения');let ids=open().filter(j=>j>i);if(action.mode==='next')ids=ids.slice(0,1);if(ids.length){rebalance(m,ids,ids.reduce((s,j)=>s+m.weeks[j].limit,0)+w.limit-spent(m,i));w.settled=spent(m,i)}w.closed=true}
   else throw Error('Неизвестное действие');
  }
  return state;
@@ -29,8 +30,8 @@ export function validate(raw){
   const ws=weeks(key);check(m&&Array.isArray(m.weeks)&&m.weeks.length===ws.length&&Array.isArray(m.expenses)&&m.expenses.length<=100000,'Некорректный месяц');
   const total=amount(m.budget)+amount(m.incoming),outgoing=amount(m.outgoing);
   check(!outgoing||(m.weeks.every(w=>w.closed)&&outgoing<=total-spent(m)),'Некорректный перенос');
-  m.weeks.forEach((w,i)=>{check(w&&['start','end','days'].every(k=>w[k]===ws[i][k])&&typeof w.closed==='boolean','Некорректная неделя');amount(w.limit)});
-  check(m.weeks.reduce((s,w)=>s+w.limit,0)===total,'Сумма лимитов не совпадает с бюджетом');
+  m.weeks.forEach((w,i)=>{check(w&&['start','end','days'].every(k=>w[k]===ws[i][k])&&typeof w.closed==='boolean','Некорректная неделя');amount(w.limit);if('settled' in w){amount(w.settled);check(w.closed&&w.settled===spent(m,i))}});
+  check(m.weeks.reduce((s,w)=>s+accounted(w),0)===total,'Сумма лимитов не совпадает с бюджетом');
   const ids=new Set();for(const e of m.expenses){amount(e.amount,true);check(Number.isInteger(e.week)&&e.week>=0&&e.week<ws.length&&categories.includes(e.category)&&typeof e.note==='string'&&e.note.length<=200&&typeof e.id==='string'&&e.id.length>0&&e.id.length<=100&&!ids.has(e.id),'Некорректная трата');ids.add(e.id);validDate(e.date,key,ws[e.week])}
  }
  return structuredClone(raw);
