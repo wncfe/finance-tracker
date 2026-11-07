@@ -3,8 +3,9 @@ import calendar
 import copy
 import datetime as dt
 import uuid
+import re
 
-CATEGORIES = ['Супермаркеты', 'Кафе', 'Транспорт', 'Дом', 'Здоровье', 'Покупки', 'Развлечения', 'Другое']
+CATEGORIES = ['Продукты', 'Фастфуд', 'Рестораны', 'Кофейни', 'Транспорт', 'Дом', 'Здоровье', 'Покупки', 'Одежда и обувь', 'Красота', 'Спорт', 'Дети', 'Подарки и творчество', 'Книги и образование', 'Связь и интернет', 'Подписки и цифровые сервисы', 'Путешествия', 'Развлечения', 'Другое', 'Супермаркеты', 'Кафе']
 
 def weeks(key):
     y, m = map(int, key.split('-'))
@@ -76,6 +77,19 @@ def redistribute(m):
 
 
 def apply(state, action):
+    if action.get('type') == 'expenses':
+        items = action.get('items')
+        if not isinstance(items, list) or not 1 <= len(items) <= 50:
+            raise ValueError('Добавьте от 1 до 50 расходов')
+        result = copy.deepcopy(state)
+        for item in items:
+            if not isinstance(item, dict) or not isinstance(item.get('date'), str) or not re.fullmatch(r'\d{4}-\d{2}-\d{2}', item['date']):
+                raise ValueError('Некорректная дата')
+            date = dt.date.fromisoformat(item['date'])
+            key = date.strftime('%Y-%m')
+            index = next(i for i, w in enumerate(weeks(key)) if w['start'] <= date.day <= w['end'])
+            result = apply(result, dict(item, type='expense', month=key, week=index))
+        return result
     state = copy.deepcopy(state)
     key = action['month']
     weeks(key)
@@ -121,7 +135,7 @@ def apply(state, action):
             if category not in CATEGORIES:
                 raise ValueError('Неизвестная категория')
             note = str(action.get('note','')).strip()
-            if len(note)>200:
+            if len(note.encode('utf-16-le'))//2>200:
                 raise ValueError('Описание слишком длинное')
             m['expenses'].append({'id':uuid.uuid4().hex,'week':i,'amount':amount(action['amount'], True),'date':date.isoformat(),'category':category,'note':note})
             if m['outgoing'] and spent(m) > effective:

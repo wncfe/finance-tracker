@@ -60,7 +60,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.path=='/api/state':
             with connect() as db: user=self.user(db)
             return self.send(200,{'login':user[1],'state':json.loads(user[2]),'revision':user[3]}) if user else self.send(401,{'error':'Войдите в аккаунт'})
-        files={'/':'index.html','/app.js':'app.js','/pickers.js':'pickers.js','/api-client.js':'api-client.js','/style.css':'style.css'}
+        files={'/':'index.html','/expense-history.js':'expense-history.js','/expense-parser.js':'expense-parser.js','/quick-add.js':'quick-add.js','/app.js':'app.js','/pickers.js':'pickers.js','/api-client.js':'api-client.js','/style.css':'style.css'}
         filename=files.get(urlparse(self.path).path)
         requested=urlparse(self.path).path
         if requested.startswith('/icons/') and requested.count('/')==2 and requested.endswith('.svg') and (ROOT/'web'/requested[1:]).is_file():

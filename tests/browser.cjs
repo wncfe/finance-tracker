@@ -223,6 +223,243 @@ const assert = require("node:assert/strict");
     await page.locator("#dismiss").click();
     assert.equal(await page.locator("#export").count(), 0);
     assert.equal(await page.locator("#import").count(), 0);
+    // Global add ignores the month currently on screen; batch spans months.
+    await page.locator("#quickopen").click();
+    await page.locator("#quicktext").fill("2026-11-01 кофе 250");
+    await page.locator("#quickparse button").click();
+    assert.equal(await page.locator("#quicksubmit").isDisabled(), true);
+    assert.match(
+      await page.locator("#quickrows").textContent(),
+      /Неделя закрыта/,
+    );
+    await page
+      .locator("#quicktext")
+      .fill("2026-11-02 кофе 250; 2026-12-01 продукты 850,50");
+    await page.locator("#quickparse button").click();
+    assert.equal(await page.locator(".quick-row").count(), 2);
+    const firstRow = page.locator(".quick-row").first();
+    await firstRow
+      .locator("label")
+      .filter({ has: page.locator("[data-field=date]") })
+      .locator(".picker-trigger")
+      .click();
+    await page.locator('.picker[open] [data-month-move="1"]').click();
+    assert.match(
+      await page.locator(".picker[open] .picker-head").textContent(),
+      /Декабрь 2026/,
+    );
+    await page.locator('.picker[open] [data-month-move="-1"]').click();
+    await page.locator('.picker[open] [data-value="2026-11-03"]').click();
+    assert.equal(
+      await firstRow.locator("[data-field=date]").inputValue(),
+      "2026-11-03",
+    );
+    await firstRow.locator(".select-trigger").click();
+    await page
+      .locator(".picker[open] [data-option]")
+      .filter({ hasText: "Рестораны" })
+      .click();
+    assert.equal(
+      await firstRow.locator("[data-field=category]").inputValue(),
+      "Рестораны",
+    );
+    await firstRow.locator(".select-trigger").click();
+    await page
+      .locator(".picker[open] [data-option]")
+      .filter({ hasText: "Кофейни" })
+      .click();
+    for (const width of [320, 360, 390, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      assert.equal(
+        await page
+          .locator("#quickdialog")
+          .evaluate((el) => el.scrollWidth <= el.clientWidth),
+        true,
+        "quick dialog overflow " + width,
+      );
+      for (const picker of [
+        firstRow.locator(".select-trigger"),
+        firstRow
+          .locator("label")
+          .filter({ has: page.locator("[data-field=date]") })
+          .locator(".picker-trigger"),
+      ]) {
+        await picker.click();
+        assert.equal(
+          await page
+            .locator(".picker[open]")
+            .evaluate((el) => el.scrollWidth <= el.clientWidth),
+          true,
+          "quick picker overflow " + width,
+        );
+        await page.locator(".picker[open] .picker-cancel").click();
+      }
+    }
+    await page
+      .locator(".quick-row")
+      .first()
+      .locator("[data-field=remember]")
+      .check();
+    let batchLost = false;
+    await page.route("**/api/action", async (route) => {
+      if (!batchLost) {
+        batchLost = true;
+        await route.fetch();
+        await route.abort("failed");
+      } else await route.continue();
+    });
+    await page.locator("#quicksubmit").click();
+    await page.locator("#quickdialog").waitFor({ state: "hidden" });
+    await page.unroute("**/api/action");
+    const result = await page.evaluate(() =>
+      fetch("/api/state").then((r) => r.json()),
+    );
+    assert.equal(
+      result.state.months["2026-11"].expenses.filter((e) => e.note === "Кофе")
+        .length,
+      1,
+    );
+    assert.equal(result.state.months["2026-12"].expenses[0].amount, 85050);
+    await page.locator("#quickopen").click();
+    await page.locator("#quickrules").evaluate((el) => (el.open = true));
+    assert.match(await page.locator("#rulelist").textContent(), /кофе/);
+    await page.locator("#rulelist .select-trigger").click();
+    await page
+      .locator(".picker[open] [data-option]")
+      .filter({ hasText: "Рестораны" })
+      .click();
+    assert.equal(
+      await page.locator("#rulelist select").inputValue(),
+      "Рестораны",
+    );
+    await page.locator("#rulelist [data-rule]").click();
+    assert.match(
+      await page.locator("#rulelist").textContent(),
+      /Нет сохранённых правил/,
+    );
+    await page.locator("#quickclose").click();
+    // Both replies lost: resume the same pending batch after a reload.
+    await page.locator("#quickopen").click();
+    await page.locator("#quicktext").fill("2026-12-02 кофе 123");
+    await page.locator("#quickparse button").click();
+    await page.route("**/api/action", async (route) => {
+      await route.fetch();
+      await route.abort("failed");
+    });
+    await page.locator("#quicksubmit").click();
+    await page.waitForFunction(() =>
+      document
+        .querySelector("#quickerror")
+        .textContent.includes("Результат пока неизвестен"),
+    );
+    await page.unroute("**/api/action");
+    await page.reload();
+    await page.locator("#dashboard").waitFor({ state: "visible" });
+    await page.locator("#quickopen").click();
+    await page.locator("#quicksubmit").click();
+    await page.locator("#quickdialog").waitFor({ state: "hidden" });
+    const recovered = await page.evaluate(() =>
+      fetch("/api/state").then((r) => r.json()),
+    );
+    assert.equal(
+      recovered.state.months["2026-12"].expenses.filter(
+        (e) => e.amount === 12300,
+      ).length,
+      1,
+    );
+    // Stale preview cannot save an older interpretation after text edits.
+    await page.locator("#quickopen").click();
+    await page.locator("#quicktext").fill("2026-12-03 кофе 250");
+    await page.locator("#quickparse button").click();
+    await page.locator("#quicktext").fill("2026-12-03 кофе 350");
+    assert.equal(await page.locator("#quicksubmit").isDisabled(), true);
+    assert.match(
+      await page.locator("#quickerror").textContent(),
+      /Текст изменился/,
+    );
+    await page.locator("#quickparse button").click();
+    assert.equal(await page.locator("#quicksubmit").isEnabled(), true);
+    const dialogCount = await page.locator(".picker").count();
+    for (let i = 0; i < 3; i++)
+      await page.locator("#quickparse button").click();
+    assert.equal(
+      await page.locator(".picker").count(),
+      dialogCount,
+      "dynamic pickers must be disposed",
+    );
+    // Another tab changes the budget between preview and commit.
+    const conflictBefore = await page.evaluate(async () => {
+      const v = await fetch("/api/state").then((r) => r.json());
+      const r = await fetch("/api/action", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          revision: v.revision,
+          operationId: crypto.randomUUID(),
+          action: { type: "budget", month: "2026-12", amount: 100000 },
+        }),
+      });
+      return r.json();
+    });
+    await page.locator("#quicksubmit").click();
+    await page.waitForFunction(
+      () =>
+        document.querySelector("#saveStatus").textContent ===
+        "Изменение не сохранено",
+    );
+    assert.equal(
+      (await page.evaluate(() => fetch("/api/state").then((r) => r.json())))
+        .revision,
+      conflictBefore.revision,
+    );
+    assert.equal(await page.locator("#quicksubmit").isEnabled(), true);
+    // Conflicting personal rules for the same description need resolution.
+    await page
+      .locator("#quicktext")
+      .fill("2026-12-03 кофе 250; 2026-12-03 кофе 300");
+    await page.locator("#quickparse button").click();
+    await page.locator(".quick-row [data-field=remember]").first().check();
+    await page.locator(".quick-row [data-field=remember]").last().check();
+    await page.locator(".quick-row .select-trigger").last().click();
+    await page
+      .locator(".picker[open] [data-option]")
+      .filter({ hasText: "Рестораны" })
+      .click();
+    assert.equal(await page.locator("#quicksubmit").isDisabled(), true);
+    assert.match(
+      await page.locator("#quickerror").textContent(),
+      /разные правила/,
+    );
+    await page.locator(".quick-row [data-field=remember]").last().uncheck();
+    assert.equal(await page.locator("#quicksubmit").isEnabled(), true);
+    // Unparsed fragments stay visible and block the complete batch.
+    await page.locator("#quicktext").fill("кофе 250, без суммы");
+    await page.locator("#quickparse button").click();
+    assert.equal(await page.locator(".quick-row").count(), 2);
+    assert.equal(await page.locator("#quicksubmit").isDisabled(), true);
+    await page.locator('[data-remove="1"]').click();
+    assert.equal(await page.locator("#quicksubmit").isEnabled(), true);
+    // Malformed browser rules are ignored; user descriptions stay text.
+    await page.evaluate(() =>
+      localStorage.setItem("expense-rules:browser-test", "null"),
+    );
+    await page.locator("#quickclose").click();
+    await page.locator("#quickopen").click();
+    await page
+      .locator("#quicktext")
+      .fill("<img src=x onerror=alert(1)> кофе 250");
+    await page.locator("#quickparse button").click();
+    assert.equal(await page.locator("#quickrows img[src=x]").count(), 0);
+    assert.match(await page.locator(".quick-row .raw").textContent(), /<img/);
+    // Over-limit batches and blank text cannot accidentally submit.
+    await page.locator("#quicktext").fill(Array(51).fill("кофе 250").join(";"));
+    await page.locator("#quickparse button").click();
+    assert.equal(await page.locator("#quicksubmit").isDisabled(), true);
+    await page.locator("#quicktext").fill("   ");
+    await page.locator("#quickparse button").click();
+    assert.equal(await page.locator(".quick-row").count(), 0);
+    assert.equal(await page.locator("#quicksave").isVisible(), false);
+    await page.locator("#quickclose").click();
     assert.deepEqual(errors, []);
     console.log(
       "Browser checks passed: auth, expense, reload, icons, desktop, mobile 390/360/320, next-week closure. Screenshots: " +

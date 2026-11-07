@@ -1,24 +1,50 @@
 "use strict";
 const $ = (id) => document.getElementById(id),
   cats = [
-    "Супермаркеты",
-    "Кафе",
+    "Продукты",
+    "Фастфуд",
+    "Рестораны",
+    "Кофейни",
     "Транспорт",
     "Дом",
     "Здоровье",
     "Покупки",
+    "Одежда и обувь",
+    "Красота",
+    "Спорт",
+    "Дети",
+    "Подарки и творчество",
+    "Книги и образование",
+    "Связь и интернет",
+    "Подписки и цифровые сервисы",
+    "Путешествия",
     "Развлечения",
     "Другое",
+    "Супермаркеты",
+    "Кафе",
   ],
   iconNames = [
     "shopping-basket",
+    "burger",
+    "utensils",
     "coffee",
     "bus",
     "house",
     "heart-pulse",
     "shopping-bag",
+    "shirt",
+    "sparkles",
+    "dumbbell",
+    "baby",
+    "gift",
+    "book",
+    "phone",
+    "monitor",
+    "plane",
     "clapperboard",
     "ellipsis",
+    "shopping-basket",
+    "coffee",
   ];
 const icon = (name) =>
     `<img class="svgicon" src="/icons/${name}.svg" alt="" aria-hidden="true">`,
@@ -64,6 +90,7 @@ async function api(path, data) {
       $("dashboard").hidden = true;
       $("logout").hidden = true;
       if ($("weekdialog").open) $("weekdialog").close();
+      if ($("quickdialog").open) $("quickdialog").close();
     }
     const error = Error(result.error);
     error.status = r.status;

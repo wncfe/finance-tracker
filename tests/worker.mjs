@@ -100,6 +100,37 @@ assert.equal(
   (await api("a", "import", { revision: saved[1].revision, backup: {} }))[0],
   404,
 );
+const batchBefore = (await api("a", "state"))[1];
+const batch = {
+  revision: batchBefore.revision,
+  operationId: crypto.randomUUID(),
+  action: {
+    type: "expenses",
+    items: [
+      { date: "2026-12-31", amount: 101, category: "Кофейни", note: "Кофе" },
+      {
+        date: "2027-01-01",
+        amount: 202,
+        category: "Продукты",
+        note: "Продукты",
+      },
+    ],
+  },
+};
+const batchSaved = await api("a", "action", batch);
+assert.equal(batchSaved[0], 200);
+assert.deepEqual(await api("a", "action", batch), batchSaved);
+assert.equal(batchSaved[1].state.months["2027-01"].expenses.length, 1);
+const bad = await api("a", "action", {
+  revision: batchSaved[1].revision,
+  action: {
+    type: "expenses",
+    items: [batch.action.items[0], { ...batch.action.items[1], amount: -1 }],
+  },
+});
+assert.equal(bad[0], 400);
+assert.deepEqual((await api("a", "state"))[1].state, batchSaved[1].state);
+assert.equal((await api("a", "state"))[1].revision, batchSaved[1].revision);
 assert.equal((await api("a", "logout", {}))[0], 200);
 assert.equal((await api("a", "state"))[0], 401);
 console.log(

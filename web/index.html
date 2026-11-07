@@ -10,7 +10,10 @@
     <title>По неделям — финансы</title>
     <link rel="stylesheet" href="/style.css" />
     <script defer src="/api-client.js"></script>
+    <script defer src="/expense-history.js"></script>
+    <script defer src="/expense-parser.js"></script>
     <script defer src="/app.js"></script>
+    <script defer src="/quick-add.js"></script>
     <script defer src="/pickers.js"></script>
   </head>
   <body>
@@ -64,6 +67,13 @@
           /><button id="next" aria-label="Следующий месяц">→</button>
         </div>
       </div>
+      <section class="quick-launch card">
+        <div>
+          <h2>Запишите расход своими словами</h2>
+          <p class="muted">Кофе 250 · вчера такси 430 · продукты 1 250,50</p>
+        </div>
+        <button id="quickopen" class="primary">＋ Добавить расход</button>
+      </section>
       <div class="layout">
         <section>
           <div class="hero">
@@ -196,6 +206,45 @@
       </div>
       <h3>Траты недели</h3>
       <div id="weekexpenses"></div>
+    </dialog>
+    <dialog id="quickdialog" aria-labelledby="quicktitle">
+      <div class="dialoghead">
+        <div>
+          <span class="eyebrow">БЫСТРЫЙ ВВОД</span>
+          <h2 id="quicktitle">Добавить расходы</h2>
+        </div>
+        <button id="quickclose" aria-label="Закрыть быстрый ввод">✕</button>
+      </div>
+      <form id="quickparse">
+        <label
+          >Что потратили?<textarea
+            id="quicktext"
+            rows="3"
+            maxlength="6000"
+            placeholder="вчера кофе 250; 5 ноября магнит 1 250,50"
+            required
+          ></textarea>
+        </label>
+        <p class="muted">
+          Несколько расходов разделяйте запятой, точкой с запятой или новой
+          строкой. Без даты — сегодня; без года — текущий год.
+        </p>
+        <button class="primary">Разобрать</button>
+      </form>
+      <form id="quicksave" hidden>
+        <div id="quickrows"></div>
+        <p id="quicktotal" role="status"></p>
+        <p id="quickerror" role="alert"></p>
+        <button class="primary" id="quicksubmit">Сохранить расходы</button>
+      </form>
+      <details id="quickrules">
+        <summary>Мои правила категорий</summary>
+        <p class="muted">
+          Правило действует для точного описания и только в этом браузере для
+          вашего аккаунта. История не меняется.
+        </p>
+        <div id="rulelist"></div>
+      </details>
     </dialog>
     <div id="toast" role="status" hidden></div>
   </body>

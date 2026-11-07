@@ -11,6 +11,13 @@ for (let year = 2024; year <= 2027; year++)
     });
 actions.push(
   {
+    type: "expenses",
+    items: [
+      { date: "2026-10-01", amount: 12345, category: "Кофейни", note: "Кофе" },
+      { date: "2026-11-02", amount: 45000, category: "Продукты" },
+    ],
+  },
+  {
     type: "expense",
     month: "2026-11",
     week: 0,

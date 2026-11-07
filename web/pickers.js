@@ -33,7 +33,7 @@ function pickerDialog(title) {
   });
   return dialog;
 }
-function attachPicker(input, kind) {
+function attachPicker(input, kind, { navigate = false } = {}) {
   const trigger = document.createElement("button");
   trigger.type = "button";
   trigger.className = "picker-trigger";
@@ -49,6 +49,7 @@ function attachPicker(input, kind) {
     kind === "date" ? "Выбрать дату" : "Выбрать месяц",
   );
   let year = 2026;
+  let viewedMonth = "";
   const sync = () => {
     if (kind === "month") {
       const [y, m] = input.value.split("-").map(Number);
@@ -63,6 +64,7 @@ function attachPicker(input, kind) {
   };
   function choose(value) {
     input.value = value;
+    input.dispatchEvent(new Event("input", { bubbles: true }));
     input.dispatchEvent(new Event("change", { bubbles: true }));
     sync();
     dialog.close();
@@ -79,34 +81,63 @@ function attachPicker(input, kind) {
           "",
         )}</div><button type="button" class="picker-cancel">Закрыть</button>`;
     } else {
-      const value = input.value || input.min,
+      const value = viewedMonth,
         [y, m] = value.split("-").map(Number),
         start = (new Date(y, m - 1, 1).getDay() + 6) % 7,
         count = new Date(y, m, 0).getDate();
-      dialog.innerHTML = `<div class="picker-head"><strong>${months[m - 1]} ${y}</strong><button type="button" class="picker-cancel" aria-label="Закрыть">${icon("x")}</button></div><div class="day-grid">${["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].map((d) => `<span>${d}</span>`).join("")}${"<span></span>".repeat(start)}${Array.from(
+      const moveButton = (n, label, name) => {
+        const d = new Date(y, m - 1 + n, 1, 12);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+        const disabled =
+          (input.min && key < input.min.slice(0, 7)) ||
+          (input.max && key > input.max.slice(0, 7));
+        return `<button type="button" data-month-move="${n}" aria-label="${label}" ${disabled ? "disabled" : ""}>${icon(name)}</button>`;
+      };
+      dialog.innerHTML = `<div class="picker-head">${navigate ? moveButton(-1, "Предыдущий месяц", "chevron-left") : ""}<strong>${months[m - 1]} ${y}</strong>${navigate ? moveButton(1, "Следующий месяц", "chevron-right") : ""}<button type="button" class="picker-cancel" aria-label="Закрыть">${icon("x")}</button></div><div class="day-grid">${["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].map((d) => `<span>${d}</span>`).join("")}${"<span></span>".repeat(start)}${Array.from(
         { length: count },
         (_, i) => {
           const v = `${y}-${String(m).padStart(2, "0")}-${String(i + 1).padStart(2, "0")}`;
-          return `<button type="button" data-value="${v}" ${v < input.min || v > input.max ? "disabled" : ""} aria-pressed="${v === input.value}">${i + 1}</button>`;
+          return `<button type="button" data-value="${v}" ${(input.min && v < input.min) || (input.max && v > input.max) ? "disabled" : ""} aria-pressed="${v === input.value}">${i + 1}</button>`;
         },
-      ).join("")}</div><p class="muted">Даты выбранной недели</p>`;
+      ).join(
+        "",
+      )}</div><p class="muted">${navigate ? "Выберите дату расхода" : "Даты выбранной недели"}</p>`;
     }
   }
   dialog.onclick = (e) => {
     const b = e.target.closest("button");
-    if (!b) return;
+    if (!b || b.disabled) return;
     if (b.dataset.value) choose(b.dataset.value);
     else if (b.dataset.move) {
       year = Math.min(2100, Math.max(2000, year + Number(b.dataset.move)));
       draw();
+    } else if (b.dataset.monthMove) {
+      const [y, m] = viewedMonth.split("-").map(Number);
+      const d = new Date(y, m - 1 + Number(b.dataset.monthMove), 1, 12);
+      viewedMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      draw();
+      dialog
+        .querySelector(`[data-month-move="${b.dataset.monthMove}"]`)
+        ?.focus();
     } else if (b.classList.contains("picker-cancel")) dialog.close();
   };
   trigger.onclick = () => {
+    if (input.disabled) return;
+    let value = input.value || ExpenseParser.iso(new Date());
+    if (input.min && value < input.min) value = input.min;
+    if (input.max && value > input.max) value = input.max;
+    viewedMonth = value.slice(0, 7);
     year = Number((input.value || input.min).slice(0, 4));
     draw();
     dialog.showModal();
   };
   input.addEventListener("change", sync);
+  sync.destroy = () => {
+    dialog.remove();
+    trigger.remove();
+    input.removeEventListener("change", sync);
+  };
+  sync();
   return sync;
 }
 function attachSelect(select) {
@@ -126,14 +157,15 @@ function attachSelect(select) {
       (select.selectedOptions[0]?.textContent || "Выбрать") + " ⌄";
   };
   trigger.onclick = () => {
+    if (select.disabled) return;
     dialog.innerHTML =
       "<h2>" +
-      trigger.getAttribute("aria-label") +
+      esc(trigger.getAttribute("aria-label")) +
       '</h2><div class="option-list">' +
       Array.from(select.options)
         .map(
           (o, i) =>
-            `<button type="button" data-option="${i}" aria-pressed="${o.selected}">${o.textContent}<span>${o.selected ? "✓" : ""}</span></button>`,
+            `<button type="button" data-option="${i}" ${o.disabled ? "disabled" : ""} aria-pressed="${o.selected}">${esc(o.textContent)}<span>${o.selected ? "✓" : ""}</span></button>`,
         )
         .join("") +
       '</div><button type="button" class="picker-cancel">Закрыть</button>';
@@ -141,9 +173,10 @@ function attachSelect(select) {
   };
   dialog.onclick = (e) => {
     const b = e.target.closest("button");
-    if (!b) return;
+    if (!b || b.disabled) return;
     if (b.dataset.option !== undefined) {
       select.selectedIndex = Number(b.dataset.option);
+      select.dispatchEvent(new Event("input", { bubbles: true }));
       select.dispatchEvent(new Event("change", { bubbles: true }));
       sync();
       dialog.close();
@@ -151,6 +184,12 @@ function attachSelect(select) {
     } else dialog.close();
   };
   select.addEventListener("change", sync);
+  sync.destroy = () => {
+    dialog.remove();
+    trigger.remove();
+    select.removeEventListener("change", sync);
+  };
+  sync();
   return sync;
 }
 const syncMonth = attachPicker($("month"), "month"),

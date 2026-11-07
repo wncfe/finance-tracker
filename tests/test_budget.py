@@ -3,6 +3,22 @@ import unittest
 import budget
 
 class BudgetTests(unittest.TestCase):
+    def test_batch_atomic_and_closed_week(self):
+        snapshot=copy.deepcopy(self.state)
+        items=[dict(date='2026-11-02',amount=10000,category='Кофейни'),dict(date='2026-12-01',amount=20000,category='Продукты')]
+        result=budget.apply(self.state,dict(type='expenses',items=items))
+        self.assertEqual(len(result['months']['2026-11']['expenses']),1)
+        self.assertEqual(len(result['months']['2026-12']['expenses']),1)
+        self.assertEqual(self.state,snapshot)
+        closed=budget.apply(self.state,dict(month='2026-11',week=0,type='close',mode='next'))
+        before=copy.deepcopy(closed)
+        with self.assertRaisesRegex(ValueError,'закрыта'):
+            budget.apply(closed,dict(type='expenses',items=[items[1],dict(items[0],date='2026-11-01')]))
+        self.assertEqual(closed,before)
+        with self.assertRaises(ValueError):
+            budget.apply(self.state,dict(type='expenses',items=[items[0],dict(items[1],amount=-1)]))
+        self.assertEqual(self.state,snapshot)
+
     def setUp(self):
         self.state=budget.apply({'months':{}},{'month':'2026-11','type':'budget','amount':300000})
     def act(self,**action):

@@ -1,12 +1,25 @@
 export const categories = [
-  "Супермаркеты",
-  "Кафе",
+  "Продукты",
+  "Фастфуд",
+  "Рестораны",
+  "Кофейни",
   "Транспорт",
   "Дом",
   "Здоровье",
   "Покупки",
+  "Одежда и обувь",
+  "Красота",
+  "Спорт",
+  "Дети",
+  "Подарки и творчество",
+  "Книги и образование",
+  "Связь и интернет",
+  "Подписки и цифровые сервисы",
+  "Путешествия",
   "Развлечения",
   "Другое",
+  "Супермаркеты",
+  "Кафе",
 ];
 function check(ok, message = "Некорректные данные") {
   if (!ok) throw Error(message);
@@ -117,6 +130,32 @@ function redistribute(m) {
 }
 
 export function apply(original, action) {
+  if (action.type === "expenses") {
+    check(
+      Array.isArray(action.items) &&
+        action.items.length > 0 &&
+        action.items.length <= 50,
+      "Добавьте от 1 до 50 расходов",
+    );
+    let result = structuredClone(original);
+    for (const item of action.items) {
+      check(
+        item && typeof item === "object" && !Array.isArray(item),
+        "Некорректный расход",
+      );
+      check(
+        typeof item.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(item.date),
+        "Некорректная дата",
+      );
+      const month = item.date.slice(0, 7),
+        day = Number(item.date.slice(8));
+      const week = weeks(month).findIndex(
+        (w) => w.start <= day && day <= w.end,
+      );
+      result = apply(result, { ...item, type: "expense", month, week });
+    }
+    return result;
+  }
   const state = structuredClone(original),
     key = action.month,
     m = ensure(state, key),

@@ -62,3 +62,19 @@ class ApiTests(unittest.TestCase):
         changed=dict(body,action=dict(body['action'],amount=200))
         self.assertEqual(self.request(client,'action',changed)[0],409)
         self.assertEqual(self.request(client,'import',{'revision':1,'backup':{}})[0],404)
+
+    def test_batch_rejection_retry_and_revision(self):
+        client=self.client()
+        self.assertEqual(self.request(client,'register',{'login':'batch-user','password':'test-password-123'})[0],200)
+        item=dict(date='2026-11-02',amount=100,category='Кофейни',note='Кофе')
+        body={'revision':0,'operationId':uuid.uuid4().hex,'action':{'type':'expenses','items':[item,dict(item,date='2027-01-01',amount=-1)]}}
+        self.assertEqual(self.request(client,'action',body)[0],400)
+        current=self.request(client,'state')[1]
+        self.assertEqual(current['state'],{'months':{}})
+        self.assertEqual(current['revision'],0)
+        body['action']['items'][1]['amount']=200
+        saved=self.request(client,'action',body)
+        self.assertEqual(saved[0],200)
+        self.assertEqual(self.request(client,'action',body),saved)
+        self.assertEqual(saved[1]['revision'],1)
+        self.assertEqual(len(saved[1]['state']['months']['2027-01']['expenses']),1)
