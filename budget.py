@@ -5,7 +5,7 @@ import datetime as dt
 import uuid
 import re
 
-CATEGORIES = ['Продукты', 'Фастфуд', 'Рестораны', 'Кофейни', 'Транспорт', 'Дом', 'Здоровье', 'Покупки', 'Одежда и обувь', 'Красота', 'Спорт', 'Дети', 'Подарки и творчество', 'Книги и образование', 'Связь и интернет', 'Подписки и цифровые сервисы', 'Путешествия', 'Развлечения', 'Другое', 'Супермаркеты', 'Кафе']
+CATEGORIES = ['Фастфуд', 'Рестораны', 'Кофейни', 'Транспорт', 'Дом', 'Здоровье', 'Покупки', 'Одежда и обувь', 'Красота', 'Спорт', 'Дети', 'Подарки и творчество', 'Книги и образование', 'Связь и интернет', 'Подписки и цифровые сервисы', 'Путешествия', 'Развлечения', 'Другое', 'Супермаркеты', 'Кафе']
 
 def weeks(key):
     y, m = map(int, key.split('-'))
@@ -90,6 +90,8 @@ def apply(state, action):
             index = next(i for i, w in enumerate(weeks(key)) if w['start'] <= date.day <= w['end'])
             result = apply(result, dict(item, type='expense', month=key, week=index))
         return result
+    action = dict(action)
+    if action.get('category') == 'Продукты': action['category']='Супермаркеты'
     state = copy.deepcopy(state)
     key = action['month']
     weeks(key)

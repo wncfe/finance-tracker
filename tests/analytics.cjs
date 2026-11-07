@@ -26,7 +26,7 @@ const state = {
     "2026-11": {
       expenses: [
         { date: "2026-11-01", amount: 202, category: "Кафе" },
-        { date: "2026-11-02", amount: 303, category: "Продукты" },
+        { date: "2026-11-02", amount: 303, category: "Супермаркеты" },
       ],
     },
   },

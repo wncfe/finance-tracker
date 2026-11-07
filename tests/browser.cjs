@@ -43,7 +43,7 @@ const assert = require("node:assert/strict");
     );
     await page.locator('[data-week="1"]').click();
     await page.locator("[name=amount]").fill("459.90");
-    await page.locator("[name=note]").fill("Продукты <тест>");
+    await page.locator("[name=note]").fill("Супермаркеты <тест>");
     await page.locator('[data-category="0"]').click();
     await page
       .locator("#expenseform label")
@@ -55,7 +55,7 @@ const assert = require("node:assert/strict");
     await page.locator("#weekexpenses .entry").waitFor();
     assert.match(
       await page.locator("#weekexpenses").textContent(),
-      /Продукты <тест>/,
+      /Супермаркеты <тест>/,
     );
     await page.locator("#dismiss").click();
     await page.reload();
@@ -622,6 +622,37 @@ const assert = require("node:assert/strict");
     for (const section of ["overview", "history", "analytics", "budget"])
       assert.equal(await page.locator("#panel-" + section).isVisible(), true);
     assert.equal(await page.locator(".quick-launch > div").isVisible(), true);
+    await page.evaluate(() =>
+      localStorage.setItem(
+        "expense-rules:browser-test",
+        JSON.stringify({ магнит: "Продукты" }),
+      ),
+    );
+    await page.locator("#quickopen").click();
+    await page.locator("#quicktext").fill("Магнит 123");
+    await page.locator("#quickparse button").click();
+    const ordering = await page
+      .locator(".quick-row select")
+      .first()
+      .evaluate((el) =>
+        Array.from(el.options)
+          .map((o) => o.value)
+          .filter(Boolean),
+      );
+    const expectedOrdering = await page.evaluate(() =>
+      CategoryUtils.rank(cats, state),
+    );
+    assert.deepEqual(ordering, expectedOrdering);
+    assert.equal(ordering.includes("Продукты"), false);
+    assert.equal(
+      await page.locator(".quick-row select").first().inputValue(),
+      "Супермаркеты",
+    );
+    assert.equal(
+      await page.locator("#rulelist select").first().inputValue(),
+      "Супермаркеты",
+    );
+    await page.locator("#quickclose").click();
     assert.deepEqual(errors, []);
     console.log(
       "Browser checks passed: auth, expense, reload, icons, desktop, mobile 390/360/320, next-week closure. Screenshots: " +

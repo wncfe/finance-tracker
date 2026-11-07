@@ -1,7 +1,6 @@
 "use strict";
 const $ = (id) => document.getElementById(id),
   cats = [
-    "Продукты",
     "Фастфуд",
     "Рестораны",
     "Кофейни",
@@ -24,7 +23,6 @@ const $ = (id) => document.getElementById(id),
     "Кафе",
   ],
   iconNames = [
-    "shopping-basket",
     "burger",
     "utensils",
     "coffee",
@@ -71,6 +69,9 @@ let selected = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0
   category = cats[0],
   busy = false,
   accountLogin = "";
+function categoryOptions() {
+  return CategoryUtils.rank(cats, state);
+}
 function toast(message) {
   $("toast").textContent = message;
   $("toast").hidden = false;
@@ -238,10 +239,10 @@ function renderWeek() {
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
   if (!date.value || date.value < min || date.value > max)
     date.value = today >= min && today <= max ? today : min;
-  $("categorybuttons").innerHTML = cats
+  $("categorybuttons").innerHTML = categoryOptions()
     .map(
       (c, i) =>
-        `<button type="button" data-category="${i}" aria-pressed="${c === category}">${icons[i]} ${c}</button>`,
+        `<button type="button" data-category="${cats.indexOf(c)}" aria-pressed="${c === category}">${icons[cats.indexOf(c)]} ${c}</button>`,
     )
     .join("");
 }
@@ -375,7 +376,7 @@ $("weeks").onclick = (e) => {
   if (!b) return;
   week = Number(b.dataset.week);
   $("expenseform").reset();
-  category = cats[0];
+  category = categoryOptions()[0];
   renderWeek();
   $("weekdialog").showModal();
 };

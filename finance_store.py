@@ -5,7 +5,9 @@ import json
 ROOT=Path(__file__).resolve().parent
 
 def migrate(db):
-    if 'state' not in [r[1] for r in db.execute('PRAGMA table_info(users)')]:return
+    if 'state' not in [r[1] for r in db.execute('PRAGMA table_info(users)')]:
+        merge_categories(db)
+        return
     script=(ROOT/'cloudflare/migrations/0003_normalized_finances.sql').read_text('utf-8')
     # executescript commits any existing transaction: begin inside the script.
     original={uid:json.loads(state) for uid,state in db.execute('SELECT id,state FROM users')}
@@ -15,9 +17,17 @@ def migrate(db):
             if load(db,uid)!=state:raise ValueError('Migration changed financial history; rolled back')
         if db.execute('PRAGMA foreign_key_check').fetchall():raise ValueError('Foreign key validation failed')
         db.commit()
+        merge_categories(db)
     except Exception:
         db.rollback()
         raise
+
+def merge_categories(db):
+    if db.execute("SELECT 1 FROM categories WHERE id='groceries'").fetchone():
+        try:db.executescript('BEGIN IMMEDIATE;\n'+(ROOT/'cloudflare/migrations/0004_merge_groceries.sql').read_text('utf-8')+'\nCOMMIT;')
+        except Exception:
+            db.rollback()
+            raise
 
 def load(db,user_id):
     state={'months':{}}

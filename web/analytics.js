@@ -85,9 +85,6 @@
   let selectedCategory = "",
     lastMonth = "",
     syncDates = [];
-  $("expenseCategory").innerHTML = cats
-    .map((c) => `<option>${esc(c)}</option>`)
-    .join("");
   const syncCategory = attachSelect($("expenseCategory"));
   let editing = null;
   root.openCategoryEditor = (button) => {
@@ -99,6 +96,9 @@
     if (!expense) return;
     editing = { month, id: expense.id, week: expense.week };
     $("categoryEditorNote").textContent = expense.note || expense.category;
+    $("expenseCategory").innerHTML = categoryOptions()
+      .map((c) => `<option>${esc(c)}</option>`)
+      .join("");
     $("expenseCategory").value = expense.category;
     syncCategory();
     $("categoryEditor").showModal();

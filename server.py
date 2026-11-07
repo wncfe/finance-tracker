@@ -65,7 +65,7 @@ class Handler(BaseHTTPRequestHandler):
                 user=self.user(db)
                 result={'login':user[1],'state':finance_store.load(db,user[0]),'revision':user[2]} if user else None
             return self.send(200,result) if user else self.send(401,{'error':'Войдите в аккаунт'})
-        files={'/':'index.html','/expense-actions.js':'expense-actions.js','/mobile-tabs.js':'mobile-tabs.js','/analytics.js':'analytics.js','/expense-history.js':'expense-history.js','/expense-parser.js':'expense-parser.js','/quick-add.js':'quick-add.js','/app.js':'app.js','/pickers.js':'pickers.js','/api-client.js':'api-client.js','/style.css':'style.css'}
+        files={'/':'index.html','/category-utils.js':'category-utils.js','/expense-actions.js':'expense-actions.js','/mobile-tabs.js':'mobile-tabs.js','/analytics.js':'analytics.js','/expense-history.js':'expense-history.js','/expense-parser.js':'expense-parser.js','/quick-add.js':'quick-add.js','/app.js':'app.js','/pickers.js':'pickers.js','/api-client.js':'api-client.js','/style.css':'style.css'}
         filename=files.get(urlparse(self.path).path)
         requested=urlparse(self.path).path
         if requested.startswith('/icons/') and requested.count('/')==2 and requested.endswith('.svg') and (ROOT/'web'/requested[1:]).is_file():

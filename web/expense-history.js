@@ -38,7 +38,7 @@ globalThis.ExpenseHistory = [
   },
   {
     note: "Domovoj",
-    category: "Продукты",
+    category: "Супермаркеты",
   },
   {
     note: "Eat & Split",
@@ -46,7 +46,7 @@ globalThis.ExpenseHistory = [
   },
   {
     note: "Evo_Amyumshop.",
-    category: "Продукты",
+    category: "Супермаркеты",
   },
   {
     note: "Evo_Dzhermuk",
@@ -66,7 +66,7 @@ globalThis.ExpenseHistory = [
   },
   {
     note: "Fix Price",
-    category: "Продукты",
+    category: "Супермаркеты",
   },
   {
     note: "Interview",
@@ -78,7 +78,7 @@ globalThis.ExpenseHistory = [
   },
   {
     note: "Kitaj. Supermarket",
-    category: "Продукты",
+    category: "Супермаркеты",
   },
   {
     note: "Kofe S Soboj Spot",
@@ -118,7 +118,7 @@ globalThis.ExpenseHistory = [
   },
   {
     note: "Ovoshhi I Frukty",
-    category: "Продукты",
+    category: "Супермаркеты",
   },
   {
     note: "Pla Yoo",
@@ -154,7 +154,7 @@ globalThis.ExpenseHistory = [
   },
   {
     note: "Sladostiigrushkishary",
-    category: "Продукты",
+    category: "Супермаркеты",
   },
   {
     note: "Software",
@@ -186,7 +186,7 @@ globalThis.ExpenseHistory = [
   },
   {
     note: "Zakka_Super",
-    category: "Продукты",
+    category: "Супермаркеты",
   },
   {
     note: "ck*park_SBP",
@@ -202,7 +202,7 @@ globalThis.ExpenseHistory = [
   },
   {
     note: "Азбука Вкуса",
-    category: "Продукты",
+    category: "Супермаркеты",
   },
   {
     note: "Аптека Будь Здоров",
@@ -278,11 +278,11 @@ globalThis.ExpenseHistory = [
   },
   {
     note: "Красное и белое",
-    category: "Продукты",
+    category: "Супермаркеты",
   },
   {
     note: "Лента",
-    category: "Продукты",
+    category: "Супермаркеты",
   },
   {
     note: "Леонардо",
@@ -290,19 +290,19 @@ globalThis.ExpenseHistory = [
   },
   {
     note: "Магнит",
-    category: "Продукты",
+    category: "Супермаркеты",
   },
   {
     note: "Магнит Доставка",
-    category: "Продукты",
+    category: "Супермаркеты",
   },
   {
     note: "Магнолия",
-    category: "Продукты",
+    category: "Супермаркеты",
   },
   {
     note: "Монетка",
-    category: "Продукты",
+    category: "Супермаркеты",
   },
   {
     note: "Московский метрополитен",
@@ -310,11 +310,11 @@ globalThis.ExpenseHistory = [
   },
   {
     note: "Ни Хао г. Екатеринбург",
-    category: "Продукты",
+    category: "Супермаркеты",
   },
   {
     note: "Овощная лавка",
-    category: "Продукты",
+    category: "Супермаркеты",
   },
   {
     note: "Парк Горького",
@@ -322,7 +322,7 @@ globalThis.ExpenseHistory = [
   },
   {
     note: "Перекрёсток",
-    category: "Продукты",
+    category: "Супермаркеты",
   },
   {
     note: "Пермский зоопарк",
@@ -334,11 +334,11 @@ globalThis.ExpenseHistory = [
   },
   {
     note: "Продуктовый магазин",
-    category: "Продукты",
+    category: "Супермаркеты",
   },
   {
     note: "Пятёрочка",
-    category: "Продукты",
+    category: "Супермаркеты",
   },
   {
     note: "Ростелеком",
@@ -346,7 +346,7 @@ globalThis.ExpenseHistory = [
   },
   {
     note: "Самокат",
-    category: "Продукты",
+    category: "Супермаркеты",
   },
   {
     note: "СантОноре",
@@ -370,7 +370,7 @@ globalThis.ExpenseHistory = [
   },
   {
     note: "Чижик",
-    category: "Продукты",
+    category: "Супермаркеты",
   },
   {
     note: "Читай-город",

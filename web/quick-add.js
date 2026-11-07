@@ -12,13 +12,23 @@
   function rules() {
     try {
       const value = JSON.parse(localStorage.getItem(ruleKey()) || "{}");
-      return value && typeof value === "object" && !Array.isArray(value)
-        ? Object.fromEntries(
-            Object.entries(value).filter(([, category]) =>
-              cats.includes(category),
-            ),
-          )
-        : {};
+      const normalized =
+        value && typeof value === "object" && !Array.isArray(value)
+          ? Object.fromEntries(
+              Object.entries(value)
+                .map(([key, category]) => [
+                  key,
+                  CategoryUtils.canonical(category),
+                ])
+                .filter(([, category]) => cats.includes(category)),
+            )
+          : {};
+      if (value && Object.values(value).includes("Продукты")) {
+        try {
+          localStorage.setItem(ruleKey(), JSON.stringify(normalized));
+        } catch {}
+      }
+      return normalized;
     } catch {
       return {};
     }
@@ -38,7 +48,14 @@
       Object.entries(rules())
         .map(
           ([key, cat]) =>
-            `<div class="rule-row"><span>${esc(key)}</span><select data-edit-rule="${esc(key)}" aria-label="Категория для ${esc(key)}">${cats.map((c) => `<option${c === cat ? " selected" : ""}>${esc(c)}</option>`).join("")}</select><button type="button" data-rule="${esc(key)}" aria-label="Удалить правило ${esc(key)}">Удалить</button></div>`,
+            `<div class="rule-row"><span>${esc(key)}</span><select data-edit-rule="${esc(key)}" aria-label="Категория для ${esc(key)}">${categoryOptions()
+              .map(
+                (c) =>
+                  `<option${c === cat ? " selected" : ""}>${esc(c)}</option>`,
+              )
+              .join(
+                "",
+              )}</select><button type="button" data-rule="${esc(key)}" aria-label="Удалить правило ${esc(key)}">Удалить</button></div>`,
         )
         .join("") || '<p class="muted">Нет сохранённых правил</p>';
     rulePickers = [...$("rulelist").querySelectorAll("select")].map(
@@ -128,7 +145,14 @@
     $("quickrows").innerHTML = rows
       .map(
         (row, i) =>
-          `<article class="quick-row" data-row="${i}"><div class="quick-row-head"><strong>Расход ${i + 1}</strong><button type="button" data-remove="${i}" aria-label="Удалить расход ${i + 1}">×</button></div><p class="muted raw">${esc(row.raw)}</p><div class="formgrid"><label>Сумма, ₽<input data-field="amount" type="number" inputmode="decimal" min="0.01" max="100000000" step="0.01" value="${row.amount ? row.amount / 100 : ""}" required></label><label>Дата<input data-field="date" type="date" min="2000-01-01" max="2100-12-31" value="${esc(row.date)}" required></label></div><label>Категория<select data-field="category" required><option value="">Выберите категорию</option>${cats.map((c) => `<option${c === row.category ? " selected" : ""}>${esc(c)}</option>`).join("")}</select></label><label>Описание<input data-field="note" maxlength="200" value="${esc(row.note)}" required></label><p class="muted">${esc(row.source)}</p>${row.issues.length ? `<p class="quick-warning">${row.issues.map(esc).join(" · ")}</p><label class="checkline"><input type="checkbox" data-field="ack"${row.ack ? " checked" : ""}>Я уточнил сумму, дату и назначение расхода</label>` : ""}<label class="checkline"><input type="checkbox" data-field="remember"${row.remember ? " checked" : ""}>Запомнить категорию для этого описания</label><p class="quick-warning" data-status="${i}" role="status"></p></article>`,
+          `<article class="quick-row" data-row="${i}"><div class="quick-row-head"><strong>Расход ${i + 1}</strong><button type="button" data-remove="${i}" aria-label="Удалить расход ${i + 1}">×</button></div><p class="muted raw">${esc(row.raw)}</p><div class="formgrid"><label>Сумма, ₽<input data-field="amount" type="number" inputmode="decimal" min="0.01" max="100000000" step="0.01" value="${row.amount ? row.amount / 100 : ""}" required></label><label>Дата<input data-field="date" type="date" min="2000-01-01" max="2100-12-31" value="${esc(row.date)}" required></label></div><label>Категория<select data-field="category" required><option value="">Выберите категорию</option>${categoryOptions()
+            .map(
+              (c) =>
+                `<option${c === row.category ? " selected" : ""}>${esc(c)}</option>`,
+            )
+            .join(
+              "",
+            )}</select></label><label>Описание<input data-field="note" maxlength="200" value="${esc(row.note)}" required></label><p class="muted">${esc(row.source)}</p>${row.issues.length ? `<p class="quick-warning">${row.issues.map(esc).join(" · ")}</p><label class="checkline"><input type="checkbox" data-field="ack"${row.ack ? " checked" : ""}>Я уточнил сумму, дату и назначение расхода</label>` : ""}<label class="checkline"><input type="checkbox" data-field="remember"${row.remember ? " checked" : ""}>Запомнить категорию для этого описания</label><p class="quick-warning" data-status="${i}" role="status"></p></article>`,
       )
       .join("");
     status();

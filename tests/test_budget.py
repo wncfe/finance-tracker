@@ -5,7 +5,7 @@ import budget
 class BudgetTests(unittest.TestCase):
     def test_batch_atomic_and_closed_week(self):
         snapshot=copy.deepcopy(self.state)
-        items=[dict(date='2026-11-02',amount=10000,category='Кофейни'),dict(date='2026-12-01',amount=20000,category='Продукты')]
+        items=[dict(date='2026-11-02',amount=10000,category='Кофейни'),dict(date='2026-12-01',amount=20000,category='Супермаркеты')]
         result=budget.apply(self.state,dict(type='expenses',items=items))
         self.assertEqual(len(result['months']['2026-11']['expenses']),1)
         self.assertEqual(len(result['months']['2026-12']['expenses']),1)

@@ -99,7 +99,7 @@ verify("decimal not separator", () =>
   assert.equal(parse("кофе 250,50, такси 430,20").length, 2),
 );
 verify("merchant conjunction", () =>
-  assert.equal(parse("Красное и белое 500")[0].category, "Продукты"),
+  assert.equal(parse("Красное и белое 500")[0].category, "Супермаркеты"),
 );
 verify("conflicting words", () =>
   assert.equal(first("кофе и такси 500").category, ""),
@@ -123,8 +123,8 @@ verify("personal rule priority", () =>
 );
 verify("personal normalized", () =>
   assert.equal(
-    P.categoryFor("ПЯТЁРОЧКА", { пятерочка: "Продукты" }).category,
-    "Продукты",
+    P.categoryFor("ПЯТЁРОЧКА", { пятерочка: "Супермаркеты" }).category,
+    "Супермаркеты",
   ),
 );
 verify("history conflict", () =>

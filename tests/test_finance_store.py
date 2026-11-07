@@ -7,6 +7,18 @@ import budget
 import finance_store as store
 
 class StoreTests(unittest.TestCase):
+    def test_merge_groceries_preserves_every_other_field(self):
+        state=budget.apply({'months':{}},dict(type='expense',month='2026-11',week=1,date='2026-11-02',amount=12345,category='Супермаркеты',note='Магнит'))
+        state['months']['2026-11']['expenses'][0]['category']='Продукты'
+        with self.legacy(state) as db:
+            store.migrate(db)
+            expected=copy.deepcopy(state);expected['months']['2026-11']['expenses'][0]['category']='Супермаркеты'
+            self.assertEqual(store.load(db,1),expected)
+            self.assertIsNone(db.execute("SELECT id FROM categories WHERE name='Продукты'").fetchone())
+            self.assertEqual(db.execute('SELECT revision FROM users WHERE id=1').fetchone()[0],7)
+        alias=budget.apply({'months':{}},dict(type='expense',month='2026-11',week=1,date='2026-11-02',amount=1,category='Продукты'))
+        self.assertEqual(alias['months']['2026-11']['expenses'][0]['category'],'Супермаркеты')
+
     def legacy(self,state):
         db=sqlite3.connect(':memory:');db.execute('PRAGMA foreign_keys=ON')
         for name in ['0001_initial.sql','0002_operations.sql']:
@@ -34,7 +46,7 @@ class StoreTests(unittest.TestCase):
     def test_differential_writes_and_order(self):
         with self.legacy({'months':{}}) as db:
             store.migrate(db);before=store.load(db,1)
-            state=budget.apply(before,dict(type='expenses',items=[dict(date='2026-11-02',amount=100,category='Кофейни',note='Первый'),dict(date='2026-12-01',amount=200,category='Продукты',note='Второй')]))
+            state=budget.apply(before,dict(type='expenses',items=[dict(date='2026-11-02',amount=100,category='Кофейни',note='Первый'),dict(date='2026-12-01',amount=200,category='Супермаркеты',note='Второй')]))
             store.save(db,1,before,state);db.commit()
             self.assertEqual(store.load(db,1),state)
             trace=[];db.set_trace_callback(trace.append)

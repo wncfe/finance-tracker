@@ -1,5 +1,4 @@
 export const categories = [
-  "Продукты",
   "Фастфуд",
   "Рестораны",
   "Кофейни",
@@ -130,6 +129,8 @@ function redistribute(m) {
 }
 
 export function apply(original, action) {
+  if (action.category === "Продукты")
+    action = { ...action, category: "Супермаркеты" };
   if (action.type === "expenses") {
     check(
       Array.isArray(action.items) &&

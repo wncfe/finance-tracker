@@ -59,7 +59,7 @@ CREATE INDEX expenses_month ON expenses(user_id,month,position);
 CREATE INDEX expenses_category_date ON expenses(user_id,category_id,date);
 CREATE INDEX expenses_date ON expenses(user_id,date);
 """
-for slug,name in zip(slugs,budget.CATEGORIES):
+for slug,name in zip(slugs,['Продукты', 'Фастфуд', 'Рестораны', 'Кофейни', 'Транспорт', 'Дом', 'Здоровье', 'Покупки', 'Одежда и обувь', 'Красота', 'Спорт', 'Дети', 'Подарки и творчество', 'Книги и образование', 'Связь и интернет', 'Подписки и цифровые сервисы', 'Путешествия', 'Развлечения', 'Другое', 'Супермаркеты', 'Кафе']):
     sql+=f"INSERT INTO categories(id,name) VALUES('{slug}','{name.replace(chr(39),chr(39)*2)}');\n"
 sql+="""
 INSERT INTO categories(id,name)
