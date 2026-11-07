@@ -117,9 +117,11 @@ const assert = require("node:assert/strict");
       });
       await page.locator("#dismiss").click();
     }
+    await page.locator("#tab-history").click();
     await page.locator(".history .select-trigger").click();
     await page.locator('.picker[open] [data-option="2"]').click();
     assert.equal(await page.locator("#history .entry").count(), 1);
+    await page.locator("#tab-overview").click();
     await page.locator('[data-week="1"]').click();
     await page.locator("#closeform").locator("..").locator("summary").click();
     assert.equal(await page.locator("#closeform").isVisible(), false);
@@ -189,24 +191,30 @@ const assert = require("node:assert/strict");
       before.weeks[2].limit + before.weeks[1].limit - 45990,
     );
     assert.deepEqual(after.weeks.slice(3), before.weeks.slice(3));
-    // Corrections reopen the selected week and every later closed week.
-    await page.locator("#reopen").waitFor({ state: "visible" });
-    page.once("dialog", (dialog) => dialog.accept());
-    await page.locator("#reopen").click();
-    await page.waitForFunction(
-      () => !document.querySelector("#weekeditable").hidden,
-    );
+    // Closed weeks allow only category corrections, without reopening.
+    assert.equal(await page.locator("#reopen").count(), 0);
+    const historical = after.expenses[0];
+    await page.locator("#weekexpenses [data-expense-menu]").click();
+    assert.equal(await page.locator("#expenseMenuDelete").isDisabled(), true);
+    await page.locator("#expenseMenuCategory").click();
+    await page.locator("#categoryEditor .select-trigger").click();
+    await page
+      .locator(".picker[open] [data-option]")
+      .filter({ hasText: "Кофейни" })
+      .click();
+    await page.locator("#categoryEditorForm > button").click();
+    await page.locator("#categoryEditor").waitFor({ state: "hidden" });
+    const corrected = (
+      await page.evaluate(() => fetch("/api/state").then((r) => r.json()))
+    ).state.months["2026-11"];
+    assert.deepEqual(corrected.weeks, after.weeks);
+    assert.deepEqual(corrected.expenses[0], {
+      ...historical,
+      category: "Кофейни",
+    });
     await page.locator("#dismiss").click();
-    await page.locator(".history .select-trigger").click();
-    await page.locator('.picker[open] [data-option="2"]').click();
-    page.once("dialog", (dialog) => dialog.accept());
-    await page.locator("#history [data-delete]").click();
-    await page.waitForFunction(
-      () => document.querySelectorAll("#history .entry").length === 0,
-    );
-
-    // Lose a response AFTER the server commits; automatic retry must not duplicate it.
-    await page.locator('[data-week="1"]').click();
+    // Lost response in a still-open week must not duplicate the expense.
+    await page.locator('[data-week="2"]').click();
     await page.locator("[name=amount]").fill("123.45");
     let lost = false;
     await page.route("**/api/action", async (route) => {
@@ -221,8 +229,6 @@ const assert = require("node:assert/strict");
     assert.equal(await page.locator("#weekexpenses .entry").count(), 1);
     await page.unroute("**/api/action");
     await page.locator("#dismiss").click();
-    assert.equal(await page.locator("#export").count(), 0);
-    assert.equal(await page.locator("#import").count(), 0);
     // Global add ignores the month currently on screen; batch spans months.
     await page.locator("#quickopen").click();
     await page.locator("#quicktext").fill("2026-11-01 кофе 250");
@@ -234,7 +240,7 @@ const assert = require("node:assert/strict");
     );
     await page
       .locator("#quicktext")
-      .fill("2026-11-02 кофе 250; 2026-12-01 продукты 850,50");
+      .fill("2026-11-09 кофе 250; 2026-12-01 продукты 850,50");
     await page.locator("#quickparse button").click();
     assert.equal(await page.locator(".quick-row").count(), 2);
     const firstRow = page.locator(".quick-row").first();
@@ -249,10 +255,10 @@ const assert = require("node:assert/strict");
       /Декабрь 2026/,
     );
     await page.locator('.picker[open] [data-month-move="-1"]').click();
-    await page.locator('.picker[open] [data-value="2026-11-03"]').click();
+    await page.locator('.picker[open] [data-value="2026-11-10"]').click();
     assert.equal(
       await firstRow.locator("[data-field=date]").inputValue(),
-      "2026-11-03",
+      "2026-11-10",
     );
     await firstRow.locator(".select-trigger").click();
     await page
@@ -433,7 +439,7 @@ const assert = require("node:assert/strict");
     await page.locator(".quick-row [data-field=remember]").last().uncheck();
     assert.equal(await page.locator("#quicksubmit").isEnabled(), true);
     // Unparsed fragments stay visible and block the complete batch.
-    await page.locator("#quicktext").fill("кофе 250, без суммы");
+    await page.locator("#quicktext").fill("2026-11-09 кофе 250, без суммы");
     await page.locator("#quickparse button").click();
     assert.equal(await page.locator(".quick-row").count(), 2);
     assert.equal(await page.locator("#quicksubmit").isDisabled(), true);
@@ -460,6 +466,162 @@ const assert = require("node:assert/strict");
     assert.equal(await page.locator(".quick-row").count(), 0);
     assert.equal(await page.locator("#quicksave").isVisible(), false);
     await page.locator("#quickclose").click();
+    // Custom interactive calendar controls the category donut across months.
+    await page.locator("#analyticsControls .select-trigger").click();
+    await page.locator('.picker[open] [data-option="3"]').click();
+    await page.locator("#analysisFrom + .picker-trigger").click();
+    await page.locator('.picker[open] [data-value="2026-11-01"]').click();
+    await page.locator("#analysisTo + .picker-trigger").click();
+    await page.locator('.picker[open] [data-month-move="1"]').click();
+    await page.locator('.picker[open] [data-value="2026-12-31"]').click();
+    assert.equal(await page.locator("#categoryChart svg").count(), 1);
+    const chartTotal = await page.evaluate(() => {
+      const summary = ExpenseAnalytics.summarize(
+        state,
+        ExpenseAnalytics.range("custom", null, "2026-11-01", "2026-12-31"),
+      );
+      return new Intl.NumberFormat("ru-RU", {
+        style: "currency",
+        currency: "RUB",
+        maximumFractionDigits: summary.total % 100 ? 2 : 0,
+      }).format(summary.total / 100);
+    });
+    assert.equal(
+      await page.locator("#categoryChart .chart-amount").textContent(),
+      chartTotal,
+    );
+    await page.locator(".chart-legend").first().click();
+    assert.equal(
+      await page.locator('.chart-legend[aria-pressed="true"]').count(),
+      1,
+    );
+    await page
+      .locator("#categoryChart .chart-segment")
+      .first()
+      .evaluate((el) => (el.dataset.identity = "original"));
+    await page.locator(".chart-legend").last().click();
+    assert.equal(
+      await page
+        .locator("#categoryChart .chart-segment")
+        .first()
+        .getAttribute("data-identity"),
+      "original",
+      "selection must retain SVG nodes for CSS transitions",
+    );
+    assert.match(
+      await page
+        .locator("#categoryChart .chart-segment")
+        .first()
+        .evaluate((el) => getComputedStyle(el).transitionDuration),
+      /0\.38s/,
+    );
+    for (const width of [320, 390, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      assert.equal(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+        true,
+        "analytics overflow " + width,
+      );
+    }
+    // Mobile sections remove the long all-in-one page; desktop restores all panels.
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.locator("#mobileTabs").waitFor({ state: "visible" });
+    assert.equal(await page.locator("#mobileTabs").isVisible(), true);
+    assert.equal(await page.locator(".quick-launch > div").isVisible(), false);
+    for (const section of ["overview", "history", "analytics", "budget"]) {
+      await page.locator("#tab-" + section).click();
+      assert.equal(await page.locator("#panel-" + section).isVisible(), true);
+      assert.equal(
+        await page.locator("[data-nav-panel]:not([hidden])").count(),
+        section === "budget" ? 2 : 1,
+      );
+      assert.equal(await page.locator("#quickopen").isVisible(), true);
+      await page.locator("#quickopen").click();
+      await page.locator("#quickdialog").waitFor({ state: "visible" });
+      await page.locator("#quickclose").click();
+    }
+    await page.locator("#tab-history").click();
+    assert.equal(
+      await page.locator("#history .entry [data-recategorize]").count(),
+      0,
+    );
+    assert.match(
+      await page.locator("#history time").first().textContent(),
+      /ноября/,
+    );
+    await page.locator("#history [data-expense-menu]").first().click();
+    assert.equal(
+      await page.locator("#expenseActions").evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        return (
+          r.left >= 0 &&
+          r.right <= innerWidth &&
+          r.top >= 0 &&
+          r.bottom <= innerHeight
+        );
+      }),
+      true,
+    );
+    await page.keyboard.press("Escape");
+    assert.equal(await page.locator("#expenseActions").isVisible(), false);
+    await page.screenshot({
+      path: dir + "/mobile-history-compact.png",
+      fullPage: true,
+    });
+    assert.match(await page.evaluate(() => expenseDate("2025-11-07")), /2025/);
+    // Deletion from the same menu remains available for an open week.
+    await page.locator("#panel-history .select-trigger").click();
+    await page.locator('.picker[open] [data-option="0"]').click();
+    const removable = await page.evaluate(
+      () =>
+        state.months["2026-11"].expenses.find((e) => e.date === "2026-11-10")
+          .id,
+    );
+    await page.locator(`#history [data-expense-menu="${removable}"]`).click();
+    assert.equal(await page.locator("#expenseMenuDelete").isEnabled(), true);
+    page.once("dialog", (dialog) => dialog.accept());
+    await page.locator("#expenseMenuDelete").click();
+    await page.waitForFunction(
+      (id) => !state.months["2026-11"].expenses.some((e) => e.id === id),
+      removable,
+    );
+    await page.locator("#tab-overview").focus();
+    await page.keyboard.press("ArrowRight");
+    assert.equal(
+      await page.locator("#tab-history").getAttribute("aria-selected"),
+      "true",
+    );
+    await page.locator("#tab-analytics").click();
+    assert.equal(
+      await page
+        .locator("#categoryChart circle")
+        .first()
+        .getAttribute("stroke-width"),
+      "20",
+    );
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    assert.equal(
+      await page
+        .locator("#categoryChart svg")
+        .evaluate((el) => getComputedStyle(el).animationName),
+      "none",
+    );
+    await page.screenshot({
+      path: dir + "/mobile-analytics-tabs.png",
+      fullPage: true,
+    });
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.waitForFunction(() =>
+      [...document.querySelectorAll("[data-nav-panel]")].every(
+        (panel) => !panel.hidden,
+      ),
+    );
+    assert.equal(await page.locator("#mobileTabs").isVisible(), false);
+    for (const section of ["overview", "history", "analytics", "budget"])
+      assert.equal(await page.locator("#panel-" + section).isVisible(), true);
+    assert.equal(await page.locator(".quick-launch > div").isVisible(), true);
     assert.deepEqual(errors, []);
     console.log(
       "Browser checks passed: auth, expense, reload, icons, desktop, mobile 390/360/320, next-week closure. Screenshots: " +

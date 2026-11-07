@@ -91,6 +91,7 @@ async function api(path, data) {
       $("logout").hidden = true;
       if ($("weekdialog").open) $("weekdialog").close();
       if ($("quickdialog").open) $("quickdialog").close();
+      if ($("categoryEditor").open) $("categoryEditor").close();
     }
     const error = Error(result.error);
     error.status = r.status;
@@ -133,6 +134,18 @@ const spent = (m, i) =>
   m.expenses
     .filter((e) => i === undefined || e.week === i)
     .reduce((s, e) => s + e.amount, 0);
+function expenseDate(value) {
+  const date = new Date(value + "T12:00:00");
+  return date
+    .toLocaleDateString("ru-RU", {
+      day: "numeric",
+      month: "long",
+      ...(date.getFullYear() !== new Date().getFullYear()
+        ? { year: "numeric" }
+        : {}),
+    })
+    .replace(" г.", "");
+}
 function entries(m, i) {
   const list = m.expenses
     .filter((e) => i === undefined || e.week === i)
@@ -141,7 +154,7 @@ function entries(m, i) {
     ? list
         .map(
           (e) =>
-            `<div class="entry"><span class="icon" aria-hidden="true">${icons[cats.indexOf(e.category)] || "•"}</span><div class="description">${esc(e.note || e.category)}<small>${esc(e.category)} · ${esc(e.date.split("-").reverse().join("."))}</small></div><strong>${money(e.amount)}</strong>${i !== undefined && !m.weeks[i].closed ? `<button data-delete="${esc(e.id)}" data-expense-week="${e.week}" aria-label="Удалить трату">×</button>` : ""}</div>`,
+            `<div class="entry"><span class="icon" aria-hidden="true">${icons[cats.indexOf(e.category)] || "•"}</span><div class="description"><span class="expense-title">${esc(e.note || e.category)}</span><small>${esc(e.category)}<time datetime="${esc(e.date)}">${esc(expenseDate(e.date))}</time></small></div><strong>${money(e.amount)}</strong><button class="expense-more" data-expense-menu="${esc(e.id)}" data-month="${esc(e.date.slice(0, 7))}" aria-label="Действия с расходом ${esc(e.note || e.category)}" aria-haspopup="menu" aria-expanded="false" aria-controls="expenseActions"><span aria-hidden="true">⋯</span></button></div>`,
         )
         .join("")
     : '<p class="muted">Пока нет трат</p>';
@@ -164,7 +177,7 @@ function render() {
     .map((w, i) => {
       let s = spent(m, i),
         left = w.limit - s;
-      return `<button class="week ${w.closed ? "closed" : ""}" data-week="${i}"><div class="weekhead"><div><strong>Неделя ${i + 1}</strong><span class="weekdate">${w.start}–${w.end} · ${w.days} дн.</span></div><span class="badge">${w.closed ? "Закрыта ✓" : "Открыть ↗"}</span></div><div class="weeknumbers"><div>Лимит<strong>${money(w.limit)}</strong></div><div>Остаток<strong class="${left < 0 ? "negative" : ""}">${money(left)}</strong></div></div><div class="progress"><progress max="100" value="${w.limit ? Math.min(100, (s / w.limit) * 100) : s ? 100 : 0}"></progress></div><span class="muted">Потрачено ${money(s)}</span></button>`;
+      return `<button class="week ${w.closed ? "closed" : ""}" data-week="${i}"><div class="weekhead"><div><strong>Неделя ${i + 1}</strong><span class="weekdate">${w.start}–${w.end} · ${w.days} дн.</span></div><span class="badge">${w.closed ? "Закрыта ✓" : "Посмотреть ↗"}</span></div><div class="weeknumbers"><div>Лимит<strong>${money(w.limit)}</strong></div><div>Остаток<strong class="${left < 0 ? "negative" : ""}">${money(left)}</strong></div></div><div class="progress"><progress max="100" value="${w.limit ? Math.min(100, (s / w.limit) * 100) : s ? 100 : 0}"></progress></div><span class="muted">Потрачено ${money(s)}</span></button>`;
     })
     .join("");
   const filter = $("filter").value;
@@ -215,7 +228,6 @@ function renderWeek() {
   $("weeksummary").innerHTML =
     `<div>Лимит<strong>${money(w.limit)}</strong></div><div>Потрачено<strong>${money(spent(m, week))}</strong></div><div>Остаток<strong>${money(w.limit - spent(m, week))}</strong></div>`;
   $("weekeditable").hidden = w.closed;
-  $("reopen").hidden = !w.closed;
   $("limit").value = w.limit / 100;
   $("weekexpenses").innerHTML = entries(m, week);
   const date = $("expenseform").elements.date,
@@ -409,24 +421,26 @@ $("closeform").onsubmit = async (e) => {
     toast("Неделя закрыта");
 };
 async function deleteExpense(event) {
+  const more = event.target.closest("[data-expense-menu]");
+  if (more) {
+    openExpenseMenu(more);
+    return;
+  }
+  if (event.target.closest("[data-recategorize]")) {
+    openCategoryEditor(event.target.closest("[data-recategorize]"));
+    return;
+  }
   const button = event.target.closest("[data-delete]");
   if (button && confirm("Удалить эту трату?"))
     await mutate({
       type: "delete",
+      month: button.dataset.month,
       id: button.dataset.delete,
       week: Number(button.dataset.expenseWeek),
     });
 }
 $("weekexpenses").onclick = deleteExpense;
 $("history").onclick = deleteExpense;
-$("reopen").onclick = async () => {
-  if (
-    confirm(
-      "Открыть эту и последующие недели? Траты сохранятся, лимиты открытых недель будут распределены заново.",
-    )
-  )
-    await mutate({ type: "reopen" });
-};
 
 load();
 

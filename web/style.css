@@ -6,6 +6,212 @@
   --bg: #f4f6f2;
   --accent: #cce998;
 }
+#categoryChart svg {
+  display: block;
+  width: min(100%, 270px);
+  margin: auto;
+}
+.chart-enter {
+  animation: chart-reveal 480ms cubic-bezier(0.22, 0.7, 0.3, 1) both;
+  transform-origin: center;
+}
+#categoryChart circle {
+  transition:
+    opacity 380ms ease,
+    filter 380ms ease,
+    stroke-width 380ms ease;
+}
+#categoryChart .chart-segment {
+  cursor: pointer;
+}
+#categoryChart .chart-segment.is-selected {
+  stroke-width: 22px;
+  filter: brightness(1.05) drop-shadow(0 2px 3px #203d3518);
+}
+.chart-legend {
+  transition: background-color 250ms ease;
+}
+.entry .expense-title {
+  display: block;
+  line-height: 1.4;
+}
+.entry time {
+  display: block;
+  margin-top: 3px;
+}
+.entry .expense-more {
+  width: 36px;
+  min-width: 36px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  font-size: 26px;
+  color: var(--muted);
+}
+.entry .expense-more:hover,
+.entry .expense-more[aria-expanded="true"] {
+  background: #e9efe4;
+  color: var(--ink);
+}
+#expenseActions {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  width: min(250px, calc(100vw - 24px));
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 8px;
+  color: var(--ink);
+  background: white;
+  box-shadow: 0 12px 40px #183f3626;
+}
+#expenseActions p {
+  margin: 6px 10px 10px;
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+#expenseActions button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+}
+#expenseActions button:hover {
+  background: #f0f4ec;
+}
+#expenseMenuDelete {
+  color: #a64e48;
+}
+#expenseActions small {
+  display: block;
+  margin: 6px 10px;
+  font-size: 11px;
+  color: var(--muted);
+}
+#expenseActions small[hidden] {
+  display: none;
+}
+#categoryChart circle:hover {
+  filter: brightness(1.12);
+}
+@keyframes chart-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.95) rotate(-5deg);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1) rotate(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chart-enter {
+    animation: none;
+  }
+  #categoryChart circle {
+    transition: none;
+  }
+  .chart-legend {
+    transition: none;
+  }
+}
+.mobile-tabs {
+  display: none;
+}
+@media (max-width: 680px) {
+  .mobile-tabs:not([hidden]) {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 3px;
+    position: sticky;
+    top: 8px;
+    z-index: 4;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 4px;
+    margin: 0 0 18px;
+    box-shadow: 0 4px 16px #183f3610;
+  }
+  .mobile-tabs button {
+    padding: 8px 2px;
+    font-size: 12px;
+    border: 0;
+    background: transparent;
+    border-radius: 11px;
+  }
+  .mobile-tabs button[aria-selected="true"] {
+    background: var(--green);
+    color: white;
+  }
+  #dashboard .quick-launch {
+    display: contents;
+  }
+  .quick-launch > div {
+    display: none;
+  }
+  #dashboard .layout > section,
+  #dashboard .layout > aside {
+    display: contents;
+  }
+  #dashboard .history {
+    margin-top: 0;
+  }
+  [data-nav-panel][hidden] {
+    display: none !important;
+  }
+}
+.chart-caption {
+  font-size: 12px;
+  fill: var(--muted);
+}
+.chart-amount {
+  font-size: 15px;
+  font-weight: 700;
+  fill: var(--ink);
+}
+.chart-legend {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  margin: 5px 0;
+  border: 0;
+  background: transparent;
+}
+.chart-legend span {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.chart-legend small {
+  display: block;
+  color: var(--muted);
+}
+.chart-legend[aria-pressed="true"] {
+  background: #e2efd6;
+}
+.chart-legend strong {
+  white-space: nowrap;
+  font-size: 13px;
+}
+#analysisCustom {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+#analysisCustom[hidden],
+#analysisAnchor[hidden] {
+  display: none;
+}
+.entry [data-recategorize] {
+  font-size: 12px;
+  padding: 6px;
+  white-space: normal;
+}
 .quick-launch {
   display: flex;
   align-items: center;

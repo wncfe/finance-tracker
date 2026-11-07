@@ -131,6 +131,48 @@ const bad = await api("a", "action", {
 assert.equal(bad[0], 400);
 assert.deepEqual((await api("a", "state"))[1].state, batchSaved[1].state);
 assert.equal((await api("a", "state"))[1].revision, batchSaved[1].revision);
+let current = (await api("a", "state"))[1];
+const closed = await api("a", "action", {
+  revision: current.revision,
+  action: { type: "close", month: "2026-11", week: 0, mode: "next" },
+});
+assert.equal(closed[0], 200);
+current = closed[1];
+const expense = current.state.months["2026-11"].expenses[0];
+const recat = {
+  type: "recategorize",
+  month: "2026-11",
+  week: 0,
+  id: expense.id,
+  category: "Кофейни",
+};
+const changed = await api("a", "action", {
+  revision: current.revision,
+  action: recat,
+});
+assert.equal(changed[0], 200);
+const expected = structuredClone(current.state);
+expected.months["2026-11"].expenses[0].category = "Кофейни";
+assert.deepEqual(changed[1].state, expected);
+assert.equal(
+  (
+    await api("a", "action", {
+      revision: changed[1].revision,
+      action: { ...recat, amount: 999 },
+    })
+  )[0],
+  400,
+);
+assert.equal(
+  (
+    await api("a", "action", {
+      revision: changed[1].revision,
+      action: { type: "reopen", month: "2026-11", week: 0 },
+    })
+  )[0],
+  400,
+);
+assert.deepEqual((await api("a", "state"))[1].state, expected);
 assert.equal((await api("a", "logout", {}))[0], 200);
 assert.equal((await api("a", "state"))[0], 401);
 console.log(

@@ -12,6 +12,7 @@ from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from http.cookies import SimpleCookie
 from urllib.parse import urlparse
 import budget
+import finance_store
 import re
 
 ROOT = Path(__file__).resolve().parent
@@ -33,6 +34,7 @@ def init():
         CREATE TABLE IF NOT EXISTS operations(user INTEGER REFERENCES users(id), id TEXT, payload TEXT, PRIMARY KEY(user,id));
         CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY, user INTEGER REFERENCES users(id), expires REAL);
         CREATE TABLE IF NOT EXISTS attempts(ip TEXT PRIMARY KEY, count INTEGER, until REAL);''')
+        finance_store.migrate(db)
 
 def password(value,salt):
     return hashlib.scrypt(value.encode(),salt=bytes.fromhex(salt),n=16384,r=8,p=1).hex()
@@ -54,13 +56,16 @@ class Handler(BaseHTTPRequestHandler):
         c=SimpleCookie(self.headers.get('Cookie',''))
         return hashlib.sha256(c['session'].value.encode()).hexdigest() if 'session' in c else ''
     def user(self,db):
-        return db.execute('SELECT users.id,login,state,revision FROM users JOIN sessions ON sessions.user=users.id WHERE token=? AND expires>?',(self.token(),time.time())).fetchone()
+        return db.execute('SELECT users.id,login,revision FROM users JOIN sessions ON sessions.user=users.id WHERE token=? AND expires>?',(self.token(),time.time())).fetchone()
     def do_GET(self):
         if self.path=='/api/config': return self.send(200,{'invitationRequired':False})
         if self.path=='/api/state':
-            with connect() as db: user=self.user(db)
-            return self.send(200,{'login':user[1],'state':json.loads(user[2]),'revision':user[3]}) if user else self.send(401,{'error':'Войдите в аккаунт'})
-        files={'/':'index.html','/expense-history.js':'expense-history.js','/expense-parser.js':'expense-parser.js','/quick-add.js':'quick-add.js','/app.js':'app.js','/pickers.js':'pickers.js','/api-client.js':'api-client.js','/style.css':'style.css'}
+            with connect() as db:
+                db.execute('BEGIN')
+                user=self.user(db)
+                result={'login':user[1],'state':finance_store.load(db,user[0]),'revision':user[2]} if user else None
+            return self.send(200,result) if user else self.send(401,{'error':'Войдите в аккаунт'})
+        files={'/':'index.html','/expense-actions.js':'expense-actions.js','/mobile-tabs.js':'mobile-tabs.js','/analytics.js':'analytics.js','/expense-history.js':'expense-history.js','/expense-parser.js':'expense-parser.js','/quick-add.js':'quick-add.js','/app.js':'app.js','/pickers.js':'pickers.js','/api-client.js':'api-client.js','/style.css':'style.css'}
         filename=files.get(urlparse(self.path).path)
         requested=urlparse(self.path).path
         if requested.startswith('/icons/') and requested.count('/')==2 and requested.endswith('.svg') and (ROOT/'web'/requested[1:]).is_file():
@@ -91,7 +96,7 @@ class Handler(BaseHTTPRequestHandler):
                     if not 3<=len(login)<=80 or not 10<=len(pw)<=256: raise ValueError('Логин: 3–80 символов. Пароль: 10–256 символов')
                     if self.path=='/api/register':
                         salt=secrets.token_hex(16)
-                        try: db.execute('INSERT INTO users(login,salt,password,state) VALUES(?,?,?,?)',(login,salt,password(pw,salt),'{"months":{}}'))
+                        try: db.execute('INSERT INTO users(login,salt,password) VALUES(?,?,?)',(login,salt,password(pw,salt)))
                         except sqlite3.IntegrityError: raise ValueError('Логин уже занят')
                     user=db.execute('SELECT id,salt,password FROM users WHERE login=?',(login,)).fetchone()
                     if not user or not hmac.compare_digest(password(pw,user[1]),user[2]):
@@ -120,13 +125,15 @@ class Handler(BaseHTTPRequestHandler):
                 if receipt:
                     if receipt[0] != payload:
                         return self.send(409, {'error': 'Идентификатор операции уже использован'})
-                    return self.send(200, {'state': json.loads(user[2]), 'revision': user[3]})
-                if data.get('revision') != user[3]:
+                    return self.send(200, {'state': finance_store.load(db,user[0]), 'revision': user[2]})
+                if data.get('revision') != user[2]:
                     return self.send(409, {'error': 'Данные изменены в другой вкладке. Обновите страницу'})
-                state = budget.apply(json.loads(user[2]), data['action'])
+                before=finance_store.load(db,user[0])
+                state = budget.apply(before, data['action'])
+                finance_store.save(db,user[0],before,state)
                 db.execute('INSERT INTO operations VALUES(?,?,?)', (user[0], operation_id, payload))
-                db.execute('UPDATE users SET state=?,revision=revision+1 WHERE id=?',(json.dumps(state),user[0])); db.commit()
-                self.send(200,{'state':state,'revision':user[3]+1})
+                db.execute('UPDATE users SET revision=revision+1 WHERE id=?',(user[0],)); db.commit()
+                self.send(200,{'state':state,'revision':user[2]+1})
         except (ValueError,KeyError,TypeError,IndexError) as exc: self.send(400,{'error':str(exc)})
         except Exception:
             self.send(500,{'error':'Не удалось сохранить данные. Повторите запрос'})

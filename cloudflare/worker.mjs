@@ -5,6 +5,7 @@ import {
   timingSafeEqual,
 } from "node:crypto";
 import { apply } from "./budget.mjs";
+import { loadFinance, financeWrites } from "./finance-store.mjs";
 const hash = (value) => createHash("sha256").update(value).digest("hex");
 const pw = (value, salt) =>
   scryptSync(value, Buffer.from(salt, "hex"), 64, {
@@ -33,7 +34,7 @@ async function user(request, db) {
   if (!token) return null;
   return db
     .prepare(
-      "SELECT users.id,login,state,revision FROM users JOIN sessions ON sessions.user=users.id WHERE token=? AND expires>?",
+      "SELECT users.id,login FROM users JOIN sessions ON sessions.user=users.id WHERE token=? AND expires>?",
     )
     .bind(hash(token), Math.floor(Date.now() / 1000))
     .first();
@@ -43,6 +44,21 @@ export default {
     const url = new URL(request.url),
       path = url.pathname,
       db = env.DB;
+    if (path.startsWith("/api/") && env.FINANCE_MAINTENANCE === "1")
+      return new Response(
+        JSON.stringify({
+          error:
+            "Обновляем приложение. Повторите действие через несколько минут.",
+        }),
+        {
+          status: 503,
+          headers: {
+            "Content-Type": "application/json; charset=utf-8",
+            "Cache-Control": "no-store",
+            "Retry-After": "60",
+          },
+        },
+      );
     if (!path.startsWith("/api/")) return env.ASSETS.fetch(request);
     try {
       if (path === "/api/config" && request.method === "GET")
@@ -52,8 +68,7 @@ export default {
         return u
           ? json(200, {
               login: u.login,
-              state: JSON.parse(u.state),
-              revision: u.revision,
+              ...(await loadFinance(db, u.id)),
             })
           : json(401, { error: "Войдите в аккаунт" });
       }
@@ -175,42 +190,43 @@ export default {
       if (receipt) {
         if (receipt.payload !== payload)
           return json(409, { error: "Идентификатор операции уже использован" });
-        return json(200, { state: JSON.parse(u.state), revision: u.revision });
+        return json(200, await loadFinance(db, u.id));
       }
-      if (data.revision !== u.revision)
+      const snapshot = await loadFinance(db, u.id);
+      if (data.revision !== snapshot.revision)
         return json(409, {
           error: "Данные изменены в другой вкладке. Обновите страницу",
         });
       let state;
       try {
-        state = apply(JSON.parse(u.state), data.action);
+        state = apply(snapshot.state, data.action);
       } catch (e) {
         return json(400, { error: e.message });
       }
-      const serialized = JSON.stringify(state);
-      if (new TextEncoder().encode(serialized).length > 1_800_000)
-        return json(400, {
-          error:
-            "Достигнут предельный размер бюджета. Обратитесь к администратору",
-        });
-      // Compare-and-swap protects the whole budget, including both transfer months.
+      const token = randomBytes(24).toString("hex");
       const results = await db.batch([
         db
           .prepare(
-            "INSERT INTO operations(user,id,payload) SELECT ?,?,? FROM users WHERE id=? AND revision=?",
+            "UPDATE users SET revision=revision+1,mutation_token=? WHERE id=? AND revision=?",
           )
-          .bind(u.id, operationId, payload, u.id, u.revision),
+          .bind(token, u.id, snapshot.revision),
         db
           .prepare(
-            "UPDATE users SET state=?,revision=revision+1 WHERE id=? AND revision=?",
+            "INSERT INTO operations(user,id,payload) SELECT ?,?,? FROM users WHERE id=? AND mutation_token=?",
           )
-          .bind(serialized, u.id, u.revision),
+          .bind(u.id, operationId, payload, u.id, token),
+        ...financeWrites(db, u.id, snapshot.state, state, token),
+        db
+          .prepare(
+            "UPDATE users SET mutation_token=NULL WHERE id=? AND mutation_token=?",
+          )
+          .bind(u.id, token),
       ]);
-      if (results[1].meta.changes !== 1)
+      if (results[0].meta.changes !== 1)
         return json(409, {
           error: "Данные изменены в другой вкладке. Обновите страницу",
         });
-      return json(200, { state, revision: u.revision + 1 });
+      return json(200, { state, revision: snapshot.revision + 1 });
     } catch (e) {
       if (e instanceof SyntaxError)
         return json(400, { error: "Некорректный JSON" });

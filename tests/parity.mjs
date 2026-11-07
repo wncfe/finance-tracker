@@ -33,19 +33,6 @@ actions.push(
 for (const week of [2, 3, 4, 5])
   actions.push({ type: "close", month: "2026-11", week, mode: "remaining" });
 actions.push({ type: "transfer", month: "2026-12", amount: 100000 });
-actions.push(
-  { type: "budget", month: "2026-11", amount: 1234567 },
-  { type: "reopen", month: "2026-11", week: 1 },
-  {
-    type: "expense",
-    month: "2026-11",
-    week: 1,
-    amount: 500,
-    date: "2026-11-02",
-    category: "Кафе",
-  },
-  { type: "close", month: "2026-11", week: 1, mode: "remaining" },
-);
 const python = spawnSync(
   "python",
   [

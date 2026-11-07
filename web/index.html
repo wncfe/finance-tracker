@@ -15,6 +15,9 @@
     <script defer src="/app.js"></script>
     <script defer src="/quick-add.js"></script>
     <script defer src="/pickers.js"></script>
+    <script defer src="/analytics.js"></script>
+    <script defer src="/mobile-tabs.js"></script>
+    <script defer src="/expense-actions.js"></script>
   </head>
   <body>
     <header>
@@ -67,6 +70,23 @@
           /><button id="next" aria-label="Следующий месяц">→</button>
         </div>
       </div>
+      <nav
+        id="mobileTabs"
+        class="mobile-tabs"
+        aria-label="Разделы бюджета"
+        hidden
+      >
+        <button type="button" id="tab-overview" data-tab="overview">
+          Обзор
+        </button>
+        <button type="button" id="tab-history" data-tab="history">
+          История
+        </button>
+        <button type="button" id="tab-analytics" data-tab="analytics">
+          Аналитика
+        </button>
+        <button type="button" id="tab-budget" data-tab="budget">Бюджет</button>
+      </nav>
       <section class="quick-launch card">
         <div>
           <h2>Запишите расход своими словами</h2>
@@ -76,20 +96,26 @@
       </section>
       <div class="layout">
         <section>
-          <div class="hero">
-            <span>Осталось на месяц</span>
-            <div id="balance" class="balance"></div>
-            <div class="herofoot">
-              <div>Доступный бюджет<strong id="total"></strong></div>
-              <div>Потрачено<strong id="spent"></strong></div>
+          <section id="panel-overview" data-nav-panel="overview">
+            <div class="hero">
+              <span>Осталось на месяц</span>
+              <div id="balance" class="balance"></div>
+              <div class="herofoot">
+                <div>Доступный бюджет<strong id="total"></strong></div>
+                <div>Потрачено<strong id="spent"></strong></div>
+              </div>
             </div>
-          </div>
-          <div class="sectionhead">
-            <h2>Недели месяца</h2>
-            <span class="muted" id="weekcount"></span>
-          </div>
-          <div id="weeks" class="weeks"></div>
-          <section class="card history">
+            <div class="sectionhead">
+              <h2>Недели месяца</h2>
+              <span class="muted" id="weekcount"></span>
+            </div>
+            <div id="weeks" class="weeks"></div>
+          </section>
+          <section
+            id="panel-history"
+            data-nav-panel="history"
+            class="card history"
+          >
             <div class="sectionhead">
               <h2>История трат</h2>
               <select id="filter" aria-label="Фильтр недели"></select>
@@ -98,7 +124,7 @@
           </section>
         </section>
         <aside>
-          <section class="card">
+          <section id="panel-budget" data-nav-panel="budget" class="card">
             <span class="eyebrow">ПЛАНИРОВАНИЕ</span>
             <h2>Бюджет месяца</h2>
             <form id="budgetform">
@@ -126,11 +152,48 @@
               ><button>Перенести остаток</button>
             </form>
           </section>
-          <section class="card">
-            <h2>По категориям</h2>
+          <section id="panel-analytics" data-nav-panel="analytics" class="card">
+            <h2>Расходы по категориям</h2>
+            <div id="analyticsControls">
+              <label
+                >Период<select id="analysisMode" aria-label="Период диаграммы">
+                  <option value="day">День</option>
+                  <option value="week">Неделя</option>
+                  <option value="month" selected>Месяц</option>
+                  <option value="custom">Свой период</option>
+                </select></label
+              >
+              <div id="analysisAnchor">
+                <label
+                  >Дата периода<input
+                    id="analysisDate"
+                    type="date"
+                    min="2000-01-01"
+                    max="2100-12-31"
+                /></label>
+              </div>
+              <div id="analysisCustom" hidden>
+                <label
+                  >С<input
+                    id="analysisFrom"
+                    type="date"
+                    min="2000-01-01"
+                    max="2100-12-31" /></label
+                ><label
+                  >По<input
+                    id="analysisTo"
+                    type="date"
+                    min="2000-01-01"
+                    max="2100-12-31"
+                /></label>
+              </div>
+            </div>
+            <p id="analysisRange" role="status"></p>
+            <div id="categoryChart"></div>
+            <div id="analysisLegend"></div>
             <div id="categories"></div>
           </section>
-          <section class="card">
+          <section data-nav-panel="budget" class="card">
             <h2>Данные</h2>
             <p class="muted" id="saveStatus">
               Все изменения сохранены на сервере
@@ -148,7 +211,6 @@
         <button id="dismiss" aria-label="Закрыть окно">✕</button>
       </div>
       <div id="weeksummary" class="summary"></div>
-      <button id="reopen" hidden>Открыть неделю для исправлений</button>
       <div id="weekeditable">
         <form id="expenseform">
           <h3>Добавить трату</h3>
@@ -246,6 +308,41 @@
         <div id="rulelist"></div>
       </details>
     </dialog>
+    <dialog id="categoryEditor" aria-labelledby="categoryEditorTitle">
+      <div class="dialoghead">
+        <h2 id="categoryEditorTitle">Изменить категорию</h2>
+        <button id="categoryEditorClose" aria-label="Закрыть">✕</button>
+      </div>
+      <p id="categoryEditorNote"></p>
+      <form id="categoryEditorForm">
+        <label
+          >Категория<select
+            id="expenseCategory"
+            aria-label="Новая категория"
+            required
+          ></select
+        ></label>
+        <p class="muted">
+          Меняется только категория. Сумма, дата и состояние недели сохраняются.
+        </p>
+        <button class="primary">Сохранить категорию</button>
+      </form>
+    </dialog>
+    <div
+      id="expenseActions"
+      popover="auto"
+      role="menu"
+      aria-label="Действия с расходом"
+    >
+      <p id="expenseActionsTitle"></p>
+      <button type="button" role="menuitem" id="expenseMenuCategory">
+        Изменить категорию</button
+      ><button type="button" role="menuitem" id="expenseMenuDelete">
+        Удалить расход</button
+      ><small id="expenseMenuReason" hidden
+        >Неделя закрыта — удаление недоступно</small
+      >
+    </div>
     <div id="toast" role="status" hidden></div>
   </body>
 </html>

@@ -190,13 +190,19 @@ export function apply(original, action) {
       "Некорректная неделя",
     );
     const w = m.weeks[i];
-    if (type === "reopen") {
-      check(w.closed, "Неделя уже открыта");
-      for (const future of m.weeks.slice(i)) {
-        future.closed = false;
-        delete future.settled;
-      }
-      redistribute(m);
+    if (type === "recategorize") {
+      check(
+        Object.keys(action).every((k) =>
+          ["type", "month", "week", "id", "category"].includes(k),
+        ),
+        "Можно изменить только категорию",
+      );
+      check(categories.includes(action.category), "Неизвестная категория");
+      const expense = m.expenses.find(
+        (e) => e.id === action.id && e.week === i,
+      );
+      check(expense, "Расход не найден");
+      expense.category = action.category;
       return state;
     }
     check(!w.closed, "Неделя закрыта");

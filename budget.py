@@ -117,13 +117,14 @@ def apply(state, action):
         if type(i) is not int or not 0 <= i < len(m['weeks']):
             raise ValueError('Некорректная неделя')
         w = m['weeks'][i]
-        if kind == 'reopen':
-            if not w['closed']:
-                raise ValueError('Неделя уже открыта')
-            for future in m['weeks'][i:]:
-                future['closed'] = False
-                future.pop('settled', None)
-            redistribute(m)
+        if kind == 'recategorize':
+            if set(action)-{'type','month','week','id','category'}:
+                raise ValueError('Можно изменить только категорию')
+            if action.get('category') not in CATEGORIES:
+                raise ValueError('Неизвестная категория')
+            expense=next((e for e in m['expenses'] if e['id']==action.get('id') and e['week']==i),None)
+            if expense is None:raise ValueError('Расход не найден')
+            expense['category']=action['category']
             return state
         if w['closed']:
             raise ValueError('Неделя закрыта')
