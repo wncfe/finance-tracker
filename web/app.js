@@ -147,15 +147,22 @@ function expenseDate(value) {
     })
     .replace(" г.", "");
 }
-function entries(m, i) {
+function entries(m, i, merchantId = "") {
   const list = m.expenses
     .filter((e) => i === undefined || e.week === i)
+    .filter(
+      (e) =>
+        !merchantId ||
+        (merchantId === "__none__"
+          ? !e.merchantId
+          : e.merchantId === merchantId),
+    )
     .sort((a, b) => b.date.localeCompare(a.date));
   return list.length
     ? list
         .map(
           (e) =>
-            `<div class="entry"><span class="icon" aria-hidden="true">${icons[cats.indexOf(e.category)] || "•"}</span><div class="description"><span class="expense-title">${esc(e.note || e.category)}</span><small>${esc(e.category)}<time datetime="${esc(e.date)}">${esc(expenseDate(e.date))}</time></small></div><strong>${money(e.amount)}</strong><button class="expense-more" data-expense-menu="${esc(e.id)}" data-month="${esc(e.date.slice(0, 7))}" aria-label="Действия с расходом ${esc(e.note || e.category)}" aria-haspopup="menu" aria-expanded="false" aria-controls="expenseActions"><span aria-hidden="true">⋯</span></button></div>`,
+            `<div class="entry"><span class="icon" aria-hidden="true">${icons[cats.indexOf(e.category)] || "•"}</span><div class="description"><span class="expense-title">${esc(e.note || e.category)}</span><small>${esc(e.category)}${e.merchantId ? ` · ${esc(MerchantDictionary.all(state.merchants, true).find((m) => m.id === e.merchantId)?.name || "Магазин")}` : ""}<time datetime="${esc(e.date)}">${esc(expenseDate(e.date))}</time></small></div><strong>${money(e.amount)}</strong><button class="expense-more" data-expense-menu="${esc(e.id)}" data-month="${esc(e.date.slice(0, 7))}" aria-label="Действия с расходом ${esc(e.note || e.category)}" aria-haspopup="menu" aria-expanded="false" aria-controls="expenseActions"><span aria-hidden="true">⋯</span></button></div>`,
         )
         .join("")
     : '<p class="muted">Пока нет трат</p>';
@@ -188,9 +195,27 @@ function render() {
       .map((w, i) => `<option value="${i}">Неделя ${i + 1}</option>`)
       .join("");
   $("filter").value = filter;
+  const merchantFilter = $("historyMerchant").value;
+  const usedMerchants = new Set(
+    m.expenses.map((e) => e.merchantId).filter(Boolean),
+  );
+  $("historyMerchant").innerHTML =
+    '<option value="">Все магазины</option><option value="__none__">Без магазина</option>' +
+    MerchantDictionary.all(state.merchants, true)
+      .filter((item) => usedMerchants.has(item.id))
+      .map(
+        (item) => `<option value="${esc(item.id)}">${esc(item.name)}</option>`,
+      )
+      .join("");
+  $("historyMerchant").value = [...$("historyMerchant").options].some(
+    (option) => option.value === merchantFilter,
+  )
+    ? merchantFilter
+    : "";
   $("history").innerHTML = entries(
     m,
     filter === "" ? undefined : Number(filter),
+    $("historyMerchant").value,
   );
   $("categories").innerHTML =
     cats
@@ -310,6 +335,7 @@ async function mutate(action) {
 }
 async function load() {
   try {
+    await MerchantDictionary.loadDefaults();
     const result = await api("state");
     accountLogin = result.login;
     state = result.state;
@@ -359,6 +385,7 @@ function select(key) {
   if (!/^20\d{2}-(0[1-9]|1[0-2])$|^2100-(0[1-9]|1[0-2])$/.test(key)) return;
   selected = key;
   $("filter").value = "";
+  $("historyMerchant").value = "";
   render();
 }
 $("month").onchange = (e) => select(e.target.value);
@@ -382,6 +409,7 @@ $("weeks").onclick = (e) => {
 };
 $("dismiss").onclick = () => $("weekdialog").close();
 $("filter").onchange = () => render();
+$("historyMerchant").onchange = () => render();
 $("categorybuttons").onclick = (e) => {
   const b = e.target.closest("[data-category]");
   if (b) {
@@ -400,10 +428,13 @@ $("expenseform").onsubmit = async (e) => {
       date: f.elements.date.value,
       category,
       note: f.elements.note.value,
+      merchantId: f.elements.merchantId.value,
     })
   ) {
     f.elements.amount.value = "";
     f.elements.note.value = "";
+    f.elements.merchantId.value = "";
+    MerchantUI.resetWeek();
     f.elements.amount.focus();
   }
 };

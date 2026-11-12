@@ -1,0 +1,40 @@
+[
+  { "id": "b-magnit", "name": "Магнит", "aliases": ["Magnit"] },
+  { "id": "b-lenta", "name": "Лента", "aliases": ["Lenta"] },
+  { "id": "b-samokat", "name": "Самокат", "aliases": ["Samokat"] },
+  { "id": "b-yandex-taxi", "name": "Яндекс Такси", "aliases": ["Yandex Taxi"] },
+  { "id": "b-burger-king", "name": "Бургер Кинг", "aliases": ["Burger King"] },
+  { "id": "b-rostics", "name": "Rostic's", "aliases": ["Ростикс"] },
+  { "id": "b-steam", "name": "Steam", "aliases": [] },
+  { "id": "b-troika-perm", "name": "Тройка Пермь", "aliases": [] },
+  {
+    "id": "b-avtovokzaly-prikamya",
+    "name": "Автовокзалы Прикамья",
+    "aliases": []
+  },
+  { "id": "b-yobody", "name": "YoBody Fitness", "aliases": [] },
+  { "id": "b-monkey-grinder", "name": "Monkey Grinder", "aliases": [] },
+  { "id": "b-krasnoe-beloe", "name": "Красное и белое", "aliases": [] },
+  { "id": "b-monetka", "name": "Монетка", "aliases": [] },
+  { "id": "b-fix-price", "name": "Fix Price", "aliases": [] },
+  { "id": "b-dodo", "name": "Додо Пицца", "aliases": ["Dodo Pizza"] },
+  { "id": "b-play-day", "name": "Play Day", "aliases": ["Игротека Play Day"] },
+  {
+    "id": "b-pyaterochka",
+    "name": "Пятёрочка",
+    "aliases": ["Пятерочка", "5ка"]
+  },
+  { "id": "b-rostelecom", "name": "Ростелеком", "aliases": ["Rostelecom"] },
+  { "id": "b-chitai-gorod", "name": "Читай-город", "aliases": [] },
+  { "id": "b-drinkit", "name": "Дринкит", "aliases": ["Drinkit"] },
+  { "id": "b-planeta-zdorovya", "name": "Планета Здоровья", "aliases": [] },
+  { "id": "b-okko", "name": "Okko.tv", "aliases": ["Okko"] },
+  { "id": "b-yandex-plus", "name": "Яндекс Плюс", "aliases": ["Yandex Plus"] },
+  { "id": "b-yandex-lavka", "name": "Яндекс Лавка", "aliases": [] },
+  { "id": "b-befree", "name": "Befree", "aliases": [] },
+  { "id": "b-modi", "name": "MODI", "aliases": [] },
+  { "id": "b-whoosh", "name": "Whoosh", "aliases": [] },
+  { "id": "b-chizhik", "name": "Чижик", "aliases": [] },
+  { "id": "b-detsky-mir", "name": "Детский Мир", "aliases": [] },
+  { "id": "b-vkusno-tochka", "name": "Вкусно — и точка", "aliases": [] }
+]

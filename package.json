@@ -12,6 +12,8 @@
     "cf:deploy": "wrangler deploy",
     "test:client": "node tests/api-client.cjs",
     "test:parser": "node tests/expense-parser.cjs",
+    "test:merchants": "node tests/merchants.cjs",
+    "test:merchants:browser": "node tests/merchant-browser.cjs",
     "test:analytics": "node tests/analytics.cjs",
     "test:categories": "node tests/category-utils.cjs",
     "test:edge": "node tests/edge-cases.cjs && node tests/batch-edge.mjs",

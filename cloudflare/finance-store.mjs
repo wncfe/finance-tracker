@@ -15,6 +15,11 @@ export async function loadFinance(db, userId) {
         "SELECT e.*,c.name AS category FROM expenses e JOIN categories c ON c.id=e.category_id WHERE e.user_id=? ORDER BY month,position",
       )
       .bind(userId),
+    db
+      .prepare(
+        "SELECT id,name,aliases,hidden FROM user_merchants WHERE user_id=? ORDER BY id",
+      )
+      .bind(userId),
   ]);
   const state = { months: {} };
   for (const m of result[1].results)
@@ -46,7 +51,15 @@ export async function loadFinance(db, userId) {
       date: e.date,
       category: e.category,
       note: e.note,
+      ...(e.merchant_id !== null ? { merchantId: e.merchant_id } : {}),
     });
+  if (result[4].results.length)
+    state.merchants = result[4].results.map((m) => ({
+      id: m.id,
+      name: m.name,
+      aliases: JSON.parse(m.aliases),
+      hidden: !!m.hidden,
+    }));
   return { state, revision: result[0].results[0].revision };
 }
 
@@ -58,6 +71,16 @@ export function financeWrites(db, userId, before, after, token) {
   const add = (sql, args) =>
     statements.push(db.prepare(sql).bind(...args, userId, token));
   const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  for (const m of after.merchants || []) {
+    const previous = (before.merchants || []).find(
+      (entry) => entry.id === m.id,
+    );
+    if (!same(previous, m))
+      add(
+        `INSERT INTO user_merchants(user_id,id,name,aliases,hidden) SELECT ?,?,?,?,? WHERE ${guard} ON CONFLICT(user_id,id) DO UPDATE SET name=excluded.name,aliases=excluded.aliases,hidden=excluded.hidden`,
+        [userId, m.id, m.name, JSON.stringify(m.aliases), m.hidden ? 1 : 0],
+      );
+  }
   for (const [key, m] of Object.entries(after.months)) {
     const old = before.months[key];
     if (same(old, m)) continue;
@@ -106,8 +129,19 @@ export function financeWrites(db, userId, before, after, token) {
       const prior = previous.get(e.id);
       if (prior && prior.i === i && same(prior.e, e)) return;
       add(
-        `INSERT INTO expenses(user_id,id,month,week_index,amount,date,category_id,note,position) SELECT ?,?,?,?,?,?,(SELECT id FROM categories WHERE name=?),?,? WHERE ${guard} ON CONFLICT(user_id,id) DO UPDATE SET month=excluded.month,week_index=excluded.week_index,amount=excluded.amount,date=excluded.date,category_id=excluded.category_id,note=excluded.note,position=excluded.position`,
-        [userId, e.id, key, e.week, e.amount, e.date, e.category, e.note, i],
+        `INSERT INTO expenses(user_id,id,month,week_index,amount,date,category_id,note,position,merchant_id) SELECT ?,?,?,?,?,?,(SELECT id FROM categories WHERE name=?),?,?,? WHERE ${guard} ON CONFLICT(user_id,id) DO UPDATE SET month=excluded.month,week_index=excluded.week_index,amount=excluded.amount,date=excluded.date,category_id=excluded.category_id,note=excluded.note,position=excluded.position,merchant_id=excluded.merchant_id`,
+        [
+          userId,
+          e.id,
+          key,
+          e.week,
+          e.amount,
+          e.date,
+          e.category,
+          e.note,
+          i,
+          e.merchantId ?? null,
+        ],
       );
     });
   }

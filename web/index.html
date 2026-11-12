@@ -13,7 +13,9 @@
     <script defer src="/expense-history.js"></script>
     <script defer src="/expense-parser.js"></script>
     <script defer src="/category-utils.js"></script>
+    <script defer src="/merchants.js"></script>
     <script defer src="/app.js"></script>
+    <script defer src="/merchant-ui.js"></script>
     <script defer src="/quick-add.js"></script>
     <script defer src="/pickers.js"></script>
     <script defer src="/analytics.js"></script>
@@ -121,6 +123,14 @@
               <h2>История трат</h2>
               <select id="filter" aria-label="Фильтр недели"></select>
             </div>
+            <label
+              >Магазин или сервис<select
+                id="historyMerchant"
+                aria-label="Фильтр магазина"
+              >
+                <option value="">Все магазины</option>
+              </select></label
+            >
             <div id="history"></div>
           </section>
         </section>
@@ -199,6 +209,7 @@
             <p class="muted" id="saveStatus">
               Все изменения сохранены на сервере
             </p>
+            <button id="merchantOpen" type="button">Магазины и сервисы</button>
           </section>
         </aside>
       </div>
@@ -237,8 +248,17 @@
             >Что купил<input
               name="note"
               maxlength="200"
-              placeholder="Например, продукты на ужин" /></label
-          ><button class="primary">Добавить трату</button>
+              placeholder="Например, продукты на ужин"
+          /></label>
+          <label
+            >Магазин или сервис<select
+              id="weekMerchant"
+              name="merchantId"
+            ></select
+          ></label>
+          <p id="weekMerchantHint" class="muted" role="status"></p>
+          <button id="weekMerchantNew" type="button">Добавить магазин</button>
+          <button class="primary">Добавить трату</button>
         </form>
         <details>
           <summary>Изменить лимит недели</summary>
@@ -269,6 +289,42 @@
       </div>
       <h3>Траты недели</h3>
       <div id="weekexpenses"></div>
+    </dialog>
+    <dialog id="merchantDialog" aria-labelledby="merchantTitle">
+      <div class="dialoghead">
+        <h2 id="merchantTitle">Магазины и сервисы</h2>
+        <button id="merchantClose" type="button" aria-label="Закрыть">✕</button>
+      </div>
+      <p class="muted">
+        Названия и варианты сохраняются в аккаунте. Описания и категории
+        расходов не меняются.
+      </p>
+      <label
+        >Поиск<input
+          id="merchantSearch"
+          type="search"
+          placeholder="Название магазина"
+      /></label>
+      <div id="merchantList" class="merchant-list"></div>
+      <form id="merchantForm">
+        <h3 id="merchantFormTitle">Новый магазин или сервис</h3>
+        <label
+          >Название<input id="merchantName" maxlength="100" required
+        /></label>
+        <label
+          >Другие названия<textarea
+            id="merchantAliases"
+            rows="3"
+            placeholder="Каждый вариант с новой строки"
+          ></textarea>
+        </label>
+        <label class="checkline"
+          ><input id="merchantHidden" type="checkbox" /> Скрыть из выбора</label
+        >
+        <p id="merchantError" role="alert"></p>
+        <button class="primary" type="submit">Сохранить</button>
+        <button id="merchantClear" type="button">Новый магазин</button>
+      </form>
     </dialog>
     <dialog id="quickdialog" aria-labelledby="quicktitle">
       <div class="dialoghead">

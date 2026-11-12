@@ -81,3 +81,13 @@ class StoreTests(unittest.TestCase):
             store.migrate(db)
             for uid,state in states.items():self.assertEqual(store.load(db,uid),state)
         finally:db.close();source.close()
+
+    def test_merchant_migration_preserves_existing_expenses(self):
+        state=budget.apply({'months':{}},dict(type='expense',month='2026-11',week=1,date='2026-11-02',amount=123,category='Кафе',note='До миграции'))
+        with self.legacy(state) as db:
+            store.migrate(db)
+            self.assertEqual(store.load(db,1),state)
+            self.assertIsNone(db.execute('SELECT merchant_id FROM expenses').fetchone()[0])
+            self.assertEqual(db.execute('SELECT count(*) FROM user_merchants').fetchone()[0],0)
+            store.migrate(db)
+            self.assertEqual(store.load(db,1),state)

@@ -1,3 +1,5 @@
+import merchantDefaults from "../web/merchants.json" with { type: "json" };
+
 export const categories = [
   "Фастфуд",
   "Рестораны",
@@ -129,6 +131,54 @@ function redistribute(m) {
 }
 
 export function apply(original, action) {
+  if (action.type === "merchant_save") {
+    const item = action.merchant;
+    check(
+      item && typeof item === "object" && !Array.isArray(item),
+      "Некорректный магазин",
+    );
+    check(
+      Object.keys(item).every((key) =>
+        ["id", "name", "aliases", "hidden"].includes(key),
+      ),
+      "Некорректный магазин",
+    );
+    check(
+      typeof item.id === "string" &&
+        (merchantDefaults.some((m) => m.id === item.id) ||
+          /^c-[0-9a-f]{32}$/.test(item.id)),
+      "Некорректный идентификатор магазина",
+    );
+    check(
+      typeof item.name === "string" &&
+        item.name.trim().length > 0 &&
+        item.name.trim().length <= 100,
+      "Название: от 1 до 100 символов",
+    );
+    check(
+      Array.isArray(item.aliases) &&
+        item.aliases.length <= 30 &&
+        item.aliases.every(
+          (alias) =>
+            typeof alias === "string" &&
+            alias.trim().length > 0 &&
+            alias.trim().length <= 100,
+        ),
+      "Некорректные варианты названия",
+    );
+    check(typeof item.hidden === "boolean", "Некорректный статус магазина");
+    const state = structuredClone(original);
+    const merchants = (state.merchants || []).filter((m) => m.id !== item.id);
+    merchants.push({
+      id: item.id,
+      name: item.name.trim(),
+      aliases: item.aliases.map((s) => s.trim()),
+      hidden: item.hidden,
+    });
+    merchants.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    state.merchants = merchants;
+    return state;
+  }
   if (action.category === "Продукты")
     action = { ...action, category: "Супермаркеты" };
   if (action.type === "expenses") {
@@ -212,6 +262,18 @@ export function apply(original, action) {
       check(categories.includes(action.category), "Неизвестная категория");
       const note = String(action.note || "").trim();
       check(note.length <= 200, "Описание слишком длинное");
+      const merchantId = action.merchantId;
+      if (
+        merchantId !== undefined &&
+        merchantId !== null &&
+        merchantId !== ""
+      ) {
+        check(typeof merchantId === "string", "Неизвестный магазин");
+        const merchant =
+          (state.merchants || []).find((m) => m.id === merchantId) ||
+          merchantDefaults.find((m) => m.id === merchantId);
+        check(merchant && !merchant.hidden, "Неизвестный или скрытый магазин");
+      }
       m.expenses.push({
         id: crypto.randomUUID().replaceAll("-", ""),
         week: i,
@@ -219,6 +281,7 @@ export function apply(original, action) {
         date: action.date,
         category: action.category,
         note,
+        ...(merchantId ? { merchantId } : {}),
       });
       check(
         !m.outgoing || spent(m) <= effective,
