@@ -130,6 +130,9 @@ function attachPicker(input, kind, { navigate = false } = {}) {
     viewedMonth = value.slice(0, 7);
     year = Number((input.value || input.min).slice(0, 4));
     draw();
+    const ownerDialog = input.closest("dialog");
+    if (ownerDialog && !ownerDialog.contains(dialog))
+      ownerDialog.append(dialog);
     dialog.showModal();
   };
   input.addEventListener("change", sync);
