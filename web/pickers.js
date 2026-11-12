@@ -56,11 +56,11 @@ function attachPicker(input, kind, { navigate = false } = {}) {
       const [y, m] = input.value.split("-").map(Number);
       trigger.innerHTML =
         icon("calendar-days") +
-        `<span>${months[m - 1] || "Выбрать месяц"} ${y || ""}</span><span aria-hidden="true">⌄</span>`;
+        `<span>${months[m - 1] || "Выбрать месяц"} ${y || ""}</span>`;
     } else {
       trigger.innerHTML =
         icon("calendar-days") +
-        `<span>${input.value ? input.value.split("-").reverse().join(".") : "Выбрать дату"}</span><span aria-hidden="true">⌄</span>`;
+        `<span>${input.value ? input.value.split("-").reverse().join(".") : "Выбрать дату"}</span>`;
     }
   };
   function choose(value) {
@@ -155,7 +155,7 @@ function attachSelect(select) {
   const dialog = pickerDialog(trigger.getAttribute("aria-label"));
   const sync = () => {
     trigger.textContent =
-      (select.selectedOptions[0]?.textContent || "Выбрать") + " ⌄";
+      select.selectedOptions[0]?.textContent || "Выбрать";
   };
   trigger.onclick = () => {
     if (select.disabled) return;
@@ -185,10 +185,13 @@ function attachSelect(select) {
     } else dialog.close();
   };
   select.addEventListener("change", sync);
+  const optionsObserver = new MutationObserver(sync);
+  optionsObserver.observe(select, { childList: true, subtree: true });
   sync.destroy = () => {
     dialog.remove();
     trigger.remove();
     select.removeEventListener("change", sync);
+    optionsObserver.disconnect();
   };
   sync();
   return sync;
@@ -197,6 +200,8 @@ const syncMonth = attachPicker($("month"), "month"),
   syncDate = attachPicker($("expenseform").elements.date, "date"),
   syncFilter = attachSelect($("filter")),
   syncClose = attachSelect($("closemode"));
+const syncWeekMerchant = attachSelect($("weekMerchant"));
+const syncHistoryMerchant = attachSelect($("historyMerchant"));
 const originalRender = render,
   originalRenderWeek = renderWeek;
 render = function () {
@@ -204,6 +209,8 @@ render = function () {
   syncMonth();
   syncFilter();
   syncClose();
+  syncWeekMerchant();
+  syncHistoryMerchant();
 };
 renderWeek = function () {
   originalRenderWeek();
@@ -214,3 +221,5 @@ syncMonth();
 syncDate();
 syncFilter();
 syncClose();
+syncWeekMerchant();
+syncHistoryMerchant();

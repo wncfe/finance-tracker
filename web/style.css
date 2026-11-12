@@ -1085,9 +1085,14 @@ details form {
 
 /* Full-width analytics shares the existing app navigation. */
 #mobileTabs {
-  display: flex;
+  display: none;
   gap: 6px;
   margin: 0 0 20px;
+}
+@media (max-width: 680px) {
+  #mobileTabs:not([hidden]) {
+    display: grid;
+  }
 }
 #mobileTabs button {
   flex: 1;
