@@ -81,3 +81,36 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(self.request(client,'action',body),saved)
         self.assertEqual(saved[1]['revision'],1)
         self.assertEqual(len(saved[1]['state']['months']['2027-01']['expenses']),1)
+
+    def test_merchants_sync_isolation_and_legacy_expenses(self):
+        a,b=self.client(),self.client()
+        for client,login in ((a,'merchant-alice'),(b,'merchant-bob')):
+            self.assertEqual(self.request(client,'register',{'login':login,'password':'test-password-123'})[0],200)
+        legacy=dict(type='expense',month='2026-11',week=1,date='2026-11-02',amount=100,category='Кафе',note='Исходный текст')
+        first=self.request(a,'action',{'revision':0,'action':legacy})[1]
+        old=first['state']['months']['2026-11']['expenses'][0]
+        merchant=dict(id='c-'+'1'*32,name='Мой магазин',aliases=['вариант'],hidden=False)
+        body={'revision':1,'operationId':uuid.uuid4().hex,'action':dict(type='merchant_save',merchant=merchant)}
+        saved=self.request(a,'action',body)
+        self.assertEqual(saved[0],200)
+        self.assertEqual(self.request(a,'action',body),saved)
+        self.assertEqual(self.request(b,'state')[1]['state'],{'months':{}})
+        self.assertEqual(self.request(a,'state')[1]['state']['merchants'],[merchant])
+        self.assertEqual(self.request(a,'state')[1]['state']['months']['2026-11']['expenses'][0],old)
+        item=dict(date='2026-11-03',amount=200,category='Кафе',note='вариант',merchantId=merchant['id'])
+        bad=self.request(b,'action',{'revision':0,'action':dict(type='expenses',items=[item])})
+        self.assertEqual(bad[0],400)
+        result=self.request(a,'action',{'revision':2,'action':dict(type='expenses',items=[item])})
+        self.assertEqual(result[0],200)
+        linked=result[1]['state']['months']['2026-11']['expenses'][1]
+        self.assertEqual(linked['merchantId'],merchant['id'])
+        self.assertEqual(self.request(a,'state')[1]['state'],result[1]['state'])
+        changed=self.request(a,'action',{'revision':3,'action':dict(type='recategorize',month='2026-11',week=1,id=linked['id'],category='Кофейни')})
+        self.assertEqual(changed[0],200)
+        self.assertEqual(changed[1]['state']['months']['2026-11']['expenses'][1]['merchantId'],merchant['id'])
+        merchant['hidden']=True
+        hidden=self.request(a,'action',{'revision':4,'action':dict(type='merchant_save',merchant=merchant)})
+        self.assertEqual(hidden[0],200)
+        self.assertEqual(hidden[1]['state']['months']['2026-11']['expenses'][1]['merchantId'],merchant['id'])
+        self.assertEqual(self.request(a,'action',{'revision':5,'action':dict(type='expenses',items=[item])})[0],400)
+        self.assertEqual(self.request(a,'action',{'revision':5,'action':dict(type='expenses',items=[dict(item,merchantId='b-magnit')])})[0],200)

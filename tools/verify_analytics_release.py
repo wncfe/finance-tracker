@@ -20,7 +20,7 @@ def fetch(route):
 
 count=0
 for path in sorted((ROOT/'web').rglob('*')):
-    if not path.is_file() or path.suffix not in ('.html','.js','.css','.svg'):continue
+    if not path.is_file() or path.suffix not in ('.html','.js','.css','.svg','.json'):continue
     route='/' if path.name=='index.html' else '/'+path.relative_to(ROOT/'web').as_posix()
     status,content,headers=fetch(route+'?release=analytics-20261113')
     assert status==200,(route,status)

@@ -8,6 +8,7 @@ def migrate(db):
     if 'state' not in [r[1] for r in db.execute('PRAGMA table_info(users)')]:
         merge_categories(db)
         remove_transfers(db)
+        migrate_merchants(db)
         return
     script=(ROOT/'cloudflare/migrations/0003_normalized_finances.sql').read_text('utf-8')
     # executescript commits any existing transaction: begin inside the script.
@@ -20,6 +21,7 @@ def migrate(db):
         db.commit()
         merge_categories(db)
         remove_transfers(db)
+        migrate_merchants(db)
     except Exception:
         db.rollback()
         raise
@@ -27,6 +29,13 @@ def migrate(db):
 def merge_categories(db):
     if db.execute("SELECT 1 FROM categories WHERE id='groceries'").fetchone():
         try:db.executescript('BEGIN IMMEDIATE;\n'+(ROOT/'cloudflare/migrations/0004_merge_groceries.sql').read_text('utf-8')+'\nCOMMIT;')
+        except Exception:
+            db.rollback()
+            raise
+
+def migrate_merchants(db):
+    if 'merchant_id' not in [r[1] for r in db.execute('PRAGMA table_info(expenses)')]:
+        try:db.executescript('BEGIN IMMEDIATE;\n'+(ROOT/'cloudflare/migrations/0006_merchants.sql').read_text('utf-8')+'\nCOMMIT;')
         except Exception:
             db.rollback()
             raise
@@ -44,12 +53,23 @@ def load(db,user_id):
         if settled is not None:week['settled']=settled
         assert i==len(state['months'][key]['weeks']),'Non-contiguous weeks'
         state['months'][key]['weeks'].append(week)
-    for key,identifier,week,amount,date,category,note in db.execute('SELECT e.month,e.id,e.week_index,e.amount,e.date,c.name,e.note FROM expenses e JOIN categories c ON c.id=e.category_id WHERE e.user_id=? ORDER BY e.month,e.position',(user_id,)):
-        state['months'][key]['expenses'].append(dict(id=identifier,week=week,amount=amount,date=date,category=category,note=note))
+    has_merchants='merchant_id' in [r[1] for r in db.execute('PRAGMA table_info(expenses)')]
+    merchant_column='e.merchant_id' if has_merchants else 'NULL'
+    for key,identifier,week,amount,date,category,note,merchant_id in db.execute(f'SELECT e.month,e.id,e.week_index,e.amount,e.date,c.name,e.note,{merchant_column} FROM expenses e JOIN categories c ON c.id=e.category_id WHERE e.user_id=? ORDER BY e.month,e.position',(user_id,)):
+        expense=dict(id=identifier,week=week,amount=amount,date=date,category=category,note=note)
+        if merchant_id is not None:expense['merchantId']=merchant_id
+        state['months'][key]['expenses'].append(expense)
+    if has_merchants:
+        merchants=[dict(id=i,name=n,aliases=json.loads(a),hidden=bool(h)) for i,n,a,h in db.execute('SELECT id,name,aliases,hidden FROM user_merchants WHERE user_id=? ORDER BY id',(user_id,))]
+        if merchants:state['merchants']=merchants
     return state
 
 def save(db,user_id,before,after):
     """Write only changed rows, in the caller's revision/receipt transaction."""
+    prior_merchants={m['id']:m for m in before.get('merchants',[])}
+    for m in after.get('merchants',[]):
+        if prior_merchants.get(m['id'])!=m:
+            db.execute('INSERT INTO user_merchants(user_id,id,name,aliases,hidden) VALUES(?,?,?,?,?) ON CONFLICT(user_id,id) DO UPDATE SET name=excluded.name,aliases=excluded.aliases,hidden=excluded.hidden',(user_id,m['id'],m['name'],json.dumps(m['aliases'],ensure_ascii=False),int(m['hidden'])))
     for key,m in after['months'].items():
         old=before['months'].get(key)
         if old==m:continue
@@ -69,8 +89,8 @@ def save(db,user_id,before,after):
             if previous.get(e['id'])==(i,e):continue
             category=db.execute('SELECT id FROM categories WHERE name=?',(e['category'],)).fetchone()
             if category is None:raise ValueError('Неизвестная категория')
-            db.execute('INSERT INTO expenses VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(user_id,id) DO UPDATE SET month=excluded.month,week_index=excluded.week_index,amount=excluded.amount,date=excluded.date,category_id=excluded.category_id,note=excluded.note,position=excluded.position',
-                       (user_id,e['id'],key,e['week'],e['amount'],e['date'],category[0],e['note'],i))
+            db.execute('INSERT INTO expenses(user_id,id,month,week_index,amount,date,category_id,note,position,merchant_id) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(user_id,id) DO UPDATE SET month=excluded.month,week_index=excluded.week_index,amount=excluded.amount,date=excluded.date,category_id=excluded.category_id,note=excluded.note,position=excluded.position,merchant_id=excluded.merchant_id',
+                       (user_id,e['id'],key,e['week'],e['amount'],e['date'],category[0],e['note'],i,e.get('merchantId')))
 
 
 def remove_transfers(db):

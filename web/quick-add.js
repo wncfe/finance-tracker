@@ -154,12 +154,14 @@
             )
             .join(
               "",
-            )}</select></label><label>Описание<input data-field="note" maxlength="200" value="${esc(row.note)}" required></label><p class="muted">${esc(row.source)}</p>${row.issues.length ? `<p class="quick-warning">${row.issues.map(esc).join(" · ")}</p><label class="checkline"><input type="checkbox" data-field="ack"${row.ack ? " checked" : ""}>Я уточнил сумму, дату и назначение расхода</label>` : ""}<label class="checkline"><input type="checkbox" data-field="remember"${row.remember ? " checked" : ""}>Запомнить категорию для этого описания</label><p class="quick-warning" data-status="${i}" role="status"></p></article>`,
+            )}</select></label><label>Описание<input data-field="note" maxlength="200" value="${esc(row.note)}" required></label><label>Магазин или сервис<select data-field="merchantId">${MerchantUI.options(row.merchantId || "")}</select></label><p class="muted" data-merchant-hint="${i}">${esc(row.merchantHint || "")}</p><button type="button" data-merchant-new="${i}">Добавить магазин</button><p class="muted">${esc(row.source)}</p>${row.issues.length ? `<p class="quick-warning">${row.issues.map(esc).join(" · ")}</p><label class="checkline"><input type="checkbox" data-field="ack"${row.ack ? " checked" : ""}>Я уточнил сумму, дату и назначение расхода</label>` : ""}<label class="checkline"><input type="checkbox" data-field="remember"${row.remember ? " checked" : ""}>Запомнить категорию для этого описания</label><p class="quick-warning" data-status="${i}" role="status"></p></article>`,
       )
       .join("");
     status();
     rowPickers = [
-      ...$("quickrows").querySelectorAll("[data-field=date],select"),
+      ...$("quickrows").querySelectorAll(
+        "[data-field=date],[data-field=category]",
+      ),
     ].map((el) => {
       el.setAttribute(
         "aria-label",
@@ -232,6 +234,17 @@
       today: new Date(todayDate() + "T12:00:00"),
       rules: rules(),
       history: Object.values(state.months).flatMap((m) => m.expenses),
+    }).map((row) => {
+      const match = MerchantDictionary.resolve(
+        row.note,
+        MerchantDictionary.all(state.merchants || []),
+      );
+      return {
+        ...row,
+        merchantId: match.status === "matched" ? match.matches[0].id : "",
+        merchantHint: MerchantUI.hint(match),
+        merchantTouched: false,
+      };
     });
     $("quickerror").textContent = "";
     renderRows();
@@ -253,9 +266,44 @@
             ? cents(el.value)
             : null
           : el.value;
+    if (field === "merchantId") {
+      rows[index].merchantTouched = true;
+      rows[index].merchantHint = "";
+      el
+        .closest("[data-row]")
+        .querySelector("[data-merchant-hint]").textContent = "";
+    }
+    if (field === "note" && !rows[index].merchantTouched) {
+      const match = MerchantDictionary.resolve(
+        el.value,
+        MerchantDictionary.all(state.merchants || []),
+      );
+      rows[index].merchantId =
+        match.status === "matched" ? match.matches[0].id : "";
+      rows[index].merchantHint = MerchantUI.hint(match);
+      el
+        .closest("[data-row]")
+        .querySelector('[data-field="merchantId"]').value =
+        rows[index].merchantId;
+      el
+        .closest("[data-row]")
+        .querySelector("[data-merchant-hint]").textContent =
+        rows[index].merchantHint;
+    }
     status();
   });
   $("quickrows").onclick = (e) => {
+    const add = e.target.closest("[data-merchant-new]");
+    if (add && !saving && !frozen) {
+      const index = +add.dataset.merchantNew;
+      MerchantUI.open((id) => {
+        rows[index].merchantId = id;
+        rows[index].merchantTouched = true;
+        rows[index].merchantHint = "";
+        renderRows();
+      }, rows[index].note.trim());
+      return;
+    }
     const button = e.target.closest("[data-remove]");
     if (button && !saving && !frozen) {
       rows.splice(+button.dataset.remove, 1);
@@ -292,6 +340,7 @@
         date: r.date,
         category: r.category,
         note: r.note.trim(),
+        ...(r.merchantId ? { merchantId: r.merchantId } : {}),
       })),
     };
     if (frozen)

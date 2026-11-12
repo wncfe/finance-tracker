@@ -4,6 +4,13 @@ import copy
 import datetime as dt
 import uuid
 import re
+import json
+from pathlib import Path
+
+MERCHANT_DEFAULTS = json.loads((Path(__file__).resolve().parent/'web/merchants.json').read_text('utf-8'))
+
+def utf16len(value):
+    return len(value.encode('utf-16-le'))//2
 
 CATEGORIES = ['Фастфуд', 'Рестораны', 'Кофейни', 'Транспорт', 'Дом', 'Здоровье', 'Покупки', 'Одежда и обувь', 'Красота', 'Спорт', 'Дети', 'Подарки и творчество', 'Книги и образование', 'Связь и интернет', 'Подписки и цифровые сервисы', 'Путешествия', 'Развлечения', 'Другое', 'Супермаркеты', 'Кафе']
 
@@ -83,6 +90,25 @@ def apply(state, action, today=None):
     today = today or today_at()
     if action.get('type') == 'transfer':
         raise ValueError('Переносы между месяцами больше не поддерживаются')
+    if action.get('type') == 'merchant_save':
+        item=action.get('merchant')
+        if not isinstance(item,dict) or set(item)-{'id','name','aliases','hidden'}:
+            raise ValueError('Некорректный магазин')
+        identifier=item.get('id')
+        if not isinstance(identifier,str) or not (any(m['id']==identifier for m in MERCHANT_DEFAULTS) or re.fullmatch(r'c-[0-9a-f]{32}',identifier)):
+            raise ValueError('Некорректный идентификатор магазина')
+        name=item.get('name')
+        if not isinstance(name,str) or not 1<=utf16len(name.strip())<=100:
+            raise ValueError('Название: от 1 до 100 символов')
+        aliases=item.get('aliases')
+        if not isinstance(aliases,list) or len(aliases)>30 or any(not isinstance(a,str) or not 1<=utf16len(a.strip())<=100 for a in aliases):
+            raise ValueError('Некорректные варианты названия')
+        if type(item.get('hidden')) is not bool: raise ValueError('Некорректный статус магазина')
+        state=copy.deepcopy(state)
+        merchants=[m for m in state.get('merchants',[]) if m['id']!=identifier]
+        merchants.append(dict(id=identifier,name=name.strip(),aliases=[a.strip() for a in aliases],hidden=item['hidden']))
+        state['merchants']=sorted(merchants,key=lambda m:m['id'])
+        return state
     if action.get('type') == 'expenses':
         items = action.get('items')
         if not isinstance(items, list) or not 1 <= len(items) <= 50:
@@ -135,7 +161,13 @@ def apply(state, action, today=None):
             note = str(action.get('note','')).strip()
             if len(note.encode('utf-16-le'))//2>200:
                 raise ValueError('Описание слишком длинное')
-            m['expenses'].append({'id':uuid.uuid4().hex,'week':i,'amount':amount(action['amount'], True),'date':date.isoformat(),'category':category,'note':note})
+            merchant_id=action.get('merchantId')
+            if merchant_id is not None and merchant_id != '':
+                merchant=next((x for x in state.get('merchants',[]) if x['id']==merchant_id),None) or next((x for x in MERCHANT_DEFAULTS if x['id']==merchant_id),None)
+                if not isinstance(merchant_id,str) or not merchant or merchant.get('hidden'):raise ValueError('Неизвестный или скрытый магазин')
+            expense={'id':uuid.uuid4().hex,'week':i,'amount':amount(action['amount'], True),'date':date.isoformat(),'category':category,'note':note}
+            if merchant_id: expense['merchantId']=merchant_id
+            m['expenses'].append(expense)
         elif kind == 'delete':
             m['expenses'] = [e for e in m['expenses'] if not(e['id']==action['id'] and e['week']==i)]
         elif kind == 'limit':

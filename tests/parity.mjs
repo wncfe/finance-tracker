@@ -32,7 +32,43 @@ actions.push(
 );
 for (const week of [2, 3, 4, 5])
   actions.push({ type: "close", month: "2026-11", week, mode: "remaining" });
-
+actions.push({
+  type: "merchant_save",
+  merchant: {
+    id: "c-" + "3".repeat(32),
+    name: "Тест",
+    aliases: ["Вариант"],
+    hidden: false,
+  },
+});
+actions.push({
+  type: "expenses",
+  items: [
+    {
+      date: "2026-12-01",
+      amount: 300,
+      category: "Кафе",
+      note: "Вариант",
+      merchantId: "c-" + "3".repeat(32),
+    },
+    {
+      date: "2026-12-02",
+      amount: 400,
+      category: "Супермаркеты",
+      note: "Магнит",
+      merchantId: "b-magnit",
+    },
+  ],
+});
+actions.push({
+  type: "merchant_save",
+  merchant: {
+    id: "c-" + "3".repeat(32),
+    name: "Тест",
+    aliases: ["Вариант"],
+    hidden: true,
+  },
+});
 const python = spawnSync(
   "python",
   [
