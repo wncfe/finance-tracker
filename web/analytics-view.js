@@ -427,7 +427,9 @@
       showOperations(
         habit.label,
         habit.expenses,
-        "Покупки с одинаковой категорией и нормализованным описанием",
+        habit.merchantId
+          ? "Операции одного магазина или сервиса"
+          : "Покупки с одинаковой категорией и нормализованным описанием",
       );
     }
     const a = e.target.closest("[data-anomaly]");

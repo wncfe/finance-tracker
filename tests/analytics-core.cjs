@@ -185,3 +185,46 @@ assert.equal(
 console.log(
   "Analytics core: periods, zeros, midnight, forecast, habits, anomalies, overlap and reports passed",
 );
+
+require("../web/merchants.js");
+const linked = {
+  months: {
+    "2026-11": {
+      expenses: [
+        {
+          id: "one",
+          date: "2026-11-01",
+          category: "Кафе",
+          note: "Вариант 1",
+          merchantId: "b-magnit",
+          amount: 100,
+        },
+        {
+          id: "two",
+          date: "2026-11-02",
+          category: "Дом",
+          note: "Вариант 2",
+          merchantId: "b-magnit",
+          amount: 200,
+        },
+        {
+          id: "three",
+          date: "2026-11-03",
+          category: "Дом",
+          note: "Вариант 3",
+          merchantId: "b-magnit",
+          amount: 300,
+        },
+      ],
+    },
+  },
+};
+const linkedHabits = A.habits(
+  A.index(linked),
+  { from: "2026-11-01", to: "2026-11-13" },
+  "2026-11-13",
+);
+assert.equal(linkedHabits.length, 1);
+assert.equal(linkedHabits[0].label, "Магнит");
+assert.equal(linkedHabits[0].total, 600);
+assert.equal(linkedHabits[0].category, "Разные категории");

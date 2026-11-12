@@ -9,6 +9,7 @@ def migrate(db):
         merge_categories(db)
         remove_transfers(db)
         migrate_merchants(db)
+        migrate_transport_categories(db)
         return
     script=(ROOT/'cloudflare/migrations/0003_normalized_finances.sql').read_text('utf-8')
     # executescript commits any existing transaction: begin inside the script.
@@ -22,9 +23,17 @@ def migrate(db):
         merge_categories(db)
         remove_transfers(db)
         migrate_merchants(db)
+        migrate_transport_categories(db)
     except Exception:
         db.rollback()
         raise
+
+def migrate_transport_categories(db):
+    if not db.execute("SELECT 1 FROM categories WHERE id='taxi'").fetchone():
+        try:db.executescript('BEGIN IMMEDIATE;\n'+(ROOT/'cloudflare/migrations/0007_transport_categories.sql').read_text('utf-8')+'\nCOMMIT;')
+        except Exception:
+            db.rollback()
+            raise
 
 def merge_categories(db):
     if db.execute("SELECT 1 FROM categories WHERE id='groceries'").fetchone():

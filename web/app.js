@@ -5,6 +5,8 @@ const $ = (id) => document.getElementById(id),
     "Рестораны",
     "Кофейни",
     "Транспорт",
+    "Общественный транспорт",
+    "Такси",
     "Дом",
     "Здоровье",
     "Покупки",
@@ -27,6 +29,8 @@ const $ = (id) => document.getElementById(id),
     "utensils",
     "coffee",
     "bus",
+    "bus",
+    "car",
     "house",
     "heart-pulse",
     "shopping-bag",
@@ -164,7 +168,7 @@ function entries(m, i, merchantId = "") {
     ? list
         .map(
           (e) =>
-            `<div class="entry"><span class="icon" aria-hidden="true">${icons[cats.indexOf(e.category)] || "•"}</span><div class="description"><span class="expense-title">${esc(e.note || e.category)}</span><small>${esc(e.category)}${e.merchantId ? ` · ${esc(MerchantDictionary.all(state.merchants, true).find((m) => m.id === e.merchantId)?.name || "Магазин")}` : ""}<time datetime="${esc(e.date)}">${esc(expenseDate(e.date))}</time></small></div><strong>${money(e.amount)}</strong><button class="expense-more" data-expense-menu="${esc(e.id)}" data-month="${esc(e.date.slice(0, 7))}" aria-label="Действия с расходом ${esc(e.note || e.category)}" aria-haspopup="menu" aria-expanded="false" aria-controls="expenseActions"><span aria-hidden="true">⋯</span></button></div>`,
+            `<div class="entry"><span class="icon" aria-hidden="true">${icons[cats.indexOf(e.category)] || "•"}</span><div class="description"><span class="expense-title">${esc(e.merchantId ? MerchantDictionary.all(state.merchants, true).find((m) => m.id === e.merchantId)?.name || "Магазин" : e.note || e.category)}</span><small>${esc(e.category)}${e.note && e.merchantId ? ` · ${esc(e.note)}` : ""}<time datetime="${esc(e.date)}">${esc(expenseDate(e.date))}</time></small></div><strong>${money(e.amount)}</strong><button class="expense-more" data-expense-menu="${esc(e.id)}" data-month="${esc(e.date.slice(0, 7))}" aria-label="Действия с расходом ${esc(e.merchantId ? MerchantDictionary.all(state.merchants, true).find((m) => m.id === e.merchantId)?.name || "Магазин" : e.note || e.category)}" aria-haspopup="menu" aria-expanded="false" aria-controls="expenseActions"><span aria-hidden="true">⋯</span></button></div>`,
         )
         .join("")
     : '<p class="muted">Пока нет трат</p>';

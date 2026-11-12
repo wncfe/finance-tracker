@@ -42,8 +42,20 @@
     };
   }
   function index(state) {
+    const merchants = new Map(
+      (
+        root.MerchantDictionary?.all(state.merchants || [], true) ||
+        state.merchants ||
+        []
+      ).map((m) => [m.id, m.name]),
+    );
     const expenses = Object.values(state.months)
       .flatMap((m) => m.expenses)
+      .map((e) =>
+        e.merchantId
+          ? { ...e, merchantName: merchants.get(e.merchantId) || e.note }
+          : e,
+      )
       .sort((a, b) => a.date.localeCompare(b.date));
     return { expenses, first: expenses[0]?.date || null };
   }
@@ -151,7 +163,10 @@
       .replace(/[^\p{L}\p{N}\s]/gu, " ")
       .replace(/\s+/g, " ")
       .trim();
-  const habitKey = (e) => JSON.stringify([e.category, normalize(e.note || "")]);
+  const habitKey = (e) =>
+    e.merchantId
+      ? JSON.stringify(["merchant", e.merchantId])
+      : JSON.stringify(["description", e.category, normalize(e.note || "")]);
   function habits(source, p, today, category = "") {
     const groups = new Map(),
       first = source.first ?? rows(source)[0]?.date;
@@ -164,7 +179,8 @@
       if (!groups.has(key))
         groups.set(key, {
           key,
-          label: e.note,
+          label: e.merchantName || e.note,
+          merchantId: e.merchantId || null,
           category: e.category,
           total: 0,
           count: 0,
@@ -173,6 +189,7 @@
           expenses: [],
         });
       const g = groups.get(key);
+      if (g.category !== e.category) g.category = "Разные категории";
       g.total += e.amount;
       g.count++;
       g.dates.add(e.date);
