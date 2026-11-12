@@ -228,3 +228,158 @@ assert.equal(linkedHabits.length, 1);
 assert.equal(linkedHabits[0].label, "Магнит");
 assert.equal(linkedHabits[0].total, 600);
 assert.equal(linkedHabits[0].category, "Разные категории");
+
+// Coverage explains empty findings without changing the existing anomaly output.
+const coverage = {};
+assert.deepEqual(
+  A.anomalies(
+    A.index(history),
+    { from: "2026-11-13", to: "2026-11-13" },
+    "2026-11-13",
+    "",
+    coverage,
+  ),
+  findings,
+);
+assert.deepEqual(coverage, { checked: 1, total: 1 });
+const earlyCoverage = {};
+A.anomalies(
+  { expenses: [], first: null },
+  { from: "2026-11-01", to: "2026-11-13" },
+  "2026-11-13",
+  "",
+  earlyCoverage,
+);
+assert.deepEqual(earlyCoverage, { checked: 0, total: 0 });
+
+const partialCoverage = {};
+A.anomalies(
+  A.index(history),
+  { from: "2026-08-01", to: "2026-11-13" },
+  "2026-11-13",
+  "",
+  partialCoverage,
+);
+assert.ok(
+  partialCoverage.checked > 0 &&
+    partialCoverage.checked < partialCoverage.total,
+  "mixed history must expose partial coverage",
+);
+
+// Monthly historical pace: fixed cohort, closed-ledger eligibility and integer reconciliation.
+const paceState = { months: {} };
+function paceMonth(month, day, amount, closed = true, category = "Кафе") {
+  const end = Number(A.range("month", month + "-01").to.slice(8));
+  paceState.months[month] ||= {
+    weeks: [{ start: 1, end, closed }],
+    expenses: [],
+  };
+  paceState.months[month].expenses.push({
+    id: month + day + category,
+    date: month + "-" + String(day).padStart(2, "0"),
+    amount,
+    category,
+    note: "Расход",
+  });
+}
+for (const month of ["2026-08", "2026-09", "2026-10"]) {
+  paceMonth(month, 1, 100);
+  paceMonth(month, 13, 200);
+}
+paceMonth("2026-11", 1, 50, false);
+paceMonth("2026-11", 13, 150, false);
+const paceBefore = JSON.stringify(paceState);
+let pace = A.spendingPace(paceState, "2026-11", "2026-11-13", "2026-11-13");
+assert.equal(pace.count, 3);
+assert.equal(pace.status, "established");
+assert.equal(pace.expectedTotal, 300);
+assert.equal(pace.actualTotal, 200);
+assert.equal(pace.delta, -100);
+assert.deepEqual(pace.actual[0].amount, 0);
+assert.deepEqual(pace.expected[0].amount, 0);
+assert.equal(
+  pace.categories.reduce((s, c) => s + c.delta, 0),
+  pace.delta,
+);
+assert.equal(pace.commonDays, 30);
+assert.equal(pace.expected.at(-1).day, 30);
+paceState.months["2026-09"].weeks[0].closed = false;
+pace = A.spendingPace(paceState, "2026-11", "2026-11-13", "2026-11-13");
+assert.equal(pace.count, 2);
+assert.equal(pace.status, "preliminary");
+paceState.months["2026-08"].expenses[0].date = "2026-08-02";
+pace = A.spendingPace(paceState, "2026-11", "2026-11-13", "2026-11-13");
+assert.equal(pace.count, 1);
+assert.ok(pace.history.excluded.some((m) => m.month === "2026-08"));
+paceState.months["2026-10"].weeks[0].closed = false;
+pace = A.spendingPace(paceState, "2026-11", "2026-11-13", "2026-11-13");
+assert.equal(pace.count, 0);
+assert.equal(pace.delta, null);
+assert.equal(pace.expected.length, 0);
+assert.throws(() =>
+  A.spendingPace(paceState, "2026-11", "2026-11-14", "2026-11-13"),
+);
+const shortMonths = {
+  months: {
+    "2024-01": {
+      weeks: [{ start: 1, end: 31, closed: true }],
+      expenses: [{ id: "jan", date: "2024-01-01", amount: 300, category: "A" }],
+    },
+    "2024-02": {
+      weeks: [{ start: 1, end: 29, closed: true }],
+      expenses: [{ id: "feb", date: "2024-02-29", amount: 900, category: "A" }],
+    },
+    "2024-03": {
+      weeks: [],
+      expenses: [{ id: "mar", date: "2024-03-31", amount: 200, category: "A" }],
+    },
+  },
+};
+pace = A.spendingPace(shortMonths, "2024-03", "2024-03-31", "2024-04-01");
+assert.equal(pace.count, 1);
+assert.equal(pace.expectedTotal, 300);
+assert.equal(pace.commonDays, 31);
+assert.ok(pace.history.excluded.some((m) => m.reason.includes("31")));
+pace = A.spendingPace(shortMonths, "2024-03", "2024-03-13", "2024-04-01");
+assert.equal(pace.count, 2);
+assert.equal(pace.expected.at(-1).day, 29);
+const rounding = JSON.parse(paceBefore);
+rounding.months["2026-08"].expenses.push(
+  { date: "2026-08-01", amount: 1, category: "A" },
+  { date: "2026-08-01", amount: 1, category: "B" },
+);
+pace = A.spendingPace(rounding, "2026-11", "2026-11-13", "2026-11-13");
+assert.equal(
+  pace.categories.reduce((s, c) => s + c.expected, 0),
+  pace.expectedTotal,
+);
+assert.equal(
+  pace.categories.reduce((s, c) => s + c.delta, 0),
+  pace.delta,
+);
+const unchanged = JSON.stringify(rounding);
+A.spendingPace(rounding, "2026-11", "2026-11-13", "2026-11-13", 6, "Кафе");
+assert.equal(JSON.stringify(rounding), unchanged);
+const dailyHistory = A.historicalDaily(
+  rounding,
+  { from: "2026-11-13", to: "2026-11-13" },
+  "2026-11-13",
+);
+assert.deepEqual(dailyHistory, [{ date: "2026-11-13", amount: 200, count: 3 }]);
+assert.equal(
+  A.spendingPace(
+    rounding,
+    "2026-11",
+    "2026-11-13",
+    "2026-11-13",
+    3,
+    "Нет категории",
+  ).actualTotal,
+  0,
+);
+assert.doesNotThrow(() =>
+  A.spendingPace({ months: {} }, "2000-01", "2000-01-01", "2000-01-01"),
+);
+console.log(
+  "Historical pace: cohort eligibility, leap day, no fabricated days, category reconciliation and immutability passed",
+);

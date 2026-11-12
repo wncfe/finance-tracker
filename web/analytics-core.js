@@ -294,7 +294,11 @@
       ? { kind: "anomaly", median: Math.round(median), samples: samples.length }
       : null;
   }
-  function anomalies(source, p, today, category = "") {
+  function anomalies(source, p, today, category = "", coverage = null) {
+    if (coverage) {
+      coverage.checked = 0;
+      coverage.total = 0;
+    }
     const first = source.first ?? rows(source)[0]?.date;
     if (!first) return [];
     const end = p.to > today ? today : p.to,
@@ -308,6 +312,10 @@
         };
         if (prior.from >= first && prior.to < today)
           samples.push(summarize(source, prior, cat).total);
+      }
+      if (coverage) {
+        coverage.total++;
+        if (samples.length >= thresholds.minSamples) coverage.checked++;
       }
       const amount = summarize(source, target, cat).total,
         finding = deviation(amount, samples, kind);
@@ -392,6 +400,202 @@
       anomalies: anomalies(source, p, today),
     };
   }
+  // Closed weeks are a conservative proxy for a completed ledger, not proof of completeness.
+  function historicalMonths(
+    state,
+    month,
+    window = 3,
+    requiredDay = 1,
+    indexed = null,
+  ) {
+    if (![3, 6, 12].includes(window))
+      throw Error("Выберите 3, 6 или 12 месяцев истории");
+    const source = indexed || index(state),
+      accepted = [],
+      excluded = [];
+    for (let i = 1; i <= window; i++) {
+      const d = date(month + "-01");
+      d.setUTCMonth(d.getUTCMonth() - i);
+      const key = iso(d).slice(0, 7);
+      if (key < "2000-01") {
+        excluded.push({
+          month: key,
+          reason: "До начала поддерживаемой истории",
+        });
+        continue;
+      }
+      const p = range("month", key + "-01"),
+        m = state.months[key];
+      let reason = "";
+      if (!m) reason = "Нет данных";
+      else if (!source.first || source.first > p.from)
+        reason = "Учёт ещё не начался или начат в середине месяца";
+      else if (length(p) < requiredDay)
+        reason = `Нет ${requiredDay}-го дня месяца`;
+      else {
+        let next = 1;
+        const closed =
+          m.weeks?.length &&
+          m.weeks.every((w) => {
+            const valid = w.closed && w.start === next && w.end >= w.start;
+            next = w.end + 1;
+            return valid;
+          }) &&
+          next === length(p) + 1;
+        if (!closed) reason = "Месяц не закрыт полностью";
+      }
+      if (reason) excluded.push({ month: key, reason });
+      else accepted.push({ month: key, period: p, days: length(p) });
+    }
+    return { accepted, excluded, window };
+  }
+  function spendingPace(state, month, asOf, today, window = 3, category = "") {
+    const p = range("month", month + "-01");
+    if (
+      !valid(asOf) ||
+      !valid(today) ||
+      asOf < p.from ||
+      asOf > p.to ||
+      asOf > today
+    )
+      throw Error("Выберите прошедшую дату внутри месяца");
+    const day = Number(asOf.slice(8)),
+      history = historicalMonths(state, month, window, day),
+      n = history.accepted.length;
+    const source = index(state),
+      actualDays = daily(source, { from: p.from, to: asOf }, today, category);
+    let cumulative = 0;
+    const actual = [
+      { day: 0, date: p.from, amount: 0 },
+      ...actualDays.map((d) => ({
+        day: Number(d.date.slice(8)),
+        date: d.date,
+        amount: (cumulative += d.amount),
+      })),
+    ];
+    const commonDays = n
+      ? Math.min(length(p), ...history.accepted.map((m) => m.days))
+      : 0;
+    const sums = Array(commonDays + 1).fill(0),
+      categorySums = new Map();
+    for (const m of history.accepted) {
+      const historic = daily(
+        source,
+        { from: m.period.from, to: shift(m.period.from, commonDays - 1) },
+        today,
+        category,
+      );
+      let sum = 0;
+      historic.forEach((d, i) => {
+        sum += d.amount;
+        sums[i + 1] += sum;
+      });
+      for (const e of operations(
+        source,
+        { from: m.period.from, to: shift(m.period.from, day - 1) },
+        category,
+      ))
+        categorySums.set(
+          e.category,
+          (categorySums.get(e.category) || 0) + e.amount,
+        );
+    }
+    const expected = n
+      ? sums.map((sum, i) => ({ day: i, amount: Math.round(sum / n) }))
+      : [];
+    const actualSummary = summarize(
+      source,
+      { from: p.from, to: asOf },
+      category,
+    );
+    const expectedTotal = n ? expected[day].amount : null;
+    // Largest remainders reconcile rounded category means to the rounded total (integer kopecks).
+    const averages = [...categorySums].map(([category, sum]) => ({
+      category,
+      amount: Math.floor(sum / n),
+      remainder: sum % n,
+    }));
+    let remainder = n
+      ? expectedTotal - averages.reduce((s, c) => s + c.amount, 0)
+      : 0;
+    averages.sort(
+      (a, b) =>
+        b.remainder - a.remainder || a.category.localeCompare(b.category),
+    );
+    for (const c of averages)
+      if (remainder > 0) {
+        c.amount++;
+        remainder--;
+      }
+    const names = new Set([
+      ...actualSummary.categories.map((c) => c.category),
+      ...averages.map((c) => c.category),
+    ]);
+    const categories = [...names]
+      .map((category) => {
+        const actual =
+          actualSummary.categories.find((c) => c.category === category)
+            ?.amount || 0;
+        const expected = n
+          ? averages.find((c) => c.category === category)?.amount || 0
+          : null;
+        return {
+          category,
+          actual,
+          expected,
+          delta: n ? actual - expected : null,
+        };
+      })
+      .sort(
+        (a, b) =>
+          Math.abs(b.delta || 0) - Math.abs(a.delta || 0) ||
+          b.actual - a.actual ||
+          a.category.localeCompare(b.category),
+      );
+    return {
+      month,
+      asOf,
+      period: p,
+      day,
+      history,
+      count: n,
+      status: n === 0 ? "insufficient" : n < 3 ? "preliminary" : "established",
+      actual,
+      expected,
+      actualTotal: actualSummary.total,
+      expectedTotal,
+      delta: n ? actualSummary.total - expectedTotal : null,
+      categories,
+      commonDays,
+    };
+  }
+  function historicalDaily(state, p, today, window = 3, category = "") {
+    const source = index(state),
+      cache = new Map(),
+      amounts = new Map();
+    for (const e of source.expenses)
+      if (!category || e.category === category)
+        amounts.set(e.date, (amounts.get(e.date) || 0) + e.amount);
+    return daily(source, p, today, category).map((d) => {
+      const month = d.date.slice(0, 7),
+        day = Number(d.date.slice(8));
+      if (!cache.has(month))
+        cache.set(
+          month,
+          historicalMonths(state, month, window, 1, source).accepted,
+        );
+      const months = cache.get(month).filter((m) => m.days >= day);
+      const sum = months.reduce(
+        (s, m) => s + (amounts.get(shift(m.period.from, day - 1)) || 0),
+        0,
+      );
+      return {
+        date: d.date,
+        amount: months.length ? sum / months.length : null,
+        count: months.length,
+      };
+    });
+  }
   const api = {
     iso,
     date,
@@ -416,6 +620,9 @@
     anomalies,
     simulate,
     report,
+    historicalMonths,
+    spendingPace,
+    historicalDaily,
   };
   root.ExpenseAnalytics = api;
   if (typeof module !== "undefined") module.exports = api;

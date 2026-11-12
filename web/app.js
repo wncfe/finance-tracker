@@ -284,6 +284,7 @@ function updateCloseAvailability() {
 async function mutate(action) {
   if (busy) return false;
   busy = true;
+  document.dispatchEvent(new CustomEvent("finance-saving", { detail: true }));
   const buttonStates = new Map(
     [...document.querySelectorAll("button")].map((b) => [b, b.disabled]),
   );
@@ -333,6 +334,9 @@ async function mutate(action) {
     return false;
   } finally {
     busy = false;
+    document.dispatchEvent(
+      new CustomEvent("finance-saving", { detail: false }),
+    );
     buttonStates.forEach((disabled, b) => {
       if (b.isConnected) b.disabled = disabled;
     });

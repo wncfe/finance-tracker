@@ -466,8 +466,10 @@ const assert = require("node:assert/strict");
     assert.equal(await page.locator(".quick-row").count(), 0);
     assert.equal(await page.locator("#quicksave").isVisible(), false);
     await page.locator("#quickclose").click();
-    // Custom interactive calendar controls the category donut across months.
+    // Custom interactive calendar controls category bars across months.
     await page.locator("#tab-analytics").click();
+    if (!(await page.locator("#analysisFilters").evaluate((el) => el.open)))
+      await page.locator("#analysisFilters > summary").click();
     await page.locator("#analyticsControls .select-trigger").click();
     await page.locator('.picker[open] [data-option="3"]').click();
     await page.locator("#analysisFrom + .picker-trigger").click();
@@ -475,7 +477,7 @@ const assert = require("node:assert/strict");
     await page.locator("#analysisTo + .picker-trigger").click();
     await page.locator('.picker[open] [data-month-move="1"]').click();
     await page.locator('.picker[open] [data-value="2026-12-31"]').click();
-    assert.equal(await page.locator("#categoryChart svg").count(), 1);
+    assert.ok((await page.locator(".category-row").count()) > 0);
     const chartTotal = await page.evaluate(() => {
       const summary = ExpenseAnalytics.summarize(
         state,
@@ -488,7 +490,7 @@ const assert = require("node:assert/strict");
       }).format(summary.total / 100);
     });
     assert.equal(
-      await page.locator("#categoryChart .chart-amount").textContent(),
+      await page.locator("#categoryChart strong").textContent(),
       chartTotal,
     );
     await page.locator(".chart-legend").first().click();
@@ -496,25 +498,26 @@ const assert = require("node:assert/strict");
       await page.locator('.chart-legend[aria-pressed="true"]').count(),
       1,
     );
-    await page
-      .locator("#categoryChart .chart-segment")
-      .first()
-      .evaluate((el) => (el.dataset.identity = "original"));
-    await page.locator(".chart-legend").last().click();
+    const category = await page
+      .locator(".category-row")
+      .last()
+      .getAttribute("data-chart-category");
+    await page.locator(".category-row").last().click();
     assert.equal(
       await page
-        .locator("#categoryChart .chart-segment")
-        .first()
-        .getAttribute("data-identity"),
-      "original",
-      "selection must retain SVG nodes for CSS transitions",
+        .locator('.category-row[aria-pressed="true"]')
+        .getAttribute("data-chart-category"),
+      category,
     );
-    assert.match(
-      await page
-        .locator("#categoryChart .chart-segment")
-        .first()
-        .evaluate((el) => getComputedStyle(el).transitionDuration),
-      /0\.38s/,
+    assert.equal(
+      await page.evaluate(() => document.activeElement.dataset.chartCategory),
+      category,
+      "category filtering preserves keyboard focus",
+    );
+    assert.equal(
+      await page.locator("#categoryChart strong").textContent(),
+      chartTotal,
+      "category structure retains full-period context",
     );
     for (const width of [320, 390, 1440]) {
       await page.setViewportSize({ width, height: 900 });
@@ -595,19 +598,20 @@ const assert = require("node:assert/strict");
       "true",
     );
     await page.locator("#tab-analytics").click();
-    assert.equal(
-      await page
-        .locator("#categoryChart circle")
-        .first()
-        .getAttribute("stroke-width"),
-      "20",
-    );
+    assert.ok((await page.locator(".category-row").count()) > 0);
     await page.emulateMedia({ reducedMotion: "reduce" });
     assert.equal(
       await page
-        .locator("#categoryChart svg")
+        .locator(".trend-plot")
         .evaluate((el) => getComputedStyle(el).animationName),
       "none",
+    );
+    assert.equal(
+      await page
+        .locator(".trend-bar")
+        .first()
+        .evaluate((el) => getComputedStyle(el).transitionDuration),
+      "0s",
     );
     await page.screenshot({
       path: dir + "/mobile-analytics-tabs.png",
