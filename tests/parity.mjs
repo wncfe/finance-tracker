@@ -32,14 +32,14 @@ actions.push(
 );
 for (const week of [2, 3, 4, 5])
   actions.push({ type: "close", month: "2026-11", week, mode: "remaining" });
-actions.push({ type: "transfer", month: "2026-12", amount: 100000 });
+
 const python = spawnSync(
   "python",
   [
     "-X",
     "utf8",
     "-c",
-    "import sys,json,budget; s={'months':{}}; states=[]\nfor a in json.load(sys.stdin):\n s=budget.apply(s,a); states.append(s)\nprint(json.dumps(states))",
+    "import sys,json,budget; s={'months':{}}; states=[]\nfor a in json.load(sys.stdin):\n s=budget.apply(s,a,'2027-12-31'); states.append(s)\nprint(json.dumps(states))",
   ],
   { input: JSON.stringify(actions), encoding: "utf-8" },
 );
@@ -53,12 +53,12 @@ const normalize = (s) => {
   return s;
 };
 actions.forEach((a, i) => {
-  state = apply(state, a);
+  state = apply(state, a, "2027-12-31");
   assert.deepEqual(normalize(state), normalize(states[i]), JSON.stringify(a));
   Object.values(state.months).forEach((m) =>
     assert.equal(
       m.weeks.reduce((sum, w) => sum + (w.settled ?? w.limit), 0),
-      m.budget + m.incoming - m.outgoing,
+      m.budget,
     ),
   );
 });

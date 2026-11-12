@@ -61,8 +61,9 @@ const esc = (s) =>
         c
       ],
   );
-const now = new Date();
-let selected = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`,
+let serverToday = ExpenseAnalytics.todayAt();
+const todayDate = () => serverToday;
+let selected = serverToday.slice(0, 7),
   state = { months: {} },
   revision = 0,
   week = 0,
@@ -85,6 +86,7 @@ async function api(path, data) {
     body: data ? JSON.stringify(data) : undefined,
   });
   const result = await r.json();
+  if (result.today) serverToday = result.today;
   if (!r.ok) {
     if (r.status === 401) {
       $("auth").hidden = false;
@@ -93,6 +95,8 @@ async function api(path, data) {
       if ($("weekdialog").open) $("weekdialog").close();
       if ($("quickdialog").open) $("quickdialog").close();
       if ($("categoryEditor").open) $("categoryEditor").close();
+      for (const id of ["analysisDetails", "reportDialog", "simulatorDialog"])
+        if ($(id).open) $(id).close();
     }
     const error = Error(result.error);
     error.status = r.status;
@@ -124,8 +128,6 @@ function current() {
   return (
     state.months[selected] || {
       budget: 0,
-      incoming: 0,
-      outgoing: 0,
       weeks: calendar(selected),
       expenses: [],
     }
@@ -162,7 +164,7 @@ function entries(m, i) {
 }
 function render() {
   const m = current(),
-    effective = m.budget + m.incoming - m.outgoing,
+    effective = m.budget,
     total = spent(m);
   $("title").textContent = new Date(selected + "-01T12:00:00")
     .toLocaleDateString("ru-RU", { month: "long", year: "numeric" })
@@ -178,7 +180,7 @@ function render() {
     .map((w, i) => {
       let s = spent(m, i),
         left = w.limit - s;
-      return `<button class="week ${w.closed ? "closed" : ""}" data-week="${i}"><div class="weekhead"><div><strong>Неделя ${i + 1}</strong><span class="weekdate">${w.start}–${w.end} · ${w.days} дн.</span></div><span class="badge">${w.closed ? "Закрыта ✓" : "Посмотреть ↗"}</span></div><div class="weeknumbers"><div>Лимит<strong>${money(w.limit)}</strong></div><div>Остаток<strong class="${left < 0 ? "negative" : ""}">${money(left)}</strong></div></div><div class="progress"><progress max="100" value="${w.limit ? Math.min(100, (s / w.limit) * 100) : s ? 100 : 0}"></progress></div><span class="muted">Потрачено ${money(s)}</span></button>`;
+      return `<button class="week ${w.closed ? "closed" : ""}" data-week="${i}"><div class="weekhead"><div><strong>Неделя ${i + 1}</strong><span class="weekdate">${w.start}–${w.end} · ${w.days} дн.</span></div><span class="badge">${w.closed ? "Закрыта ✓" : "Посмотреть ↗"}</span></div><div class="weeknumbers"><div>Лимит<strong>${money(w.limit)}</strong></div><div>Остаток<strong class="${left < 0 ? "negative" : ""}">${money(left)}</strong></div></div><div class="progress"><progress max="100" value="${w.limit ? Math.min(100, (s / w.limit) * 100) : s ? 100 : 0}"></progress></div><span class="muted">Потрачено ${money(s)}</span>${forecastMarkup(i)}</button>`;
     })
     .join("");
   const filter = $("filter").value;
@@ -203,22 +205,13 @@ function render() {
           : "";
       })
       .join("") || '<p class="muted">Категории появятся после первой траты</p>';
-  const d = new Date(selected + "-01T12:00:00");
-  d.setDate(0);
-  let key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
-    prev = state.months[key],
-    available = prev
-      ? Math.max(0, prev.budget + prev.incoming - prev.outgoing - spent(prev))
-      : 0,
-    ready = prev && prev.weeks.every((w) => w.closed) && available > 0;
-  $("transferinfo").textContent =
-    `Перенесено сюда: ${money(m.incoming)} · дальше: ${money(m.outgoing)}. ` +
-    (ready
-      ? `Доступно из прошлого месяца: ${money(available)}`
-      : "Для переноса закройте предыдущий месяц.");
-  $("transferform").hidden = !ready;
-  $("transferamount").max = available / 100;
-  $("transferamount").value = available / 100;
+}
+function forecastMarkup(i, detailed = false) {
+  const f = ExpenseAnalytics.forecast(state, selected, i, todayDate());
+  if (!f || f.status === "actual") return "";
+  if (f.status === "insufficient")
+    return '<span class="forecast muted">Прогноз: недостаточно данных</span>';
+  return `<span class="forecast ${f.left < 0 ? "negative" : ""}">Ожидаемый остаток: ${money(f.left)}${f.left < 0 ? " · ожидается превышение лимита" : ""}${detailed ? `<small>Прогноз расходов: ${money(f.total)}. ${esc(f.method)}. История: ${f.observations} дней; завершено в неделе: ${f.completedDays}.</small>` : ""}</span>`;
 }
 function renderWeek() {
   const m = current(),
@@ -228,6 +221,7 @@ function renderWeek() {
   $("weekdates").textContent = `${w.start}–${w.end} / ${selected}`;
   $("weeksummary").innerHTML =
     `<div>Лимит<strong>${money(w.limit)}</strong></div><div>Потрачено<strong>${money(spent(m, week))}</strong></div><div>Остаток<strong>${money(w.limit - spent(m, week))}</strong></div>`;
+  $("weekforecast").innerHTML = forecastMarkup(week, true);
   $("weekeditable").hidden = w.closed;
   $("limit").value = w.limit / 100;
   $("weekexpenses").innerHTML = entries(m, week);
@@ -235,10 +229,12 @@ function renderWeek() {
     min = `${selected}-${String(w.start).padStart(2, "0")}`,
     max = `${selected}-${String(w.end).padStart(2, "0")}`;
   date.min = min;
-  date.max = max;
-  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  date.max = max < todayDate() ? max : todayDate();
+  date.disabled = min > todayDate();
+  $("expenseform").querySelector("button.primary").disabled = min > todayDate();
+  const today = todayDate();
   if (!date.value || date.value < min || date.value > max)
-    date.value = today >= min && today <= max ? today : min;
+    date.value = today >= min && today <= max ? today : min > today ? "" : min;
   $("categorybuttons").innerHTML = categoryOptions()
     .map(
       (c, i) =>
@@ -259,7 +255,10 @@ function updateCloseAvailability() {
 async function mutate(action) {
   if (busy) return false;
   busy = true;
-  document.querySelectorAll("button").forEach((b) => (b.disabled = true));
+  const buttonStates = new Map(
+    [...document.querySelectorAll("button")].map((b) => [b, b.disabled]),
+  );
+  buttonStates.forEach((_, b) => (b.disabled = true));
   $("saveStatus").textContent = "Сохраняем…";
   try {
     const { result, recoveredOther } = await sendPendingOperation(
@@ -305,7 +304,9 @@ async function mutate(action) {
     return false;
   } finally {
     busy = false;
-    document.querySelectorAll("button").forEach((b) => (b.disabled = false));
+    buttonStates.forEach((disabled, b) => {
+      if (b.isConnected) b.disabled = disabled;
+    });
   }
 }
 async function load() {
@@ -410,7 +411,6 @@ $("expenseform").onsubmit = async (e) => {
 for (const [form, type, input] of [
   ["budgetform", "budget", "budget"],
   ["limitform", "limit", "limit"],
-  ["transferform", "transfer", "transferamount"],
 ])
   $(form).onsubmit = (e) => {
     e.preventDefault();
@@ -451,3 +451,22 @@ fetch("/api/config")
     $("inviteLabel").hidden = !c.invitationRequired;
   })
   .catch(() => {});
+
+// Refresh date on wake and across Yekaterinburg midnight, using the server clock.
+async function refreshToday() {
+  if (document.hidden || $("dashboard").hidden || busy) return;
+  const before = todayDate();
+  try {
+    await api("config");
+    if (before !== todayDate()) {
+      render();
+      if ($("weekdialog").open) renderWeek();
+      document.dispatchEvent(new Event("finance-date-change"));
+    }
+  } catch {
+    /* Retry on the next wake/tick; writes still validate on the server. */
+  }
+}
+document.addEventListener("visibilitychange", refreshToday);
+window.addEventListener("focus", refreshToday);
+setInterval(refreshToday, 60000);

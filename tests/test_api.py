@@ -12,6 +12,8 @@ import server
 class ApiTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        from unittest.mock import patch
+        cls.clock=patch('budget.today_at',return_value='2027-12-31');cls.clock.start()
         (server.ROOT/'data').mkdir(exist_ok=True)
         cls.tmp=tempfile.TemporaryDirectory(dir=server.ROOT/'data')
         cls.original=server.DB
@@ -22,6 +24,7 @@ class ApiTests(unittest.TestCase):
         cls.thread=threading.Thread(target=cls.http.serve_forever,daemon=True);cls.thread.start()
     @classmethod
     def tearDownClass(cls):
+        cls.clock.stop()
         cls.http.shutdown();cls.http.server_close();server.DB=cls.original;cls.tmp.cleanup()
     def client(self):
         return urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))

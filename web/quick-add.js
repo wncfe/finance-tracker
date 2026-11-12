@@ -92,6 +92,8 @@
       result.push("Описание: от 1 до 200 символов");
     const place = location(row);
     if (!place) result.push("Укажите корректную дату");
+    else if (row.date > todayDate())
+      result.push("Расход не может быть в будущем");
     else if (place.closed)
       result.push(
         "Неделя закрыта. Добавление запрещено — исправьте дату или удалите строку.",
@@ -145,7 +147,7 @@
     $("quickrows").innerHTML = rows
       .map(
         (row, i) =>
-          `<article class="quick-row" data-row="${i}"><div class="quick-row-head"><strong>Расход ${i + 1}</strong><button type="button" data-remove="${i}" aria-label="Удалить расход ${i + 1}">×</button></div><p class="muted raw">${esc(row.raw)}</p><div class="formgrid"><label>Сумма, ₽<input data-field="amount" type="number" inputmode="decimal" min="0.01" max="100000000" step="0.01" value="${row.amount ? row.amount / 100 : ""}" required></label><label>Дата<input data-field="date" type="date" min="2000-01-01" max="2100-12-31" value="${esc(row.date)}" required></label></div><label>Категория<select data-field="category" required><option value="">Выберите категорию</option>${categoryOptions()
+          `<article class="quick-row" data-row="${i}"><div class="quick-row-head"><strong>Расход ${i + 1}</strong><button type="button" data-remove="${i}" aria-label="Удалить расход ${i + 1}">×</button></div><p class="muted raw">${esc(row.raw)}</p><div class="formgrid"><label>Сумма, ₽<input data-field="amount" type="number" inputmode="decimal" min="0.01" max="100000000" step="0.01" value="${row.amount ? row.amount / 100 : ""}" required></label><label>Дата<input data-field="date" type="date" min="2000-01-01" max="${todayDate()}" value="${esc(row.date)}" required></label></div><label>Категория<select data-field="category" required><option value="">Выберите категорию</option>${categoryOptions()
             .map(
               (c) =>
                 `<option${c === row.category ? " selected" : ""}>${esc(c)}</option>`,
@@ -227,6 +229,7 @@
     if (saving || frozen) return;
     dirty = false;
     rows = P.parse($("quicktext").value, {
+      today: new Date(todayDate() + "T12:00:00"),
       rules: rules(),
       history: Object.values(state.months).flatMap((m) => m.expenses),
     });
@@ -324,3 +327,9 @@
     if (!frozen) status();
   };
 })();
+
+document.addEventListener("finance-date-change", () => {
+  document
+    .querySelectorAll("#quickrows [data-field=date]")
+    .forEach((el) => (el.max = todayDate()));
+});

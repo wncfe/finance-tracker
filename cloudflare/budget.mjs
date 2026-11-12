@@ -75,8 +75,6 @@ function ensure(state, key) {
   weeks(key);
   return (state.months[key] ??= {
     budget: 0,
-    incoming: 0,
-    outgoing: 0,
     weeks: weeks(key).map((w) => ({ ...w, limit: 0, closed: false })),
     expenses: [],
   });
@@ -86,11 +84,6 @@ export const spent = (m, i) =>
     .filter((e) => i === undefined || e.week === i)
     .reduce((s, e) => s + e.amount, 0);
 const accounted = (w) => w.settled ?? w.limit;
-function previous(key) {
-  const [y, m] = key.split("-").map(Number),
-    d = new Date(Date.UTC(y, m - 1, 0));
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
-}
 function validDate(value, key, w) {
   check(
     typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value),
@@ -107,11 +100,7 @@ function validDate(value, key, w) {
   );
 }
 function redistribute(m) {
-  const available = m.budget + m.incoming - m.outgoing;
-  check(
-    !m.outgoing || available >= spent(m),
-    "Средства уже перенесены в следующий месяц",
-  );
+  const available = m.budget;
   const ids = m.weeks.flatMap((w, i) => (w.closed ? [] : [i]));
   if (ids.length) {
     const reserved = m.weeks
@@ -128,7 +117,12 @@ function redistribute(m) {
   }
 }
 
-export function apply(original, action) {
+export function todayAt(instant = new Date()) {
+  return new Date(instant.getTime() + 5 * 3600000).toISOString().slice(0, 10);
+}
+export function apply(original, action, today = todayAt()) {
+  if (action.type === "transfer")
+    throw Error("Переносы между месяцами больше не поддерживаются");
   if (action.category === "Продукты")
     action = { ...action, category: "Супермаркеты" };
   if (action.type === "expenses") {
@@ -153,36 +147,20 @@ export function apply(original, action) {
       const week = weeks(month).findIndex(
         (w) => w.start <= day && day <= w.end,
       );
-      result = apply(result, { ...item, type: "expense", month, week });
+      result = apply(result, { ...item, type: "expense", month, week }, today);
     }
     return result;
   }
   const state = structuredClone(original),
     key = action.month,
     m = ensure(state, key),
-    effective = m.budget + m.incoming - m.outgoing,
+    effective = m.budget,
     type = action.type;
   const open = () => m.weeks.flatMap((w, i) => (w.closed ? [] : [i])),
     closedTotal = () =>
       m.weeks.filter((w) => w.closed).reduce((s, w) => s + accounted(w), 0);
   if (type === "budget") {
     m.budget = amount(action.amount);
-    redistribute(m);
-  } else if (type === "transfer") {
-    const source = state.months[previous(key)];
-    check(
-      source && source.weeks.every((w) => w.closed),
-      "Сначала закройте все недели предыдущего месяца",
-    );
-    const value = amount(action.amount, true);
-    check(
-      value <=
-        source.budget + source.incoming - source.outgoing - spent(source),
-      "Недостаточно остатка для переноса",
-    );
-    source.outgoing += value;
-    m.incoming += value;
-    redistribute(source);
     redistribute(m);
   } else {
     const i = action.week;
@@ -209,6 +187,7 @@ export function apply(original, action) {
     check(!w.closed, "Неделя закрыта");
     if (type === "expense") {
       validDate(action.date, key, w);
+      check(action.date <= today, "Расход не может быть в будущем");
       check(categories.includes(action.category), "Неизвестная категория");
       const note = String(action.note || "").trim();
       check(note.length <= 200, "Описание слишком длинное");
@@ -220,10 +199,6 @@ export function apply(original, action) {
         category: action.category,
         note,
       });
-      check(
-        !m.outgoing || spent(m) <= effective,
-        "Средства уже перенесены в следующий месяц",
-      );
     } else if (type === "delete") {
       m.expenses = m.expenses.filter(
         (e) => !(e.id === action.id && e.week === i),

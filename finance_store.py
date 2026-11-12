@@ -7,6 +7,7 @@ ROOT=Path(__file__).resolve().parent
 def migrate(db):
     if 'state' not in [r[1] for r in db.execute('PRAGMA table_info(users)')]:
         merge_categories(db)
+        remove_transfers(db)
         return
     script=(ROOT/'cloudflare/migrations/0003_normalized_finances.sql').read_text('utf-8')
     # executescript commits any existing transaction: begin inside the script.
@@ -18,6 +19,7 @@ def migrate(db):
         if db.execute('PRAGMA foreign_key_check').fetchall():raise ValueError('Foreign key validation failed')
         db.commit()
         merge_categories(db)
+        remove_transfers(db)
     except Exception:
         db.rollback()
         raise
@@ -31,8 +33,12 @@ def merge_categories(db):
 
 def load(db,user_id):
     state={'months':{}}
-    for key,budget,incoming,outgoing in db.execute('SELECT month,budget,incoming,outgoing FROM months WHERE user_id=? ORDER BY month',(user_id,)):
-        state['months'][key]=dict(budget=budget,incoming=incoming,outgoing=outgoing,weeks=[],expenses=[])
+    columns=[r[1] for r in db.execute('PRAGMA table_info(months)')]
+    legacy='incoming' in columns
+    query='SELECT month,budget'+(',incoming,outgoing' if legacy else '')+' FROM months WHERE user_id=? ORDER BY month'
+    for row in db.execute(query,(user_id,)):
+        state['months'][row[0]]=dict(budget=row[1],weeks=[],expenses=[])
+        if legacy:state['months'][row[0]].update(incoming=row[2],outgoing=row[3])
     for key,i,start,end,days,limit,closed,settled in db.execute('SELECT month,week_index,start_day,end_day,days,limit_amount,closed,settled FROM weeks WHERE user_id=? ORDER BY month,week_index',(user_id,)):
         week=dict(start=start,end=end,days=days,limit=limit,closed=bool(closed))
         if settled is not None:week['settled']=settled
@@ -47,11 +53,11 @@ def save(db,user_id,before,after):
     for key,m in after['months'].items():
         old=before['months'].get(key)
         if old==m:continue
-        values=(m['budget'],m['incoming'],m['outgoing'])
+        values=(m['budget'],)
         if old is None:
-            db.execute('INSERT INTO months VALUES(?,?,?,?,?)',(user_id,key,*values))
-        elif values!=(old['budget'],old['incoming'],old['outgoing']):
-            db.execute('UPDATE months SET budget=?,incoming=?,outgoing=? WHERE user_id=? AND month=?',(*values,user_id,key))
+            db.execute('INSERT INTO months(user_id,month,budget) VALUES(?,?,?)',(user_id,key,*values))
+        elif values!=(old['budget'],):
+            db.execute('UPDATE months SET budget=? WHERE user_id=? AND month=?',(*values,user_id,key))
         for i,w in enumerate(m['weeks']):
             if old is not None and old['weeks'][i]==w:continue
             db.execute('INSERT INTO weeks VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(user_id,month,week_index) DO UPDATE SET start_day=excluded.start_day,end_day=excluded.end_day,days=excluded.days,limit_amount=excluded.limit_amount,closed=excluded.closed,settled=excluded.settled',
@@ -65,3 +71,22 @@ def save(db,user_id,before,after):
             if category is None:raise ValueError('Неизвестная категория')
             db.execute('INSERT INTO expenses VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(user_id,id) DO UPDATE SET month=excluded.month,week_index=excluded.week_index,amount=excluded.amount,date=excluded.date,category_id=excluded.category_id,note=excluded.note,position=excluded.position',
                        (user_id,e['id'],key,e['week'],e['amount'],e['date'],category[0],e['note'],i))
+
+
+def remove_transfers(db):
+    if 'incoming' not in [r[1] for r in db.execute('PRAGMA table_info(months)')]:return
+    # Every file-backed local migration has a recovery copy; memory test DBs do not.
+    import sqlite3, datetime
+    filename=db.execute('PRAGMA database_list').fetchone()[2]
+    if filename:
+        destination=Path(filename).with_name(Path(filename).stem+'-before-analytics-'+datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f')+'.sqlite3')
+        db.commit()
+        backup=sqlite3.connect(destination)
+        try:db.backup(backup)
+        finally:backup.close()
+    script=(ROOT/'cloudflare/migrations/0005_remove_month_transfers.sql').read_text('utf-8')
+    try:
+        db.executescript('BEGIN IMMEDIATE;\n'+script+'\nCOMMIT;')
+    except Exception:
+        db.rollback()
+        raise

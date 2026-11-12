@@ -20,6 +20,8 @@ class BudgetTests(unittest.TestCase):
         self.assertEqual(self.state,snapshot)
 
     def setUp(self):
+        from unittest.mock import patch
+        clock=patch('budget.today_at',return_value='2026-12-31');clock.start();self.addCleanup(clock.stop)
         self.state=budget.apply({'months':{}},{'month':'2026-11','type':'budget','amount':300000})
     def act(self,**action):
         self.state=budget.apply(self.state,dict(month='2026-11',**action))
@@ -81,12 +83,12 @@ class BudgetTests(unittest.TestCase):
     def test_last_week_keeps_residual(self):
         for i in range(6): self.act(type='close',week=i,mode='remaining')
         self.assertEqual(sum(budget.accounted(w) for w in self.state['months']['2026-11']['weeks']),300000)
-    def test_transfer_is_not_duplicated(self):
-        for i in range(6): self.act(type='close',week=i,mode='remaining')
-        self.state=budget.apply(self.state,{'month':'2026-12','type':'transfer','amount':200000})
-        self.assertEqual(self.state['months']['2026-11']['outgoing'],200000)
-        with self.assertRaises(ValueError): budget.apply(self.state,{'month':'2026-12','type':'transfer','amount':200000})
-        self.assertEqual(self.state['months']['2026-12']['incoming'],200000)
+    def test_transfer_is_rejected_without_mutation(self):
+        before=copy.deepcopy(self.state)
+        with self.assertRaisesRegex(ValueError,'больше не поддерживаются'):
+            budget.apply(self.state,dict(type='transfer',month='2026-12',amount=200000))
+        self.assertEqual(self.state,before)
+        self.assertNotIn('incoming',self.state['months']['2026-11'])
     def test_transfer_and_budget_failure_atomic(self):
         snapshot=copy.deepcopy(self.state)
         with self.assertRaises(ValueError): self.act(type='limit',week=1,amount=9999999)

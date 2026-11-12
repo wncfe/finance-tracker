@@ -7,6 +7,10 @@ import budget
 import finance_store as store
 
 class StoreTests(unittest.TestCase):
+    def setUp(self):
+        from unittest.mock import patch
+        clock=patch('budget.today_at',return_value='2026-12-31');clock.start();self.addCleanup(clock.stop)
+
     def test_merge_groceries_preserves_every_other_field(self):
         state=budget.apply({'months':{}},dict(type='expense',month='2026-11',week=1,date='2026-11-02',amount=12345,category='Супермаркеты',note='Магнит'))
         state['months']['2026-11']['expenses'][0]['category']='Продукты'
@@ -23,6 +27,8 @@ class StoreTests(unittest.TestCase):
         db=sqlite3.connect(':memory:');db.execute('PRAGMA foreign_keys=ON')
         for name in ['0001_initial.sql','0002_operations.sql']:
             db.executescript((store.ROOT/'cloudflare/migrations'/name).read_text('utf-8'))
+        state=copy.deepcopy(state)
+        for m in state['months'].values():m.update(incoming=m.get('incoming',0),outgoing=m.get('outgoing',0))
         db.execute('INSERT INTO users(id,login,salt,password,state,revision) VALUES(1,?,?,?,?,7)',('test','salt','hash',json.dumps(state)))
         db.commit();return db
 
@@ -79,5 +85,7 @@ class StoreTests(unittest.TestCase):
             source.backup(db);db.execute('PRAGMA foreign_keys=ON')
             states={uid:json.loads(s) for uid,s in db.execute('SELECT id,state FROM users')}
             store.migrate(db)
-            for uid,state in states.items():self.assertEqual(store.load(db,uid),state)
+            for uid,state in states.items():
+                for m in state['months'].values():m.pop('incoming');m.pop('outgoing')
+                self.assertEqual(store.load(db,uid),state)
         finally:db.close();source.close()

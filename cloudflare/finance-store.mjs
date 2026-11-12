@@ -1,11 +1,10 @@
+import { todayAt } from "./budget.mjs";
 // Relational rows are the source of truth. State is only an API/domain projection.
 export async function loadFinance(db, userId) {
   const result = await db.batch([
     db.prepare("SELECT revision FROM users WHERE id=?").bind(userId),
     db
-      .prepare(
-        "SELECT month,budget,incoming,outgoing FROM months WHERE user_id=? ORDER BY month",
-      )
+      .prepare("SELECT month,budget FROM months WHERE user_id=? ORDER BY month")
       .bind(userId),
     db
       .prepare("SELECT * FROM weeks WHERE user_id=? ORDER BY month,week_index")
@@ -20,8 +19,6 @@ export async function loadFinance(db, userId) {
   for (const m of result[1].results)
     state.months[m.month] = {
       budget: m.budget,
-      incoming: m.incoming,
-      outgoing: m.outgoing,
       weeks: [],
       expenses: [],
     };
@@ -47,7 +44,12 @@ export async function loadFinance(db, userId) {
       category: e.category,
       note: e.note,
     });
-  return { state, revision: result[0].results[0].revision };
+  return {
+    today: todayAt(),
+    timeZone: "Asia/Yekaterinburg",
+    state,
+    revision: result[0].results[0].revision,
+  };
 }
 
 export function financeWrites(db, userId, before, after, token) {
@@ -63,17 +65,13 @@ export function financeWrites(db, userId, before, after, token) {
     if (same(old, m)) continue;
     if (!old)
       add(
-        `INSERT INTO months(user_id,month,budget,incoming,outgoing) SELECT ?,?,?,?,? WHERE ${guard}`,
-        [userId, key, m.budget, m.incoming, m.outgoing],
+        `INSERT INTO months(user_id,month,budget) SELECT ?,?,? WHERE ${guard}`,
+        [userId, key, m.budget],
       );
-    else if (
-      m.budget !== old.budget ||
-      m.incoming !== old.incoming ||
-      m.outgoing !== old.outgoing
-    )
+    else if (m.budget !== old.budget)
       add(
-        `UPDATE months SET budget=?,incoming=?,outgoing=? WHERE user_id=? AND month=? AND ${guard}`,
-        [m.budget, m.incoming, m.outgoing, userId, key],
+        `UPDATE months SET budget=? WHERE user_id=? AND month=? AND ${guard}`,
+        [m.budget, userId, key],
       );
     m.weeks.forEach((w, i) => {
       if (old && same(old.weeks[i], w)) return;

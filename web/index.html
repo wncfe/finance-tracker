@@ -13,10 +13,12 @@
     <script defer src="/expense-history.js"></script>
     <script defer src="/expense-parser.js"></script>
     <script defer src="/category-utils.js"></script>
+    <script defer src="/analytics-core.js"></script>
     <script defer src="/app.js"></script>
     <script defer src="/quick-add.js"></script>
     <script defer src="/pickers.js"></script>
     <script defer src="/analytics.js"></script>
+    <script defer src="/analytics-view.js"></script>
     <script defer src="/mobile-tabs.js"></script>
     <script defer src="/expense-actions.js"></script>
   </head>
@@ -140,60 +142,8 @@
                   required /></label
               ><button class="primary">Сохранить бюджет</button>
             </form>
-            <div id="transferinfo" class="muted"></div>
-            <form id="transferform">
-              <label
-                >Из прошлого месяца, ₽<input
-                  id="transferamount"
-                  type="number"
-                  inputmode="decimal"
-                  min="0.01"
-                  step="0.01"
-                  required /></label
-              ><button>Перенести остаток</button>
-            </form>
           </section>
-          <section id="panel-analytics" data-nav-panel="analytics" class="card">
-            <h2>Расходы по категориям</h2>
-            <div id="analyticsControls">
-              <label
-                >Период<select id="analysisMode" aria-label="Период диаграммы">
-                  <option value="day">День</option>
-                  <option value="week">Неделя</option>
-                  <option value="month" selected>Месяц</option>
-                  <option value="custom">Свой период</option>
-                </select></label
-              >
-              <div id="analysisAnchor">
-                <label
-                  >Дата периода<input
-                    id="analysisDate"
-                    type="date"
-                    min="2000-01-01"
-                    max="2100-12-31"
-                /></label>
-              </div>
-              <div id="analysisCustom" hidden>
-                <label
-                  >С<input
-                    id="analysisFrom"
-                    type="date"
-                    min="2000-01-01"
-                    max="2100-12-31" /></label
-                ><label
-                  >По<input
-                    id="analysisTo"
-                    type="date"
-                    min="2000-01-01"
-                    max="2100-12-31"
-                /></label>
-              </div>
-            </div>
-            <p id="analysisRange" role="status"></p>
-            <div id="categoryChart"></div>
-            <div id="analysisLegend"></div>
-            <div id="categories"></div>
-          </section>
+
           <section data-nav-panel="budget" class="card">
             <h2>Данные</h2>
             <p class="muted" id="saveStatus">
@@ -202,6 +152,102 @@
           </section>
         </aside>
       </div>
+      <section id="panel-analytics" data-nav-panel="analytics" class="card">
+        <div class="sectionhead">
+          <div>
+            <span class="eyebrow">ПОНИМАТЬ РАСХОДЫ</span>
+            <h2>Аналитика</h2>
+          </div>
+          <button id="openReport" type="button">Итоги месяца</button>
+        </div>
+        <div id="analyticsControls">
+          <label
+            >Период<select id="analysisMode" aria-label="Период диаграммы">
+              <option value="day">День</option>
+              <option value="week">Неделя</option>
+              <option value="month" selected>Месяц</option>
+              <option value="custom">Свой период</option>
+            </select></label
+          >
+          <div id="analysisAnchor">
+            <label
+              >Дата периода<input
+                id="analysisDate"
+                type="date"
+                min="2000-01-01"
+                max="2100-12-31"
+            /></label>
+          </div>
+          <div id="analysisCustom" hidden>
+            <label
+              >С<input
+                id="analysisFrom"
+                type="date"
+                min="2000-01-01"
+                max="2100-12-31" /></label
+            ><label
+              >По<input
+                id="analysisTo"
+                type="date"
+                min="2000-01-01"
+                max="2100-12-31"
+            /></label>
+          </div>
+        </div>
+        <label
+          >Категория<select id="analysisCategory">
+            <option value="">Все категории</option>
+          </select></label
+        >
+        <p id="analysisRange" role="status"></p>
+        <div id="analysisContent">
+          <div id="analysisMetrics" class="analysis-metrics"></div>
+          <p id="analysisComparison" class="muted"></p>
+          <h3>Динамика расходов</h3>
+          <div id="trendChart"></div>
+          <details>
+            <summary>Суммы по дням</summary>
+            <div id="trendTable"></div>
+          </details>
+          <div class="analysis-grid">
+            <div>
+              <h3>Структура расходов</h3>
+              <div id="categoryChart"></div>
+              <div id="analysisLegend"></div>
+              <div id="categories" hidden></div>
+            </div>
+            <div>
+              <h3>Календарь расходов</h3>
+              <label
+                >Показать<select id="heatmapMode">
+                  <option value="month">Месяц</option>
+                  <option value="year">Последние 12 месяцев</option>
+                </select></label
+              >
+              <p class="muted">
+                Чем темнее день, тем больше расходы. Сегодняшний день ещё не
+                завершён.
+              </p>
+              <div id="heatmap" class="heatmap-months"></div>
+            </div>
+          </div>
+          <div class="analysis-grid">
+            <section>
+              <h3>Привычки</h3>
+              <div id="habits"></div>
+            </section>
+            <section>
+              <h3>Необычные расходы</h3>
+              <p class="muted">
+                Сравнение с предшествующей историей; требуется не менее восьми
+                сопоставимых наблюдений.
+              </p>
+              <div id="anomalies"></div>
+            </section>
+          </div>
+          <button type="button" id="openSimulator">Рассчитать экономию</button>
+        </div>
+      </section>
     </main>
     <dialog id="weekdialog" aria-labelledby="weektitle">
       <div class="dialoghead">
@@ -212,6 +258,7 @@
         <button id="dismiss" aria-label="Закрыть окно">✕</button>
       </div>
       <div id="weeksummary" class="summary"></div>
+      <p id="weekforecast" class="forecast" role="status"></p>
       <div id="weekeditable">
         <form id="expenseform">
           <h3>Добавить трату</h3>
@@ -308,6 +355,74 @@
         </p>
         <div id="rulelist"></div>
       </details>
+    </dialog>
+    <dialog id="analysisDetails" aria-labelledby="analysisDetailsTitle">
+      <div class="dialoghead">
+        <h2 id="analysisDetailsTitle">Расходы</h2>
+        <button type="button" data-close="analysisDetails" aria-label="Закрыть">
+          ✕
+        </button>
+      </div>
+      <div id="analysisDetailsBody"></div>
+    </dialog>
+    <dialog id="reportDialog" aria-labelledby="reportTitle">
+      <div class="dialoghead">
+        <h2 id="reportTitle">Итоги месяца</h2>
+        <button type="button" data-close="reportDialog" aria-label="Закрыть">
+          ✕
+        </button>
+      </div>
+      <label
+        >Месяц отчёта<input
+          id="reportMonth"
+          type="month"
+          min="2000-01"
+          max="2100-12"
+      /></label>
+      <div id="reportBody"></div>
+    </dialog>
+    <dialog id="simulatorDialog" aria-labelledby="simulatorTitle">
+      <div class="dialoghead">
+        <h2 id="simulatorTitle">Симулятор экономии</h2>
+        <button type="button" data-close="simulatorDialog" aria-label="Закрыть">
+          ✕
+        </button>
+      </div>
+      <p class="muted">
+        Сценарий не меняет расходы и бюджет. Для пересекающихся групп
+        учитывается наибольшее сокращение каждой операции.
+      </p>
+      <label
+        >Завершённый месяц<input
+          id="simulationMonth"
+          type="month"
+          min="2000-01"
+          max="2100-12"
+      /></label>
+      <form id="simulationForm">
+        <label
+          >Категория или привычка<select id="simulationGroup" required></select
+        ></label>
+        <div class="formgrid">
+          <label
+            >Сокращение<input
+              id="simulationValue"
+              type="number"
+              min="0"
+              step="0.01"
+              value="10"
+              required /></label
+          ><label
+            >Способ<select id="simulationMode">
+              <option value="percent">Процентов</option>
+              <option value="amount">Рублей за месяц</option>
+            </select></label
+          >
+        </div>
+        <button type="submit">Добавить сценарий</button>
+      </form>
+      <div id="simulationScenarios"></div>
+      <p id="simulationResult" role="status"></p>
     </dialog>
     <dialog id="categoryEditor" aria-labelledby="categoryEditorTitle">
       <div class="dialoghead">

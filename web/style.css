@@ -1064,3 +1064,203 @@ details form {
     overflow-wrap: anywhere;
   }
 }
+
+/* Full-width analytics shares the existing app navigation. */
+#mobileTabs {
+  display: flex;
+  gap: 6px;
+  margin: 0 0 20px;
+}
+#mobileTabs button {
+  flex: 1;
+  min-width: 0;
+}
+#mobileTabs button[aria-selected="true"] {
+  background: var(--green);
+  color: white;
+}
+#dashboard[data-view="analytics"] .layout {
+  display: none;
+}
+#panel-analytics {
+  margin-top: 20px;
+  min-width: 0;
+}
+#analyticsControls {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 12px;
+}
+.analysis-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 28px;
+  margin: 26px 0;
+}
+.analysis-grid > * {
+  min-width: 0;
+}
+.analysis-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 20px 0;
+}
+.analysis-metrics > div {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 16px;
+  overflow-wrap: anywhere;
+}
+.analysis-metrics span,
+.analysis-metrics strong {
+  display: block;
+}
+.analysis-metrics span {
+  color: var(--muted);
+  font-size: 12px;
+}
+.analysis-metrics strong {
+  margin-top: 8px;
+  font-size: 19px;
+}
+#trendChart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  min-height: 100px;
+}
+#trendChart text {
+  fill: var(--muted);
+  font-size: 13px;
+}
+.daily-table {
+  max-height: 320px;
+  overflow-y: auto;
+}
+.daily-table button {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 4px 0;
+}
+.heatmap-months {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+.heatmap-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+  text-align: center;
+}
+.heatmap-grid > span {
+  color: var(--muted);
+  font-size: 11px;
+}
+.heatmap-grid .heat-cell {
+  padding: 0;
+  min-width: 0;
+  min-height: 32px;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  font-size: 12px;
+  aspect-ratio: 1;
+}
+.heat-0 {
+  background: #f1f3ef;
+  color: #59645c;
+}
+.heat-1 {
+  background: #d9ebd2;
+}
+.heat-2 {
+  background: #a5cdb3;
+}
+.heat-3 {
+  background: #649d85;
+  color: white;
+}
+.heat-4 {
+  background: #245b48;
+  color: white;
+}
+.heat-future {
+  background: transparent;
+  opacity: 0.35;
+}
+.heat-cell.is-today {
+  border-color: var(--green);
+}
+.insight {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+.insight > button:first-child {
+  padding: 0;
+  border: 0;
+  text-align: left;
+  font-weight: 600;
+}
+.insight p {
+  margin: 10px 0;
+}
+.insight small {
+  display: block;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.forecast {
+  display: block;
+  margin-top: 10px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.forecast small {
+  display: block;
+  color: var(--muted);
+  margin-top: 6px;
+}
+#reportDialog,
+#analysisDetails,
+#simulatorDialog {
+  width: min(760px, calc(100vw - 24px));
+}
+#reportBody,
+#analysisDetailsBody,
+#simulationScenarios {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 680px) {
+  .analysis-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+  }
+  .analysis-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .analysis-metrics > div {
+    padding: 10px;
+  }
+  .analysis-metrics strong {
+    font-size: 16px;
+  }
+  #analyticsControls {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .heatmap-months {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  #panel-analytics .sectionhead {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  #mobileTabs button {
+    padding: 10px 4px;
+    font-size: 12px;
+  }
+}

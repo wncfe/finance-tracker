@@ -51,6 +51,7 @@ function attachPicker(input, kind, { navigate = false } = {}) {
   let year = 2026;
   let viewedMonth = "";
   const sync = () => {
+    trigger.disabled = input.disabled;
     if (kind === "month") {
       const [y, m] = input.value.split("-").map(Number);
       trigger.innerHTML =
@@ -75,7 +76,7 @@ function attachPicker(input, kind, { navigate = false } = {}) {
       dialog.innerHTML = `<div class="picker-head"><button type="button" data-move="-1" aria-label="Предыдущий год">${icon("chevron-left")}</button><strong>${year}</strong><button type="button" data-move="1" aria-label="Следующий год">${icon("chevron-right")}</button></div><div class="month-grid">${months
         .map((m, i) => {
           const value = `${year}-${String(i + 1).padStart(2, "0")}`;
-          return `<button type="button" data-value="${value}" aria-pressed="${value === input.value}">${m.slice(0, 3)}</button>`;
+          return `<button type="button" data-value="${value}" ${(input.min && value < input.min) || (input.max && value > input.max) ? "disabled" : ""} aria-pressed="${value === input.value}">${m.slice(0, 3)}</button>`;
         })
         .join(
           "",

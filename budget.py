@@ -46,7 +46,7 @@ def rebalance(m, indices, total):
 def ensure(state, key):
     if key not in state['months']:
         ws = weeks(key)
-        state['months'][key] = {'budget': 0, 'incoming': 0, 'outgoing': 0, 'weeks': [dict(w, limit=0, closed=False) for w in ws], 'expenses': []}
+        state['months'][key] = {'budget': 0, 'weeks': [dict(w, limit=0, closed=False) for w in ws], 'expenses': []}
     return state['months'][key]
 
 def spent(m, i=None):
@@ -57,14 +57,12 @@ def accounted(w):
     return w.get('settled', w['limit'])
 
 def effective_budget(m):
-    return m['budget'] + m['incoming'] - m['outgoing']
+    return m['budget']
 
 
 def redistribute(m):
     """Closed weeks retain history; the final week holds the month residual."""
     available = effective_budget(m)
-    if m['outgoing'] and available < spent(m):
-        raise ValueError('Средства уже перенесены в следующий месяц')
     ids = [i for i, w in enumerate(m['weeks']) if not w['closed']]
     if ids:
         rebalance(m, ids, available - sum(accounted(w) for w in m['weeks'] if w['closed']))
@@ -76,7 +74,15 @@ def redistribute(m):
         m['weeks'][-1].pop('settled', None)
 
 
-def apply(state, action):
+def today_at(instant=None):
+    # Yekaterinburg is UTC+05:00; no external tzdata dependency on Windows.
+    return (instant or dt.datetime.now(dt.timezone.utc)).astimezone(dt.timezone(dt.timedelta(hours=5))).date().isoformat()
+
+
+def apply(state, action, today=None):
+    today = today or today_at()
+    if action.get('type') == 'transfer':
+        raise ValueError('Переносы между месяцами больше не поддерживаются')
     if action.get('type') == 'expenses':
         items = action.get('items')
         if not isinstance(items, list) or not 1 <= len(items) <= 50:
@@ -88,7 +94,7 @@ def apply(state, action):
             date = dt.date.fromisoformat(item['date'])
             key = date.strftime('%Y-%m')
             index = next(i for i, w in enumerate(weeks(key)) if w['start'] <= date.day <= w['end'])
-            result = apply(result, dict(item, type='expense', month=key, week=index))
+            result = apply(result, dict(item, type='expense', month=key, week=index), today)
         return result
     action = dict(action)
     if action.get('category') == 'Продукты': action['category']='Супермаркеты'
@@ -97,22 +103,9 @@ def apply(state, action):
     weeks(key)
     m = ensure(state, key)
     kind = action['type']
-    effective = m['budget'] + m['incoming'] - m['outgoing']
+    effective = m['budget']
     if kind == 'budget':
         m['budget'] = amount(action['amount'])
-        redistribute(m)
-    elif kind == 'transfer':
-        y, mon = map(int,key.split('-'))
-        previous = (dt.date(y,mon,1)-dt.timedelta(days=1)).strftime('%Y-%m')
-        source = state['months'].get(previous)
-        if not source or not all(w['closed'] for w in source['weeks']):
-            raise ValueError('Сначала закройте все недели предыдущего месяца')
-        value = amount(action['amount'], True)
-        if value > source['budget']+source['incoming']-source['outgoing']-spent(source):
-            raise ValueError('Недостаточно остатка для переноса')
-        source['outgoing'] += value
-        m['incoming'] += value
-        redistribute(source)
         redistribute(m)
     else:
         i = action.get('week')
@@ -132,6 +125,8 @@ def apply(state, action):
             raise ValueError('Неделя закрыта')
         if kind == 'expense':
             date = dt.date.fromisoformat(action['date'])
+            if date.isoformat() > today:
+                raise ValueError('Расход не может быть в будущем')
             if date.strftime('%Y-%m') != key or not w['start'] <= date.day <= w['end']:
                 raise ValueError('Дата должна попадать в выбранную неделю')
             category = action['category']
@@ -141,8 +136,6 @@ def apply(state, action):
             if len(note.encode('utf-16-le'))//2>200:
                 raise ValueError('Описание слишком длинное')
             m['expenses'].append({'id':uuid.uuid4().hex,'week':i,'amount':amount(action['amount'], True),'date':date.isoformat(),'category':category,'note':note})
-            if m['outgoing'] and spent(m) > effective:
-                raise ValueError('Средства уже перенесены в следующий месяц')
         elif kind == 'delete':
             m['expenses'] = [e for e in m['expenses'] if not(e['id']==action['id'] and e['week']==i)]
         elif kind == 'limit':

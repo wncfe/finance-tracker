@@ -12,11 +12,12 @@
     "cf:deploy": "wrangler deploy",
     "test:client": "node tests/api-client.cjs",
     "test:parser": "node tests/expense-parser.cjs",
-    "test:analytics": "node tests/analytics.cjs",
+    "test:analytics": "node tests/analytics.cjs && node tests/analytics-core.cjs",
     "test:categories": "node tests/category-utils.cjs",
     "test:edge": "node tests/edge-cases.cjs && node tests/batch-edge.mjs",
     "format": "prettier --write web cloudflare tests/*.mjs tests/*.cjs package.json",
-    "format:check": "prettier --check web cloudflare tests/*.mjs tests/*.cjs package.json"
+    "format:check": "prettier --check web cloudflare tests/*.mjs tests/*.cjs package.json",
+    "test:analytics-browser": "node tests/analytics-browser.cjs"
   },
   "devDependencies": {
     "playwright": "1.64.1",

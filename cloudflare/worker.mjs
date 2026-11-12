@@ -4,7 +4,7 @@ import {
   createHash,
   timingSafeEqual,
 } from "node:crypto";
-import { apply } from "./budget.mjs";
+import { apply, todayAt } from "./budget.mjs";
 import { loadFinance, financeWrites } from "./finance-store.mjs";
 const hash = (value) => createHash("sha256").update(value).digest("hex");
 const pw = (value, salt) =>
@@ -14,15 +14,22 @@ const pw = (value, salt) =>
     p: 1,
   }).toString("hex");
 const json = (status, value, cookie) =>
-  new Response(JSON.stringify(value), {
-    status,
-    headers: {
-      "Content-Type": "application/json; charset=utf-8",
-      "Cache-Control": "no-store",
-      "X-Content-Type-Options": "nosniff",
-      ...(cookie ? { "Set-Cookie": cookie } : {}),
+  new Response(
+    JSON.stringify(
+      status === 200
+        ? { ...value, today: todayAt(), timeZone: "Asia/Yekaterinburg" }
+        : value,
+    ),
+    {
+      status,
+      headers: {
+        "Content-Type": "application/json; charset=utf-8",
+        "Cache-Control": "no-store",
+        "X-Content-Type-Options": "nosniff",
+        ...(cookie ? { "Set-Cookie": cookie } : {}),
+      },
     },
-  });
+  );
 function equal(a, b) {
   const x = Buffer.from(a),
     y = Buffer.from(b);

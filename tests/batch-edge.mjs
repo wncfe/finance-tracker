@@ -1,7 +1,8 @@
+const apply = (state, action) => domainApply(state, action, "2027-12-31");
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
-import { apply, categories } from "../cloudflare/budget.mjs";
+import { apply as domainApply, categories } from "../cloudflare/budget.mjs";
 const base = {
   date: "2026-11-02",
   amount: 1,
@@ -88,7 +89,7 @@ const python = spawnSync(
 results=[]
 for c in json.load(sys.stdin):
  s=c['state']; before=copy.deepcopy(s)
- try: result={'ok':True,'state':budget.apply(s,c['action'])}
+ try: result={'ok':True,'state':budget.apply(s,c['action'],'2027-12-31')}
  except Exception: result={'ok':False}
  assert s==before
  results.append(result)

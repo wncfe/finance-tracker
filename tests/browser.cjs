@@ -9,7 +9,7 @@ const assert = require("node:assert/strict");
     "python",
     [
       "-c",
-      `import server; from pathlib import Path; server.DB=Path('${dir}/test.sqlite3'); server.init(); server.ThreadingHTTPServer(('127.0.0.1',8001),server.Handler).serve_forever()`,
+      `import server; server.budget.today_at=lambda: "2026-12-31"; from pathlib import Path; server.DB=Path('${dir}/test.sqlite3'); server.init(); server.ThreadingHTTPServer(('127.0.0.1',8001),server.Handler).serve_forever()`,
     ],
     { stdio: "pipe" },
   );
@@ -17,7 +17,7 @@ const assert = require("node:assert/strict");
   try {
     for (let i = 0; i < 50; i++) {
       try {
-        await fetch("http://127.0.0.1:8001/");
+        await (await fetch("http://127.0.0.1:8001/")).text();
         break;
       } catch {
         await new Promise((r) => setTimeout(r, 100));
@@ -467,6 +467,7 @@ const assert = require("node:assert/strict");
     assert.equal(await page.locator("#quicksave").isVisible(), false);
     await page.locator("#quickclose").click();
     // Custom interactive calendar controls the category donut across months.
+    await page.locator("#tab-analytics").click();
     await page.locator("#analyticsControls .select-trigger").click();
     await page.locator('.picker[open] [data-option="3"]').click();
     await page.locator("#analysisFrom + .picker-trigger").click();
@@ -613,14 +614,12 @@ const assert = require("node:assert/strict");
       fullPage: true,
     });
     await page.setViewportSize({ width: 1440, height: 1000 });
-    await page.waitForFunction(() =>
-      [...document.querySelectorAll("[data-nav-panel]")].every(
-        (panel) => !panel.hidden,
-      ),
-    );
-    assert.equal(await page.locator("#mobileTabs").isVisible(), false);
-    for (const section of ["overview", "history", "analytics", "budget"])
+    assert.equal(await page.locator("#panel-analytics").isVisible(), true);
+    assert.equal(await page.locator("#mobileTabs").isVisible(), true);
+    await page.locator("#tab-overview").click();
+    for (const section of ["overview", "history", "budget"])
       assert.equal(await page.locator("#panel-" + section).isVisible(), true);
+    assert.equal(await page.locator("#panel-analytics").isVisible(), false);
     assert.equal(await page.locator(".quick-launch > div").isVisible(), true);
     await page.evaluate(() =>
       localStorage.setItem(

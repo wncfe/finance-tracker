@@ -107,9 +107,9 @@ const batch = {
   action: {
     type: "expenses",
     items: [
-      { date: "2026-12-31", amount: 101, category: "Кофейни", note: "Кофе" },
+      { date: "2025-12-31", amount: 101, category: "Кофейни", note: "Кофе" },
       {
-        date: "2027-01-01",
+        date: "2026-01-01",
         amount: 202,
         category: "Супермаркеты",
         note: "Супермаркеты",
@@ -120,7 +120,7 @@ const batch = {
 const batchSaved = await api("a", "action", batch);
 assert.equal(batchSaved[0], 200);
 assert.deepEqual(await api("a", "action", batch), batchSaved);
-assert.equal(batchSaved[1].state.months["2027-01"].expenses.length, 1);
+assert.equal(batchSaved[1].state.months["2026-01"].expenses.length, 1);
 const bad = await api("a", "action", {
   revision: batchSaved[1].revision,
   action: {
@@ -178,3 +178,40 @@ assert.equal((await api("a", "state"))[0], 401);
 console.log(
   "Worker/D1 passed: invitation, scrypt, sessions, isolation, CAS race, origin, persistence, logout",
 );
+
+// Server clock is authoritative; a future item rejects the entire batch.
+await api("a", "login", { login: "a" + suffix, password: "test-password-123" });
+const clockState = (await api("a", "state"))[1];
+assert.equal(clockState.timeZone, "Asia/Yekaterinburg");
+const date = new Date(clockState.today + "T12:00:00Z");
+date.setUTCDate(date.getUTCDate() + 1);
+const future = await api("a", "action", {
+  revision: clockState.revision,
+  action: {
+    type: "expenses",
+    items: [
+      { date: clockState.today, amount: 100, category: "Кофейни" },
+      {
+        date: date.toISOString().slice(0, 10),
+        amount: 100,
+        category: "Кофейни",
+      },
+    ],
+  },
+});
+assert.equal(future[0], 400);
+assert.deepEqual((await api("a", "state"))[1].state, clockState.state);
+assert.equal(
+  (
+    await api("a", "action", {
+      revision: clockState.revision,
+      action: {
+        type: "transfer",
+        month: clockState.today.slice(0, 7),
+        amount: 1,
+      },
+    })
+  )[0],
+  400,
+);
+console.log("Worker date/removed-transfer validation passed");
