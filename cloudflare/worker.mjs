@@ -6,6 +6,7 @@ import {
 } from "node:crypto";
 import { apply, todayAt } from "./budget.mjs";
 import { loadFinance, financeWrites } from "./finance-store.mjs";
+import { companion } from "./companion.mjs";
 const hash = (value) => createHash("sha256").update(value).digest("hex");
 const pw = (value, salt) =>
   scryptSync(value, Buffer.from(salt, "hex"), 64, {
@@ -68,6 +69,8 @@ export default {
       );
     if (!path.startsWith("/api/")) return env.ASSETS.fetch(request);
     try {
+      if (path.startsWith("/api/companion/"))
+        return await companion(request, db, () => user(request, db));
       if (path === "/api/config" && request.method === "GET")
         return json(200, { invitationRequired: true });
       if (path === "/api/state" && request.method === "GET") {

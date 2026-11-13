@@ -23,12 +23,24 @@
     <script defer src="/analytics-view.js"></script>
     <script defer src="/mobile-tabs.js"></script>
     <script defer src="/expense-actions.js"></script>
+    <script defer src="/companion.js"></script>
   </head>
   <body>
     <header>
       <a class="brand" href="/"
         >≋ <span>По неделям<small>Личный бюджет</small></span></a
-      ><button id="logout" hidden>Выйти</button>
+      >
+      <div class="header-actions">
+        <button
+          id="companionOpen"
+          class="companion-settings"
+          hidden
+          aria-label="Настройки Android"
+          title="Android"
+        >
+          <img src="/icons/phone.svg" alt="" width="20" height="20" /></button
+        ><button id="logout" hidden>Выйти</button>
+      </div>
     </header>
     <main id="auth">
       <section class="auth card">
@@ -694,6 +706,28 @@
         >Неделя закрыта — удаление недоступно</small
       >
     </div>
+    <dialog id="companionPanel" aria-labelledby="companionTitle">
+      <div class="dialoghead">
+        <h2 id="companionTitle">Android</h2>
+        <button type="button" id="companionClose" aria-label="Закрыть">
+          ✕
+        </button>
+      </div>
+      <p class="muted">
+        Расходы с телефона сохраняются сразу. Здесь можно подключить устройство
+        или отозвать его доступ.
+      </p>
+      <button type="button" id="companionPair" class="primary">
+        Подключить устройство
+      </button>
+      <p id="companionCode" role="status" class="companion-code"></p>
+      <div id="companionDevices"></div>
+      <button type="button" id="companionRefresh">Обновить</button>
+      <details id="companionLegacy" hidden>
+        <summary>Ранее отправленные черновики</summary>
+        <div id="companionInbox" aria-live="polite"></div>
+      </details>
+    </dialog>
     <div id="toast" role="status" hidden></div>
   </body>
 </html>

@@ -7,3 +7,7 @@ test-results/
 .wrangler/
 .dev.vars
 *.xlsx
+android/.gradle/
+android/.kotlin/
+android/local.properties
+android/**/build/
