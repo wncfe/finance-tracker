@@ -929,7 +929,7 @@ details form {
 .picker-trigger {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   gap: 10px;
   text-align: left;
   min-width: 0;
@@ -947,6 +947,7 @@ details form {
   width: auto;
   max-width: 100%;
   font-size: 13px;
+  justify-content: flex-start;
 }
 .picker {
   width: 340px;
