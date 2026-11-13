@@ -29,7 +29,7 @@ class StoreTests(unittest.TestCase):
                 state=changed
 
     def test_merge_groceries_preserves_every_other_field(self):
-        state=budget.apply({'months':{}},dict(type='expense',month='2026-11',week=1,date='2026-11-02',amount=12345,category='Супермаркеты',note='Магнит'))
+        state=budget.apply({'months':{}},dict(type='expense',month='2026-11',week=0,date='2026-11-02',amount=12345,category='Супермаркеты',note='Магнит'))
         state['months']['2026-11']['expenses'][0]['category']='Продукты'
         with self.legacy(state) as db:
             store.migrate(db)
@@ -37,7 +37,7 @@ class StoreTests(unittest.TestCase):
             self.assertEqual(store.load(db,1),expected)
             self.assertIsNone(db.execute("SELECT id FROM categories WHERE name='Продукты'").fetchone())
             self.assertEqual(db.execute('SELECT revision FROM users WHERE id=1').fetchone()[0],7)
-        alias=budget.apply({'months':{}},dict(type='expense',month='2026-11',week=1,date='2026-11-02',amount=1,category='Продукты'))
+        alias=budget.apply({'months':{}},dict(type='expense',month='2026-11',week=0,date='2026-11-02',amount=1,category='Продукты'))
         self.assertEqual(alias['months']['2026-11']['expenses'][0]['category'],'Супермаркеты')
 
     def legacy(self,state):
@@ -73,19 +73,19 @@ class StoreTests(unittest.TestCase):
             store.save(db,1,before,state);db.commit()
             self.assertEqual(store.load(db,1),state)
             trace=[];db.set_trace_callback(trace.append)
-            after=budget.apply(state,dict(type='expense',month='2026-11',week=1,date='2026-11-02',amount=300,category='Кофейни',note='Третий'))
+            after=budget.apply(state,dict(type='expense',month='2026-11',week=0,date='2026-11-02',amount=300,category='Кофейни',note='Третий'))
             store.save(db,1,state,after);db.commit()
             writes=[s for s in trace if s.startswith(('INSERT','UPDATE','DELETE'))]
             self.assertEqual(len(writes),1,writes)
             self.assertEqual(store.load(db,1),after)
             identifier=after['months']['2026-11']['expenses'][0]['id']
-            deleted=budget.apply(after,dict(type='delete',month='2026-11',week=1,id=identifier))
+            deleted=budget.apply(after,dict(type='delete',month='2026-11',week=0,id=identifier))
             store.save(db,1,after,deleted);self.assertEqual(store.load(db,1),deleted)
 
     def test_foreign_keys_and_atomic_rollback(self):
         with self.legacy({'months':{}}) as db:
             store.migrate(db)
-            state=budget.apply({'months':{}},dict(type='expense',month='2026-11',week=1,date='2026-11-02',amount=100,category='Кофейни'))
+            state=budget.apply({'months':{}},dict(type='expense',month='2026-11',week=0,date='2026-11-02',amount=100,category='Кофейни'))
             store.save(db,1,{'months':{}},state);db.commit()
             with self.assertRaises(sqlite3.IntegrityError):
                 with db:
@@ -108,7 +108,7 @@ class StoreTests(unittest.TestCase):
         finally:db.close();source.close()
 
     def test_merchant_migration_preserves_existing_expenses(self):
-        state=budget.apply({'months':{}},dict(type='expense',month='2026-11',week=1,date='2026-11-02',amount=123,category='Кафе',note='До миграции'))
+        state=budget.apply({'months':{}},dict(type='expense',month='2026-11',week=0,date='2026-11-02',amount=123,category='Кафе',note='До миграции'))
         with self.legacy(state) as db:
             store.migrate(db)
             self.assertEqual(store.load(db,1),state)

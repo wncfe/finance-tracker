@@ -1090,6 +1090,9 @@ details form {
   gap: 6px;
   margin: 0 0 20px;
 }
+#mobileTabs:not([hidden]) {
+  display: flex;
+}
 @media (max-width: 680px) {
   #mobileTabs:not([hidden]) {
     display: grid;
@@ -1098,6 +1101,9 @@ details form {
 #mobileTabs button {
   flex: 1;
   min-width: 0;
+}
+#mobileTabs button[hidden] {
+  display: none;
 }
 #mobileTabs button[aria-selected="true"] {
   background: var(--green);

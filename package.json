@@ -23,7 +23,8 @@
     "test:edge": "node tests/edge-cases.cjs && node tests/batch-edge.mjs",
     "format": "prettier --write web cloudflare tests/*.mjs tests/*.cjs package.json",
     "format:check": "prettier --check web cloudflare tests/*.mjs tests/*.cjs package.json",
-    "test:analytics-browser": "node tests/analytics-browser.cjs"
+    "test:analytics-browser": "node tests/analytics-browser.cjs",
+    "test:periods": "python -m unittest discover -s tests -p test_budget_periods.py -v && node tests/budget-periods.mjs"
   },
   "devDependencies": {
     "playwright": "1.64.1",

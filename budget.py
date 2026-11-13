@@ -1,4 +1,4 @@
-"""Amounts are integer kopecks; weeks run Monday through Sunday."""
+"""Integer kopecks; budget periods merge short calendar edge weeks."""
 import calendar
 import copy
 import datetime as dt
@@ -24,6 +24,14 @@ def weeks(key):
         stop = min(end, start + 6 - dt.date(y, m, start).weekday())
         result.append({'start': start, 'end': stop, 'days': stop-start+1})
         start = stop+1
+    if result[0]['days'] <= 2:
+        first = result.pop(0)
+        result[0]['start'] = first['start']
+        result[0]['days'] += first['days']
+    if result[-1]['days'] <= 2:
+        last = result.pop()
+        result[-1]['end'] = last['end']
+        result[-1]['days'] += last['days']
     return result
 
 def amount(value, positive=False):
@@ -119,7 +127,7 @@ def apply(state, action, today=None):
                 raise ValueError('Некорректная дата')
             date = dt.date.fromisoformat(item['date'])
             key = date.strftime('%Y-%m')
-            index = next(i for i, w in enumerate(weeks(key)) if w['start'] <= date.day <= w['end'])
+            index = next(i for i, w in enumerate(ensure(result, key)['weeks']) if w['start'] <= date.day <= w['end'])
             result = apply(result, dict(item, type='expense', month=key, week=index), today)
         return result
     action = dict(action)

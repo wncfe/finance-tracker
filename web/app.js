@@ -126,6 +126,16 @@ function calendar(key) {
     });
     start = stop + 1;
   }
+  if (ws[0].days <= 2) {
+    const first = ws.shift();
+    ws[0].start = first.start;
+    ws[0].days += first.days;
+  }
+  if (ws.at(-1).days <= 2) {
+    const last = ws.pop();
+    ws.at(-1).end = last.end;
+    ws.at(-1).days += last.days;
+  }
   return ws;
 }
 function current() {
@@ -186,7 +196,8 @@ function render() {
   $("spent").textContent = money(total);
   $("budget").value = m.budget / 100;
   $("weekcount").textContent =
-    `${m.weeks.filter((w) => w.closed).length} из ${m.weeks.length} закрыто`;
+    `${m.weeks.filter((w) => w.closed).length} из ${m.weeks.length} закрыто` +
+    (m.weeks.some((w) => w.days <= 2) ? " · Сохранены исторические периоды" : "");
   $("weeks").innerHTML = m.weeks
     .map((w, i) => {
       let s = spent(m, i),

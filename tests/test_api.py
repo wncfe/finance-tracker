@@ -86,7 +86,7 @@ class ApiTests(unittest.TestCase):
         a,b=self.client(),self.client()
         for client,login in ((a,'merchant-alice'),(b,'merchant-bob')):
             self.assertEqual(self.request(client,'register',{'login':login,'password':'test-password-123'})[0],200)
-        legacy=dict(type='expense',month='2026-11',week=1,date='2026-11-02',amount=100,category='Кафе',note='Исходный текст')
+        legacy=dict(type='expense',month='2026-11',week=0,date='2026-11-02',amount=100,category='Кафе',note='Исходный текст')
         first=self.request(a,'action',{'revision':0,'action':legacy})[1]
         old=first['state']['months']['2026-11']['expenses'][0]
         merchant=dict(id='c-'+'1'*32,name='Мой магазин',aliases=['вариант'],hidden=False)
@@ -105,7 +105,7 @@ class ApiTests(unittest.TestCase):
         linked=result[1]['state']['months']['2026-11']['expenses'][1]
         self.assertEqual(linked['merchantId'],merchant['id'])
         self.assertEqual(self.request(a,'state')[1]['state'],result[1]['state'])
-        changed=self.request(a,'action',{'revision':3,'action':dict(type='recategorize',month='2026-11',week=1,id=linked['id'],category='Кофейни')})
+        changed=self.request(a,'action',{'revision':3,'action':dict(type='recategorize',month='2026-11',week=0,id=linked['id'],category='Кофейни')})
         self.assertEqual(changed[0],200)
         self.assertEqual(changed[1]['state']['months']['2026-11']['expenses'][1]['merchantId'],merchant['id'])
         merchant['hidden']=True

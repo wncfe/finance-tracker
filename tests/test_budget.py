@@ -42,7 +42,7 @@ class BudgetTests(unittest.TestCase):
         self.assertEqual(sum(budget.accounted(w) for w in m['weeks']),300000)
     def test_close_requires_all_previous_weeks(self):
         for mode in ('next','remaining','month'):
-            for i in range(1,6):
+            for i in range(1,len(self.state['months']['2026-11']['weeks'])):
                 original=copy.deepcopy(self.state)
                 with self.assertRaisesRegex(ValueError,'предыдущие'):
                     self.act(type='close',week=i,mode=mode)
@@ -60,28 +60,28 @@ class BudgetTests(unittest.TestCase):
             self.assertEqual(after[2:],before[2:])
             self.assertEqual(sum(budget.accounted(w) for w in after),300000)
     def test_next_sequential_and_keeps_final_residual(self):
-        for i in range(5):
+        for i in range(len(self.state['months']['2026-11']['weeks'])-1):
             self.act(type='close',week=i,mode='next')
         m=self.state['months']['2026-11']
-        previous=m['weeks'][5]['limit']
-        m=self.act(type='close',week=5,mode='next')
-        self.assertEqual(m['weeks'][5]['limit'],previous)
+        previous=m['weeks'][-1]['limit']
+        m=self.act(type='close',week=len(m['weeks'])-1,mode='next')
+        self.assertEqual(m['weeks'][-1]['limit'],previous)
     def test_overspending_rebalances(self):
-        self.act(type='expense',week=0,amount=50000,date='2026-11-01',category='Кафе',note='Обед')
+        self.act(type='expense',week=0,amount=100000,date='2026-11-01',category='Кафе',note='Обед')
         m=self.act(type='close',week=0,mode='remaining')
-        self.assertEqual(m['weeks'][0]['limit'],10000)
-        self.assertEqual(m['weeks'][0]['limit']-budget.spent(m,0),-40000)
-        self.assertEqual(sum(w['limit'] for w in m['weeks'][1:]),250000)
+        self.assertEqual(m['weeks'][0]['limit'],80000)
+        self.assertEqual(m['weeks'][0]['limit']-budget.spent(m,0),-20000)
+        self.assertEqual(sum(w['limit'] for w in m['weeks'][1:]),200000)
         original=m['weeks'][0]['limit']
         m=self.act(type='budget',amount=400000)
         self.assertEqual(m['weeks'][0]['limit'],original)
-        self.assertEqual(sum(w['limit'] for w in m['weeks'][1:]),350000)
+        self.assertEqual(sum(w['limit'] for w in m['weeks'][1:]),300000)
         m=self.act(type='limit',week=1,amount=50000)
-        self.assertEqual(sum(w['limit'] for w in m['weeks'][1:]),350000)
+        self.assertEqual(sum(w['limit'] for w in m['weeks'][1:]),300000)
         self.assertEqual(sum(budget.accounted(w) for w in m['weeks']),400000)
         with self.assertRaises(ValueError): self.act(type='expense',week=0,amount=1,date='2026-11-01',category='Кафе')
     def test_last_week_keeps_residual(self):
-        for i in range(6): self.act(type='close',week=i,mode='remaining')
+        for i in range(len(self.state['months']['2026-11']['weeks'])): self.act(type='close',week=i,mode='remaining')
         self.assertEqual(sum(budget.accounted(w) for w in self.state['months']['2026-11']['weeks']),300000)
     def test_transfer_is_rejected_without_mutation(self):
         before=copy.deepcopy(self.state)
@@ -95,7 +95,7 @@ class BudgetTests(unittest.TestCase):
         self.assertEqual(snapshot,self.state)
         with self.assertRaises(ValueError): budget.apply(self.state,{'month':'2026-12','type':'transfer','amount':1})
     def test_invalid_date(self):
-        with self.assertRaises(ValueError): self.act(type='expense',week=0,amount=1,date='2026-11-02',category='Кафе')
+        with self.assertRaises(ValueError): self.act(type='expense',week=0,amount=1,date='2026-11-09',category='Кафе')
 
 if __name__=='__main__': unittest.main()
 

@@ -63,7 +63,7 @@ const assert = require("node:assert/strict");
           note: "Закрытый",
         },
         {
-          date: "2026-11-08",
+          date: "2026-11-09",
           amount: 10000,
           category: "Кофейни",
           note: "Кофе",
@@ -95,7 +95,7 @@ const assert = require("node:assert/strict");
     };
     await open(expense.id);
     await page.locator("#editExpenseAmount").fill("125.50");
-    await page.locator("#editExpenseDate").fill("2026-11-09");
+    await page.locator("#editExpenseDate").fill("2026-11-10");
     await choose("Магазин операции", "Магнит");
     await choose("Новая категория", "Супермаркеты");
     for (const width of [320, 390, 1440]) {
@@ -128,7 +128,7 @@ const assert = require("node:assert/strict");
       (e) => e.id === expense.id,
     );
     assert.equal(edited.amount, 12550);
-    assert.equal(edited.week, 2);
+    assert.equal(edited.week, expense.week);
     assert.equal(edited.merchantId, "b-magnit");
     assert.equal(edited.category, "Супермаркеты");
     assert.deepEqual(current.state.months["2026-11"].weeks, limits);

@@ -96,16 +96,43 @@ const assert = require("node:assert/strict");
       el.dispatchEvent(new Event("change", { bubbles: true }));
     });
     assert.match(
-      await page.locator('[data-week="2"]').textContent(),
+      await page.locator('[data-week="1"]').textContent(),
       /Ожидаемый остаток/,
     );
-    await page.locator('[data-week="2"]').click();
+    await page.locator('[data-week="1"]').click();
     assert.match(await page.locator("#weekforecast").textContent(), /История/);
     assert.equal(
       await page.locator("#expenseform [name=date]").getAttribute("max"),
       "2026-11-13",
     );
     await page.locator("#dismiss").click();
+    assert.equal(
+      await page.locator("#mobileTabs").isVisible(),
+      true,
+      "desktop navigation must provide access to analytics",
+    );
+    assert.equal(await page.locator("#tab-analytics").isVisible(), true);
+    assert.equal(await page.locator("#tab-budget").isVisible(), false);
+    await page.locator("#tab-analytics").focus();
+    await page.keyboard.press("ArrowRight");
+    assert.equal(
+      await page.locator("#tab-overview").getAttribute("aria-selected"),
+      "true",
+    );
+    await page.setViewportSize({ width: 390, height: 1000 });
+    await page.locator("#tab-budget").waitFor({ state: "visible" });
+    assert.equal(await page.locator("#tab-budget").isVisible(), true);
+    await page.locator("#tab-budget").click();
+    assert.equal(await page.locator("#panel-budget").isVisible(), true);
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.locator("#tab-budget").waitFor({ state: "hidden" });
+    assert.equal(await page.locator("#tab-budget").isVisible(), false);
+    assert.equal(
+      await page.locator("#tab-overview").getAttribute("aria-selected"),
+      "true",
+    );
+    assert.equal(await page.locator("#panel-overview").isVisible(), true);
+    assert.equal(await page.locator("#panel-budget").isVisible(), true);
     await page.locator("#tab-analytics").click();
     assert.equal(await page.locator("#panel-analytics").isVisible(), true);
     assert.equal(await page.locator("#panel-overview").isVisible(), false);

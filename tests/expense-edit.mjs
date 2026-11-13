@@ -30,13 +30,17 @@ const edit = (month, week, fields) => ({
   ...fields,
 });
 const actions = [
-  edit("2026-11", 1, {
+  edit("2026-11", initial.months["2026-11"].expenses[0].week, {
     amount: 25000,
     date: "2026-11-09",
     category: "Супермаркеты",
     merchantId: "b-magnit",
   }),
-  edit("2026-11", 2, { date: "2026-10-31" }),
+  edit(
+    "2026-11",
+    weeks("2026-11").findIndex((w) => w.start <= 9 && w.end >= 9),
+    { date: "2026-10-31" },
+  ),
   edit("2026-10", octWeek, { date: "2026-12-01" }),
   edit("2026-12", 0, { merchantId: "" }),
   edit("2026-12", 0, { date: "2026-12-99" }),
@@ -108,3 +112,27 @@ assert.equal(
 console.log(
   "Expense edit: amount/date/merchant/category, moves, immutable rejection and Python/Worker parity passed",
 );
+
+// Existing months retain old calendar-week indices even after the new-period release.
+const legacy = structuredClone(initial);
+legacy.months["2026-11"].weeks = [
+  [1, 1],
+  [2, 8],
+  [9, 15],
+  [16, 22],
+  [23, 29],
+  [30, 30],
+].map(([start, end], i) => ({
+  start,
+  end,
+  days: end - start + 1,
+  limit: i === 5 ? 300000 : 0,
+  closed: false,
+}));
+legacy.months["2026-11"].expenses[0].week = 1;
+const legacyMoved = apply(
+  legacy,
+  edit("2026-11", 1, { date: "2026-11-09" }),
+  today,
+);
+assert.equal(legacyMoved.months["2026-11"].expenses[0].week, 2);

@@ -336,7 +336,7 @@ const editId = edited.data.state.months["2026-11"].expenses[0].id;
 const move = {
   type: "expense_update",
   month: "2026-11",
-  week: 1,
+  week: edited.data.state.months["2026-11"].expenses[0].week,
   id: editId,
   date: "2026-10-31",
   amount: 25000,

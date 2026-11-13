@@ -30,7 +30,7 @@ actions.push(
   { type: "close", month: "2026-11", week: 0, mode: "next" },
   { type: "close", month: "2026-11", week: 1, mode: "remaining" },
 );
-for (const week of [2, 3, 4, 5])
+for (const week of [2, 3])
   actions.push({ type: "close", month: "2026-11", week, mode: "remaining" });
 actions.push({
   type: "merchant_save",

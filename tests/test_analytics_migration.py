@@ -23,7 +23,7 @@ class AnalyticsMigrationTests(unittest.TestCase):
 
     def state(self, incoming=0, outgoing=0, closed=0):
         state=budget.apply({'months':{}},dict(type='budget',month='2026-11',amount=300000),'2026-11-13')
-        for i in range(closed):
+        for i in range(min(closed,len(state['months']['2026-11']['weeks']))):
             state=budget.apply(state,dict(type='close',month='2026-11',week=i,mode='next'),'2026-11-13')
         m=state['months']['2026-11']
         m['incoming']=incoming;m['outgoing']=outgoing

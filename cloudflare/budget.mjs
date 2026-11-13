@@ -50,6 +50,16 @@ export function weeks(key) {
     result.push({ start, end, days: end - start + 1 });
     start = end + 1;
   }
+  if (result[0].days <= 2) {
+    const first = result.shift();
+    result[0].start = first.start;
+    result[0].days += first.days;
+  }
+  if (result.at(-1).days <= 2) {
+    const last = result.pop();
+    result.at(-1).end = last.end;
+    result.at(-1).days += last.days;
+  }
   return result;
 }
 export function allocate(total, weights) {
@@ -196,7 +206,7 @@ export function apply(original, action, today = todayAt()) {
       );
       const month = item.date.slice(0, 7),
         day = Number(item.date.slice(8));
-      const week = weeks(month).findIndex(
+      const week = ensure(result, month).weeks.findIndex(
         (w) => w.start <= day && day <= w.end,
       );
       result = apply(result, { ...item, type: "expense", month, week }, today);
