@@ -203,6 +203,79 @@ export function apply(original, action, today = todayAt()) {
     }
     return result;
   }
+  if (action.type === "expense_update") {
+    check(Number.isInteger(action.week), "Некорректная неделя");
+    check(
+      Object.keys(action).every((k) =>
+        [
+          "type",
+          "month",
+          "week",
+          "id",
+          "amount",
+          "date",
+          "category",
+          "merchantId",
+        ].includes(k),
+      ),
+      "Неизвестные поля изменения расхода",
+    );
+    const state = structuredClone(original),
+      source = state.months[action.month];
+    const expense = source?.expenses.find(
+      (e) => e.id === action.id && e.week === action.week,
+    );
+    check(expense, "Расход не найден");
+    const updated = { ...expense };
+    for (const field of ["amount", "date", "category", "merchantId"])
+      if (Object.hasOwn(action, field)) updated[field] = action[field];
+    amount(updated.amount, true);
+    check(categories.includes(updated.category), "Неизвестная категория");
+    check(
+      typeof updated.date === "string" &&
+        /^\d{4}-\d{2}-\d{2}$/.test(updated.date),
+      "Некорректная дата",
+    );
+    const key = updated.date.slice(0, 7),
+      day = Number(updated.date.slice(8));
+    const target = ensure(state, key),
+      index = target.weeks.findIndex((w) => w.start <= day && day <= w.end);
+    check(index >= 0, "Некорректная дата");
+    validDate(updated.date, key, target.weeks[index]);
+    check(updated.date <= today, "Расход не может быть в будущем");
+    const financial =
+      updated.amount !== expense.amount || updated.date !== expense.date;
+    if (financial) {
+      check(
+        !source.weeks[expense.week].closed,
+        "В закрытой неделе нельзя менять сумму и дату",
+      );
+      check(
+        !target.weeks[index].closed,
+        "Нельзя перенести расход в закрытую неделю",
+      );
+    }
+    const merchantId = updated.merchantId;
+    check(
+      merchantId == null || typeof merchantId === "string",
+      "Неизвестный магазин",
+    );
+    if (merchantId && merchantId !== expense.merchantId) {
+      const merchant =
+        (state.merchants || []).find((m) => m.id === merchantId) ||
+        merchantDefaults.find((m) => m.id === merchantId);
+      check(merchant && !merchant.hidden, "Неизвестный или скрытый магазин");
+    }
+    if (!merchantId) delete updated.merchantId;
+    updated.week = index;
+    if (source === target)
+      source.expenses[source.expenses.indexOf(expense)] = updated;
+    else {
+      source.expenses.splice(source.expenses.indexOf(expense), 1);
+      target.expenses.push(updated);
+    }
+    return state;
+  }
   const state = structuredClone(original),
     key = action.month,
     m = ensure(state, key),

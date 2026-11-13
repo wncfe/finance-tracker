@@ -311,6 +311,87 @@ assert.equal(
     .status,
   401,
 );
+// Editing through the real Worker preserves IDs and rows across both month iteration orders.
+const editor = await account("editor");
+const act = async (action) => {
+  const current = (await call("state", { cookie: editor })).data;
+  return call("action", {
+    cookie: editor,
+    body: {
+      revision: current.revision,
+      operationId: crypto.randomUUID(),
+      action,
+    },
+  });
+};
+await act({ type: "budget", month: "2026-10", amount: 300000 });
+await act({ type: "budget", month: "2026-11", amount: 300000 });
+let edited = await act({
+  type: "expenses",
+  items: [
+    { date: "2026-11-08", amount: 10000, category: "Кофейни", note: "Кофе" },
+  ],
+});
+const editId = edited.data.state.months["2026-11"].expenses[0].id;
+const move = {
+  type: "expense_update",
+  month: "2026-11",
+  week: 1,
+  id: editId,
+  date: "2026-10-31",
+  amount: 25000,
+  category: "Супермаркеты",
+  merchantId: "b-magnit",
+};
+const editSnapshot = (await call("state", { cookie: editor })).data;
+const editRequest = {
+  revision: editSnapshot.revision,
+  operationId: crypto.randomUUID(),
+  action: move,
+};
+edited = await call("action", { cookie: editor, body: editRequest });
+assert.equal(edited.status, 200);
+assert.deepEqual(
+  await call("action", { cookie: editor, body: editRequest }),
+  edited,
+);
+let reloaded = (await call("state", { cookie: editor })).data.state;
+assert.equal(reloaded.months["2026-11"].expenses.length, 0);
+assert.equal(reloaded.months["2026-10"].expenses[0].id, editId);
+assert.equal(reloaded.months["2026-10"].expenses[0].amount, 25000);
+assert.equal(reloaded.months["2026-10"].expenses[0].merchantId, "b-magnit");
+assert.equal(
+  (
+    await call("action", {
+      cookie: b,
+      body: { revision: 0, operationId: crypto.randomUUID(), action: move },
+    })
+  ).status,
+  400,
+);
+const movedWeek = reloaded.months["2026-10"].expenses[0].week;
+assert.equal(
+  (
+    await act({
+      ...move,
+      month: "2026-10",
+      week: movedWeek,
+      date: "2026-11-08",
+      merchantId: "",
+    })
+  ).status,
+  200,
+);
+reloaded = (await call("state", { cookie: editor })).data.state;
+assert.equal(reloaded.months["2026-10"].expenses.length, 0);
+assert.equal(reloaded.months["2026-11"].expenses[0].id, editId);
+assert.ok(!("merchantId" in reloaded.months["2026-11"].expenses[0]));
+const invalidSnapshot = (await call("state", { cookie: editor })).data;
+assert.equal((await act({ ...move, amount: -1 })).status, 400);
+assert.deepEqual(
+  (await call("state", { cookie: editor })).data,
+  invalidSnapshot,
+);
 assert.equal(summary({ months: {} }, "2026-11-30").remaining, null);
 console.log(
   "Companion: pairing, auth scope, isolation, replay, CAS review, drafts, summary and revoke passed",

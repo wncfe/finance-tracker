@@ -11,6 +11,23 @@ class StoreTests(unittest.TestCase):
         from unittest.mock import patch
         clock=patch('budget.today_at',return_value='2026-12-31');clock.start();self.addCleanup(clock.stop)
 
+    def test_edit_moves_keep_one_row_in_either_month_order(self):
+        with self.legacy({'months':{}}) as db:
+            store.migrate(db)
+            before=store.load(db,1)
+            state=budget.apply(before,dict(type='budget',month='2026-10',amount=300000))
+            state=budget.apply(state,dict(type='budget',month='2026-11',amount=300000))
+            state=budget.apply(state,dict(type='expenses',items=[dict(date='2026-11-08',amount=10000,category='Кофейни',note='Кофе')]))
+            store.save(db,1,before,state)
+            identifier=state['months']['2026-11']['expenses'][0]['id']
+            for target in ['2026-10-31','2026-12-01','2026-11-09']:
+                source_key,expense=next((key,e) for key,m in state['months'].items() for e in m['expenses'] if e['id']==identifier)
+                changed=budget.apply(state,dict(type='expense_update',month=source_key,week=expense['week'],id=identifier,date=target,amount=25000,category='Супермаркеты',merchantId='b-magnit'))
+                store.save(db,1,state,changed)
+                self.assertEqual(store.load(db,1),changed)
+                self.assertEqual(db.execute('SELECT COUNT(*) FROM expenses').fetchone()[0],1)
+                state=changed
+
     def test_merge_groceries_preserves_every_other_field(self):
         state=budget.apply({'months':{}},dict(type='expense',month='2026-11',week=1,date='2026-11-02',amount=12345,category='Супермаркеты',note='Магнит'))
         state['months']['2026-11']['expenses'][0]['category']='Продукты'

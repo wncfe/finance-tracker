@@ -75,6 +75,7 @@ def load(db,user_id):
 
 def save(db,user_id,before,after):
     """Write only changed rows, in the caller's revision/receipt transaction."""
+    surviving_ids={e['id'] for m in after['months'].values() for e in m['expenses']}
     prior_merchants={m['id']:m for m in before.get('merchants',[])}
     for m in after.get('merchants',[]):
         if prior_merchants.get(m['id'])!=m:
@@ -93,7 +94,7 @@ def save(db,user_id,before,after):
                        (user_id,key,i,w['start'],w['end'],w['days'],w['limit'],int(w['closed']),w.get('settled')))
         previous={e['id']:(i,e) for i,e in enumerate(old['expenses'])} if old else {}
         present={e['id'] for e in m['expenses']}
-        for identifier in previous.keys()-present:db.execute('DELETE FROM expenses WHERE user_id=? AND id=?',(user_id,identifier))
+        for identifier in previous.keys()-present-surviving_ids:db.execute('DELETE FROM expenses WHERE user_id=? AND id=?',(user_id,identifier))
         for i,e in enumerate(m['expenses']):
             if previous.get(e['id'])==(i,e):continue
             category=db.execute('SELECT id FROM categories WHERE name=?',(e['category'],)).fetchone()

@@ -673,11 +673,30 @@
     </dialog>
     <dialog id="categoryEditor" aria-labelledby="categoryEditorTitle">
       <div class="dialoghead">
-        <h2 id="categoryEditorTitle">Изменить категорию</h2>
+        <h2 id="categoryEditorTitle">Изменить операцию</h2>
         <button id="categoryEditorClose" aria-label="Закрыть">✕</button>
       </div>
       <p id="categoryEditorNote"></p>
       <form id="categoryEditorForm">
+        <div class="formgrid">
+          <label
+            >Сумма, ₽<input
+              id="editExpenseAmount"
+              type="number"
+              min="0.01"
+              max="100000000"
+              step="0.01"
+              required /></label
+          ><label
+            >Дата<input id="editExpenseDate" type="date" required
+          /></label>
+        </div>
+        <label
+          >Магазин<select
+            id="editExpenseMerchant"
+            aria-label="Магазин операции"
+          ></select
+        ></label>
         <label
           >Категория<select
             id="expenseCategory"
@@ -686,9 +705,11 @@
           ></select
         ></label>
         <p class="muted">
-          Меняется только категория. Сумма, дата и состояние недели сохраняются.
+          <span id="expenseEditorHint"
+            >При изменении суммы или даты остатки бюджета пересчитаются.</span
+          >
         </p>
-        <button class="primary">Сохранить категорию</button>
+        <button class="primary">Сохранить изменения</button>
       </form>
     </dialog>
     <div
@@ -699,7 +720,7 @@
     >
       <p id="expenseActionsTitle"></p>
       <button type="button" role="menuitem" id="expenseMenuCategory">
-        Изменить категорию</button
+        Изменить операцию</button
       ><button type="button" role="menuitem" id="expenseMenuDelete">
         Удалить расход</button
       ><small id="expenseMenuReason" hidden

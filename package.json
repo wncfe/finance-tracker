@@ -3,6 +3,8 @@
   "private": true,
   "scripts": {
     "test:companion": "node tests/companion.mjs",
+    "test:expense-edit": "node tests/expense-edit.mjs",
+    "test:expense-edit-browser": "node tests/expense-edit-browser.cjs",
     "test:companion-browser": "node tests/companion-browser.cjs",
     "start": "python server.py",
     "test": "python -m unittest discover -s tests -v",

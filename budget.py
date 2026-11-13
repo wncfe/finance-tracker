@@ -124,6 +124,37 @@ def apply(state, action, today=None):
         return result
     action = dict(action)
     if action.get('category') == 'Продукты': action['category']='Супермаркеты'
+    if action.get('type') == 'expense_update':
+        if set(action)-{'type','month','week','id','amount','date','category','merchantId'}:
+            raise ValueError('Неизвестные поля изменения расхода')
+        if type(action.get('week')) is not int: raise ValueError('Некорректная неделя')
+        state=copy.deepcopy(state)
+        source=state['months'].get(action.get('month'))
+        expense=next((e for e in source['expenses'] if e['id']==action.get('id') and e['week']==action.get('week')),None) if source else None
+        if expense is None: raise ValueError('Расход не найден')
+        updated=dict(expense)
+        updated.update({k:action[k] for k in ('amount','date','category','merchantId') if k in action})
+        amount(updated['amount'],True)
+        if updated['category'] not in CATEGORIES: raise ValueError('Неизвестная категория')
+        if not isinstance(updated['date'],str) or not re.fullmatch(r'\d{4}-\d{2}-\d{2}',updated['date']): raise ValueError('Некорректная дата')
+        date=dt.date.fromisoformat(updated['date'])
+        if date.isoformat()>today: raise ValueError('Расход не может быть в будущем')
+        key=updated['date'][:7]
+        target=ensure(state,key)
+        index=next(i for i,w in enumerate(target['weeks']) if w['start']<=date.day<=w['end'])
+        if updated['amount']!=expense['amount'] or updated['date']!=expense['date']:
+            if source['weeks'][expense['week']]['closed']: raise ValueError('В закрытой неделе нельзя менять сумму и дату')
+            if target['weeks'][index]['closed']: raise ValueError('Нельзя перенести расход в закрытую неделю')
+        merchant_id=updated.get('merchantId')
+        if merchant_id is not None and not isinstance(merchant_id,str): raise ValueError('Неизвестный магазин')
+        if merchant_id and merchant_id!=expense.get('merchantId'):
+            merchant=next((m for m in state.get('merchants',[]) if m['id']==merchant_id),None) or next((m for m in MERCHANT_DEFAULTS if m['id']==merchant_id),None)
+            if not merchant or merchant.get('hidden'): raise ValueError('Неизвестный или скрытый магазин')
+        if not merchant_id: updated.pop('merchantId',None)
+        updated['week']=index
+        if source is target: source['expenses'][source['expenses'].index(expense)]=updated
+        else: source['expenses'].remove(expense);target['expenses'].append(updated)
+        return state
     state = copy.deepcopy(state)
     key = action['month']
     weeks(key)

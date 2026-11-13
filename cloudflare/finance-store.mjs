@@ -67,6 +67,9 @@ export async function loadFinance(db, userId) {
 
 export function financeWrites(db, userId, before, after, token) {
   const statements = [];
+  const survivingIds = new Set(
+    Object.values(after.months).flatMap((m) => m.expenses.map((e) => e.id)),
+  );
   // A unique token is set by the CAS as the first statement in the same batch.
   // Unlike a revision-only predicate, it cannot match another request's commit.
   const guard = "EXISTS(SELECT 1 FROM users WHERE id=? AND mutation_token=?)";
@@ -118,7 +121,7 @@ export function financeWrites(db, userId, before, after, token) {
     );
     const present = new Set(m.expenses.map((e) => e.id));
     for (const id of previous.keys())
-      if (!present.has(id))
+      if (!present.has(id) && !survivingIds.has(id))
         add(`DELETE FROM expenses WHERE user_id=? AND id=? AND ${guard}`, [
           userId,
           id,
