@@ -93,6 +93,7 @@ async function api(path, data) {
   if (result.today) serverToday = result.today;
   if (!r.ok) {
     if (r.status === 401) {
+      $("sessionLoading").hidden = true;
       $("auth").hidden = false;
       $("dashboard").hidden = true;
       $("logout").hidden = true;
@@ -197,7 +198,9 @@ function render() {
   $("budget").value = m.budget / 100;
   $("weekcount").textContent =
     `${m.weeks.filter((w) => w.closed).length} из ${m.weeks.length} закрыто` +
-    (m.weeks.some((w) => w.days <= 2) ? " · Сохранены исторические периоды" : "");
+    (m.weeks.some((w) => w.days <= 2)
+      ? " · Сохранены исторические периоды"
+      : "");
   $("weeks").innerHTML = m.weeks
     .map((w, i) => {
       let s = spent(m, i),
@@ -354,20 +357,36 @@ async function mutate(action) {
   }
 }
 async function load() {
+  const loading = $("dashboard").hidden && $("auth").hidden;
+  if (loading) {
+    $("sessionLoading").hidden = false;
+    $("sessionLoading").setAttribute("aria-busy", "true");
+    $("sessionStatus").textContent = "Загружаем ваш бюджет…";
+    $("sessionRetry").hidden = true;
+  }
   try {
     await MerchantDictionary.loadDefaults();
     const result = await api("state");
     accountLogin = result.login;
     state = result.state;
     revision = result.revision;
+    $("sessionLoading").hidden = true;
     $("auth").hidden = true;
     $("dashboard").hidden = false;
     $("logout").hidden = false;
     render();
   } catch (e) {
+    if (loading && e.status !== 401) {
+      $("sessionStatus").textContent =
+        "Не удалось загрузить бюджет. Проверьте подключение и попробуйте снова.";
+      $("sessionRetry").hidden = false;
+    }
     if (e.message !== "Войдите в аккаунт") toast(e.message);
+  } finally {
+    $("sessionLoading").setAttribute("aria-busy", "false");
   }
 }
+$("sessionRetry").onclick = () => load();
 async function auth(register) {
   if (busy) return;
   const form = $("authform");

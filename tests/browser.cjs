@@ -58,8 +58,26 @@ const assert = require("node:assert/strict");
       /Супермаркеты <тест>/,
     );
     await page.locator("#dismiss").click();
+    let releaseSession;
+    const sessionGate = new Promise((resolve) => (releaseSession = resolve));
+    let sessionRequested;
+    const sessionRequest = new Promise(
+      (resolve) => (sessionRequested = resolve),
+    );
+    await page.route("**/api/state", async (route) => {
+      sessionRequested();
+      await sessionGate;
+      await route.continue();
+    });
     await page.reload();
+    await sessionRequest;
+    assert.equal(await page.locator("#auth").isVisible(), false);
+    assert.equal(await page.locator("#dashboard").isVisible(), false);
+    assert.equal(await page.locator("#sessionLoading").isVisible(), true);
+    releaseSession();
     await page.locator("#dashboard").waitFor({ state: "visible" });
+    assert.equal(await page.locator("#sessionLoading").isVisible(), false);
+    await page.unroute("**/api/state");
     assert.equal(await page.locator("#history .entry").count(), 1);
     assert.equal(
       await page
