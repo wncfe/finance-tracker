@@ -42,7 +42,15 @@
         ><button id="logout" hidden>Выйти</button>
       </div>
     </header>
-    <main id="auth">
+    <main id="sessionLoading" aria-busy="true">
+      <section class="auth card">
+        <p id="sessionStatus" role="status">Загружаем ваш бюджет…</p>
+        <button id="sessionRetry" type="button" hidden>
+          Попробовать снова
+        </button>
+      </section>
+    </main>
+    <main id="auth" hidden>
       <section class="auth card">
         <span class="eyebrow">ПО НЕДЕЛЯМ</span>
         <h1>Твои финансы.<br />В одном месте.</h1>

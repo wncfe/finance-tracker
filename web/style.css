@@ -53,10 +53,6 @@
   display: block;
   line-height: 1.4;
 }
-.entry time {
-  display: block;
-  margin-top: 3px;
-}
 .entry .expense-more {
   width: 36px;
   min-width: 36px;
@@ -599,6 +595,17 @@ h3 {
 .history select {
   width: auto;
   max-width: 190px;
+}
+.entry-group + .entry-group {
+  margin-top: 10px;
+}
+.entry-date {
+  margin: 12px 0 0;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: var(--bg);
+  font-size: 13px;
+  font-weight: 600;
 }
 .entry {
   display: flex;

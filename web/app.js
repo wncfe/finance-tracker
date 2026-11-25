@@ -93,6 +93,7 @@ async function api(path, data) {
   if (result.today) serverToday = result.today;
   if (!r.ok) {
     if (r.status === 401) {
+      $("sessionLoading").hidden = true;
       $("auth").hidden = false;
       $("dashboard").hidden = true;
       $("logout").hidden = true;
@@ -151,15 +152,15 @@ const spent = (m, i) =>
   m.expenses
     .filter((e) => i === undefined || e.week === i)
     .reduce((s, e) => s + e.amount, 0);
-function expenseDate(value) {
-  const date = new Date(value + "T12:00:00");
-  return date
+function expenseDate(value, today, yesterday) {
+  if (value === today) return "Сегодня";
+  if (value === yesterday) return "Вчера";
+  return ExpenseAnalytics.date(value)
     .toLocaleDateString("ru-RU", {
       day: "numeric",
       month: "long",
-      ...(date.getFullYear() !== new Date().getFullYear()
-        ? { year: "numeric" }
-        : {}),
+      timeZone: "UTC",
+      ...(value.slice(0, 4) !== today.slice(0, 4) ? { year: "numeric" } : {}),
     })
     .replace(" г.", "");
 }
@@ -174,14 +175,30 @@ function entries(m, i, merchantId = "") {
           : e.merchantId === merchantId),
     )
     .sort((a, b) => b.date.localeCompare(a.date));
-  return list.length
-    ? list
-        .map(
-          (e) =>
-            `<div class="entry"><span class="icon" aria-hidden="true">${icons[cats.indexOf(e.category)] || "•"}</span><div class="description"><span class="expense-title">${esc(e.merchantId ? MerchantDictionary.all(state.merchants, true).find((m) => m.id === e.merchantId)?.name || "Магазин" : e.note || e.category)}</span><small>${esc(e.category)}${e.note && e.merchantId ? ` · ${esc(e.note)}` : ""}<time datetime="${esc(e.date)}">${esc(expenseDate(e.date))}</time></small></div><strong>${money(e.amount)}</strong><button class="expense-more" data-expense-menu="${esc(e.id)}" data-month="${esc(e.date.slice(0, 7))}" aria-label="Действия с расходом ${esc(e.merchantId ? MerchantDictionary.all(state.merchants, true).find((m) => m.id === e.merchantId)?.name || "Магазин" : e.note || e.category)}" aria-haspopup="menu" aria-expanded="false" aria-controls="expenseActions"><span aria-hidden="true">⋯</span></button></div>`,
-        )
-        .join("")
-    : '<p class="muted">Пока нет трат</p>';
+  if (!list.length) return '<p class="muted">Пока нет трат</p>';
+  const today = todayDate(),
+    yesterday = ExpenseAnalytics.shift(today, -1);
+  const merchants = new Map(
+    MerchantDictionary.all(state.merchants, true).map((m) => [m.id, m.name]),
+  );
+  const groups = new Map();
+  for (const e of list) {
+    if (!groups.has(e.date)) groups.set(e.date, []);
+    const title = e.merchantId
+      ? merchants.get(e.merchantId) || "Магазин"
+      : e.note || e.category;
+    groups
+      .get(e.date)
+      .push(
+        `<div class="entry"><span class="icon" aria-hidden="true">${icons[cats.indexOf(e.category)] || "•"}</span><div class="description"><span class="expense-title">${esc(title)}</span><small>${esc(e.category)}${e.note && e.merchantId ? ` · ${esc(e.note)}` : ""}</small></div><strong>${money(e.amount)}</strong><button class="expense-more" data-expense-menu="${esc(e.id)}" data-month="${esc(e.date.slice(0, 7))}" aria-label="Действия с расходом ${esc(title)}" aria-haspopup="menu" aria-expanded="false" aria-controls="expenseActions"><span aria-hidden="true">⋯</span></button></div>`,
+      );
+  }
+  return [...groups]
+    .map(
+      ([day, items]) =>
+        `<section class="entry-group"><h3 class="entry-date"><time datetime="${esc(day)}">${esc(expenseDate(day, today, yesterday))}</time></h3>${items.join("")}</section>`,
+    )
+    .join("");
 }
 function render() {
   const m = current(),
@@ -197,7 +214,9 @@ function render() {
   $("budget").value = m.budget / 100;
   $("weekcount").textContent =
     `${m.weeks.filter((w) => w.closed).length} из ${m.weeks.length} закрыто` +
-    (m.weeks.some((w) => w.days <= 2) ? " · Сохранены исторические периоды" : "");
+    (m.weeks.some((w) => w.days <= 2)
+      ? " · Сохранены исторические периоды"
+      : "");
   $("weeks").innerHTML = m.weeks
     .map((w, i) => {
       let s = spent(m, i),
@@ -251,7 +270,7 @@ function forecastMarkup(i, detailed = false) {
   if (!f || f.status === "actual") return "";
   if (f.status === "insufficient")
     return '<span class="forecast muted">Прогноз: недостаточно данных</span>';
-  return `<span class="forecast ${f.left < 0 ? "negative" : ""}">Ожидаемый остаток: ${money(f.left)}${f.left < 0 ? " · ожидается превышение лимита" : ""}${detailed ? `<small>Прогноз расходов: ${money(f.total)}. ${esc(f.method)}. История: ${f.observations} дней; завершено в неделе: ${f.completedDays}.</small>` : ""}</span>`;
+  return `<span class="forecast ${f.left < 0 ? "negative" : ""}">Ожидаемый остаток: ${money(f.left)}${f.left < 0 ? " · ожидается превышение лимита" : ""}${detailed ? `<small>Прогноз расходов — ${money(f.total)}. ${esc(f.method)}. История — ${f.observations} из 6 сопоставимых недель. Завершённых дней — ${f.completedDays}. Вес текущего темпа — ${Math.round(f.adaptability * 100)}%.</small>` : ""}</span>`;
 }
 function renderWeek() {
   const m = current(),
@@ -354,20 +373,36 @@ async function mutate(action) {
   }
 }
 async function load() {
+  const loading = $("dashboard").hidden && $("auth").hidden;
+  if (loading) {
+    $("sessionLoading").hidden = false;
+    $("sessionLoading").setAttribute("aria-busy", "true");
+    $("sessionStatus").textContent = "Загружаем ваш бюджет…";
+    $("sessionRetry").hidden = true;
+  }
   try {
     await MerchantDictionary.loadDefaults();
     const result = await api("state");
     accountLogin = result.login;
     state = result.state;
     revision = result.revision;
+    $("sessionLoading").hidden = true;
     $("auth").hidden = true;
     $("dashboard").hidden = false;
     $("logout").hidden = false;
     render();
   } catch (e) {
+    if (loading && e.status !== 401) {
+      $("sessionStatus").textContent =
+        "Не удалось загрузить бюджет. Проверьте подключение и попробуйте снова.";
+      $("sessionRetry").hidden = false;
+    }
     if (e.message !== "Войдите в аккаунт") toast(e.message);
+  } finally {
+    $("sessionLoading").setAttribute("aria-busy", "false");
   }
 }
+$("sessionRetry").onclick = () => load();
 async function auth(register) {
   if (busy) return;
   const form = $("authform");
