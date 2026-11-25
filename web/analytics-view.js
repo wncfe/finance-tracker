@@ -829,7 +829,7 @@
     $("analysisDetailsTitle").textContent = detail.title;
     $("analysisDetailsBody").innerHTML =
       `<p>${esc(detail.explanation)}</p><p>Всего: ${money(expenses.reduce((s, e) => s + e.amount, 0))}</p>` +
-      entries({ expenses });
+      entries(expenses);
   }
   function drawReport() {
     const month = $("reportMonth").value;
@@ -1121,7 +1121,6 @@
     });
     simulationResult();
   };
-  $("analysisDetailsBody").onclick = deleteExpense;
   const previousRender = render;
   render = function () {
     previousRender();

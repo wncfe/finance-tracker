@@ -141,19 +141,18 @@
             data-nav-panel="history"
             class="card history"
           >
-            <div class="sectionhead">
-              <h2>История трат</h2>
+            <div class="sectionhead"><h2>История трат</h2></div>
+            <div class="history-filters">
               <select id="filter" aria-label="Фильтр недели"></select>
-            </div>
-            <label
-              >Магазин или сервис<select
-                id="historyMerchant"
-                aria-label="Фильтр магазина"
-              >
+              <select id="historyMerchant" aria-label="Фильтр магазина">
                 <option value="">Все магазины</option>
-              </select></label
-            >
-            <div id="history"></div>
+              </select>
+            </div>
+            <p class="history-summary">
+              <span id="historyTotalLabel">Потрачено за месяц</span>
+              <strong id="historyTotal"></strong>
+            </p>
+            <div id="history" tabindex="-1"></div>
           </section>
         </section>
         <aside>
@@ -534,7 +533,7 @@
         </details>
       </div>
       <h3>Траты недели</h3>
-      <div id="weekexpenses"></div>
+      <div id="weekexpenses" tabindex="-1"></div>
     </dialog>
     <dialog id="merchantDialog" aria-labelledby="merchantTitle">
       <div class="dialoghead">
@@ -618,7 +617,7 @@
           ✕
         </button>
       </div>
-      <div id="analysisDetailsBody"></div>
+      <div id="analysisDetailsBody" tabindex="-1"></div>
     </dialog>
     <dialog id="reportDialog" aria-labelledby="reportTitle">
       <div class="dialoghead">
@@ -720,21 +719,47 @@
         <button class="primary">Сохранить изменения</button>
       </form>
     </dialog>
-    <div
-      id="expenseActions"
-      popover="auto"
-      role="menu"
-      aria-label="Действия с расходом"
-    >
-      <p id="expenseActionsTitle"></p>
-      <button type="button" role="menuitem" id="expenseMenuCategory">
-        Изменить операцию</button
-      ><button type="button" role="menuitem" id="expenseMenuDelete">
-        Удалить расход</button
-      ><small id="expenseMenuReason" hidden
-        >Неделя закрыта — удаление недоступно</small
-      >
-    </div>
+    <dialog id="expenseDetails" aria-labelledby="expenseDetailsTitle">
+      <div class="dialoghead">
+        <h2 id="expenseDetailsTitle"></h2>
+        <button
+          id="expenseDetailsClose"
+          type="button"
+          aria-label="Закрыть"
+          autofocus
+        >
+          ✕
+        </button>
+      </div>
+      <p id="expenseDetailsAmount" class="expense-details-amount"></p>
+      <dl class="expense-details-fields">
+        <div>
+          <dt>Дата покупки</dt>
+          <dd><time id="expenseDetailsDate"></time></dd>
+        </div>
+        <div>
+          <dt>Категория</dt>
+          <dd id="expenseDetailsCategory"></dd>
+        </div>
+        <div id="expenseDetailsMerchantField">
+          <dt>Магазин или сервис</dt>
+          <dd id="expenseDetailsMerchant"></dd>
+        </div>
+        <div id="expenseDetailsNoteField">
+          <dt>Описание</dt>
+          <dd id="expenseDetailsNote"></dd>
+        </div>
+      </dl>
+      <div class="expense-details-actions">
+        <button type="button" id="expenseDetailsEdit" class="primary">
+          Изменить операцию
+        </button>
+        <button type="button" id="expenseDetailsDelete">Удалить расход</button>
+      </div>
+      <p id="expenseDetailsClosed" class="muted" hidden>
+        Неделя закрыта. Можно изменить магазин и категорию.
+      </p>
+    </dialog>
     <dialog id="companionPanel" aria-labelledby="companionTitle">
       <div class="dialoghead">
         <h2 id="companionTitle">Android</h2>

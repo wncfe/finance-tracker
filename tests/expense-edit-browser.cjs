@@ -81,9 +81,30 @@ const assert = require("node:assert/strict");
     await page.goto("http://127.0.0.1:8006/");
     await page.locator("#dashboard").waitFor({ state: "visible" });
     await page.locator("#tab-history").click();
+    const expenseRow = page.locator(
+      `#history [data-expense-id="${expense.id}"]`,
+    );
+    await expenseRow.press("Enter");
+    const details = page.locator("#expenseDetails");
+    assert.equal(await details.isVisible(), true);
+    assert.equal(await details.locator("h2").textContent(), "Кофе");
+    assert.equal(
+      await details.locator("time").getAttribute("datetime"),
+      "2026-11-09",
+    );
+    assert.equal(
+      await details.locator("#expenseDetailsAmount").textContent(),
+      await expenseRow.locator("strong").textContent(),
+    );
+    await page.keyboard.press("Escape");
+    assert.equal(await details.isVisible(), false);
+    assert.equal(
+      await expenseRow.evaluate((el) => el === document.activeElement),
+      true,
+    );
     const open = async (id) => {
-      await page.locator(`[data-expense-menu="${id}"]:visible`).click();
-      await page.locator("#expenseMenuCategory").click();
+      await page.locator(`[data-expense-id="${id}"]:visible`).click();
+      await page.locator("#expenseDetailsEdit").click();
       await page.locator("#categoryEditor").waitFor({ state: "visible" });
     };
     const choose = async (label, name) => {
@@ -149,7 +170,15 @@ const assert = require("node:assert/strict");
     current = await state();
     assert.equal(current.state.months["2026-10"].expenses[0].id, expense.id);
     assert.equal(current.state.months["2026-11"].expenses.length, 1);
-    await open(closedExpense.id);
+    await page
+      .locator(`#history [data-expense-id="${closedExpense.id}"]`)
+      .click();
+    assert.equal(
+      await page.locator("#expenseDetailsDelete").isDisabled(),
+      true,
+    );
+    assert.equal(await page.locator("#expenseDetailsClosed").isVisible(), true);
+    await page.locator("#expenseDetailsEdit").click();
     assert.equal(await page.locator("#editExpenseAmount").isDisabled(), true);
     assert.equal(await page.locator("#editExpenseDate").isDisabled(), true);
     await choose("Магазин операции", "Магнит");
@@ -164,9 +193,47 @@ const assert = require("node:assert/strict");
     assert.deepEqual(current.state.months["2026-11"].weeks, limits);
     await page.reload();
     await page.locator("#dashboard").waitFor({ state: "visible" });
+    await page.locator("#tab-history").click();
+    await page.locator(".monthnav .picker-trigger").click();
+    await page.locator('.picker[open] [data-value="2026-10"]').click();
+    await page.getByRole("button", { name: "Фильтр магазина" }).click();
+    await page
+      .locator(".picker[open]")
+      .getByRole("button", { name: "Магнит" })
+      .click();
+    const total = await page.evaluate(() => money(12550));
+    assert.equal(await page.locator("#historyTotal").textContent(), total);
+    assert.equal(
+      await page.locator(".entry-day-total:visible").textContent(),
+      total,
+    );
+    await page.setViewportSize({ width: 320, height: 844 });
+    assert.equal(
+      await page
+        .locator("#panel-history")
+        .evaluate((el) => el.scrollWidth <= el.clientWidth),
+      true,
+    );
+    await page.screenshot({ path: folder + "/history.png", fullPage: true });
+    await expenseRow.click();
+    await page.screenshot({ path: folder + "/details.png" });
+    page.once("dialog", (dialog) => dialog.dismiss());
+    await page.locator("#expenseDetailsDelete").click();
+    assert.equal(await details.isVisible(), true);
+    page.once("dialog", (dialog) => dialog.accept());
+    await page.locator("#expenseDetailsDelete").click();
+    await expenseRow.waitFor({ state: "detached" });
+    assert.equal(
+      await page.locator("#historyMerchant").inputValue(),
+      "b-magnit",
+    );
+    assert.equal(
+      await page.locator("#historyTotal").textContent(),
+      await page.evaluate(() => money(0)),
+    );
     assert.deepEqual(errors, []);
     console.log(
-      "Expense editor browser: all fields, budget state, retry, rejection, month move, closed metadata, reload and mobile widths passed",
+      "Expense history and editor browser: totals, filters, modal, deletion, editing, retry, closed weeks, reload and mobile widths passed",
     );
   } finally {
     if (browser) await browser.close();

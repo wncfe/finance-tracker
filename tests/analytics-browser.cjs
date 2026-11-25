@@ -98,12 +98,16 @@ const assert = require("node:assert/strict");
     const historyDays = page.locator("#history .entry-group");
     assert.deepEqual(
       await historyDays
-        .locator(".entry-date")
+        .locator(".entry-date time")
         .allTextContents()
         .then((labels) => labels.slice(0, 3)),
       ["Сегодня", "Вчера", "11 ноября"],
     );
     assert.equal(await historyDays.first().locator(".entry").count(), 2);
+    assert.equal(
+      await historyDays.first().locator(".entry-day-total").textContent(),
+      await page.evaluate(() => money(510000)),
+    );
     assert.match(
       await page.locator('[data-week="1"]').textContent(),
       /Ожидаемый остаток/,

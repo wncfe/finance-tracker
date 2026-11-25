@@ -1,78 +1,76 @@
 "use strict";
 (() => {
-  const menu = $("expenseActions");
-  let source = null;
-  globalThis.openExpenseMenu = (button) => {
-    const month = button.dataset.month,
-      expense = state.months[month]?.expenses.find(
-        (e) => e.id === button.dataset.expenseMenu,
+  const dialog = $("expenseDetails"),
+    edit = $("expenseDetailsEdit"),
+    remove = $("expenseDetailsDelete"),
+    date = $("expenseDetailsDate");
+  let active = null,
+    editing = null;
+
+  function restoreFocus({ list, id }) {
+    const row = list.querySelector(`[data-expense-id="${CSS.escape(id)}"]`);
+    (row || list).focus({ preventScroll: true });
+  }
+
+  for (const list of [
+    $("history"),
+    $("weekexpenses"),
+    $("analysisDetailsBody"),
+  ]) {
+    list.addEventListener("click", (event) => {
+      const row = event.target.closest("[data-expense-id]");
+      if (!row || busy) return;
+      const { month, expenseId: id } = row.dataset;
+      const record = state.months[month];
+      const expense = record?.expenses.find((item) => item.id === id);
+      if (!expense) return;
+
+      const closed = record.weeks[expense.week].closed;
+      const merchant = expense.merchantId
+        ? MerchantDictionary.all(state.merchants, true).find(
+            (item) => item.id === expense.merchantId,
+          )?.name
+        : "";
+      active = { list, month, id, week: expense.week };
+      $("expenseDetailsTitle").textContent = expenseTitle(expense, merchant);
+      $("expenseDetailsAmount").textContent = money(expense.amount);
+      date.dateTime = expense.date;
+      date.textContent = ExpenseAnalytics.date(expense.date).toLocaleDateString(
+        "ru-RU",
+        { dateStyle: "long", timeZone: "UTC" },
       );
-    if (!expense || busy) return;
-    if (menu.matches(":popover-open")) menu.hidePopover();
-    source = button;
-    (button.closest("dialog") || document.body).append(menu);
-    $("expenseActionsTitle").textContent = expense.note || expense.category;
-    const edit = $("expenseMenuCategory"),
-      remove = $("expenseMenuDelete");
-    edit.dataset.recategorize = expense.id;
-    edit.dataset.month = month;
-    remove.dataset.delete = expense.id;
-    remove.dataset.month = month;
-    remove.dataset.expenseWeek = expense.week;
-    remove.disabled = state.months[month].weeks[expense.week].closed;
-    $("expenseMenuReason").hidden = !remove.disabled;
-    menu.showPopover();
-    button.setAttribute("aria-expanded", "true");
-    const anchor = button.getBoundingClientRect(),
-      rect = menu.getBoundingClientRect();
-    menu.style.left =
-      Math.max(
-        12,
-        Math.min(innerWidth - rect.width - 12, anchor.right - rect.width),
-      ) + "px";
-    menu.style.top =
-      Math.max(
-        12,
-        Math.min(
-          innerHeight - rect.height - 12,
-          anchor.bottom + rect.height + 8 < innerHeight
-            ? anchor.bottom + 6
-            : anchor.top - rect.height - 6,
-        ),
-      ) + "px";
-    edit.focus();
+      $("expenseDetailsCategory").textContent = expense.category;
+      $("expenseDetailsMerchant").textContent = merchant || "Магазин";
+      $("expenseDetailsMerchantField").hidden = !expense.merchantId;
+      $("expenseDetailsNote").textContent = expense.note || "";
+      $("expenseDetailsNoteField").hidden =
+        !expense.note || !expense.merchantId;
+      $("expenseDetailsClosed").hidden = !closed;
+      remove.disabled = closed;
+      dialog.showModal();
+    });
+  }
+
+  $("expenseDetailsClose").onclick = () => dialog.close();
+  edit.onclick = () => {
+    if (!active || busy) return;
+    editing = active;
+    dialog.close();
+    openCategoryEditor({
+      dataset: { month: editing.month, recategorize: editing.id },
+    });
   };
-  menu.addEventListener("toggle", (e) => {
-    if (e.newState === "closed") source?.setAttribute("aria-expanded", "false");
+  $("categoryEditor").addEventListener("close", () => {
+    if (editing && !$("dashboard").hidden) restoreFocus(editing);
+    editing = null;
   });
-  menu.onclick = (e) => {
-    const button = e.target.closest("button");
-    if (!button || button.disabled) return;
-    menu.hidePopover();
-    deleteExpense(e);
-  };
-  menu.onkeydown = (e) => {
-    const buttons = [...menu.querySelectorAll("button:not(:disabled)")];
-    if (e.key === "Escape") {
-      e.preventDefault();
-      menu.hidePopover();
-      source?.focus();
-    } else if (["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) {
-      e.preventDefault();
-      const index = buttons.indexOf(document.activeElement);
-      buttons[
-        e.key === "Home"
-          ? 0
-          : e.key === "End"
-            ? buttons.length - 1
-            : (index + (e.key === "ArrowDown" ? 1 : buttons.length - 1)) %
-              buttons.length
-      ].focus();
-    }
-  };
-  const previousRender = render;
-  render = function () {
-    if (menu.matches(":popover-open")) menu.hidePopover();
-    previousRender();
+  remove.onclick = async () => {
+    if (!active || busy || remove.disabled || !confirm("Удалить эту трату?"))
+      return;
+    const { list, month, id, week } = active;
+    dialog.close();
+    await mutate({ type: "delete", month, id, week });
+    if (!$("dashboard").hidden && document.activeElement === document.body)
+      restoreFocus({ list, id });
   };
 })();

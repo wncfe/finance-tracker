@@ -100,7 +100,12 @@ async function api(path, data) {
       if ($("weekdialog").open) $("weekdialog").close();
       if ($("quickdialog").open) $("quickdialog").close();
       if ($("categoryEditor").open) $("categoryEditor").close();
-      for (const id of ["analysisDetails", "reportDialog", "simulatorDialog"])
+      for (const id of [
+        "expenseDetails",
+        "analysisDetails",
+        "reportDialog",
+        "simulatorDialog",
+      ])
         if ($(id).open) $(id).close();
     }
     const error = Error(result.error);
@@ -164,40 +169,46 @@ function expenseDate(value, today, yesterday) {
     })
     .replace(" г.", "");
 }
-function entries(m, i, merchantId = "") {
-  const list = m.expenses
-    .filter((e) => i === undefined || e.week === i)
-    .filter(
-      (e) =>
-        !merchantId ||
-        (merchantId === "__none__"
-          ? !e.merchantId
-          : e.merchantId === merchantId),
-    )
-    .sort((a, b) => b.date.localeCompare(a.date));
-  if (!list.length) return '<p class="muted">Пока нет трат</p>';
+function expenseTitle(expense, merchant) {
+  return expense.merchantId
+    ? merchant || "Магазин"
+    : expense.note || expense.category;
+}
+function sumExpenses(expenses) {
+  return expenses.reduce((total, expense) => total + expense.amount, 0);
+}
+function entries(expenses) {
+  if (!expenses.length) return '<p class="muted">Пока нет трат</p>';
   const today = todayDate(),
     yesterday = ExpenseAnalytics.shift(today, -1);
   const merchants = new Map(
     MerchantDictionary.all(state.merchants, true).map((m) => [m.id, m.name]),
   );
   const groups = new Map();
-  for (const e of list) {
-    if (!groups.has(e.date)) groups.set(e.date, []);
-    const title = e.merchantId
-      ? merchants.get(e.merchantId) || "Магазин"
-      : e.note || e.category;
-    groups
-      .get(e.date)
-      .push(
-        `<div class="entry"><span class="icon" aria-hidden="true">${icons[cats.indexOf(e.category)] || "•"}</span><div class="description"><span class="expense-title">${esc(title)}</span><small>${esc(e.category)}${e.note && e.merchantId ? ` · ${esc(e.note)}` : ""}</small></div><strong>${money(e.amount)}</strong><button class="expense-more" data-expense-menu="${esc(e.id)}" data-month="${esc(e.date.slice(0, 7))}" aria-label="Действия с расходом ${esc(title)}" aria-haspopup="menu" aria-expanded="false" aria-controls="expenseActions"><span aria-hidden="true">⋯</span></button></div>`,
-      );
+  for (const expense of expenses) {
+    if (!groups.has(expense.date)) groups.set(expense.date, []);
+    groups.get(expense.date).push(expense);
   }
-  return [...groups]
-    .map(
-      ([day, items]) =>
-        `<section class="entry-group"><h3 class="entry-date"><time datetime="${esc(day)}">${esc(expenseDate(day, today, yesterday))}</time></h3>${items.join("")}</section>`,
-    )
+  return [...groups.keys()]
+    .sort((a, b) => b.localeCompare(a))
+    .map((day) => {
+      const items = groups.get(day),
+        total = money(sumExpenses(items));
+      const rows = items.map((expense) => {
+        const iconName =
+          iconNames[cats.indexOf(expense.category)] || "ellipsis";
+        const title = expenseTitle(expense, merchants.get(expense.merchantId));
+        return `<button type="button" class="entry" data-expense-id="${esc(expense.id)}" data-month="${esc(day.slice(0, 7))}" aria-haspopup="dialog" aria-controls="expenseDetails">
+          <span class="icon" data-icon="${iconName}" aria-hidden="true">${icon(iconName)}</span>
+          <span class="description"><span class="expense-title">${esc(title)}</span><small>${esc(expense.category)}</small></span>
+          <strong>${money(expense.amount)}</strong>
+        </button>`;
+      });
+      return `<section class="entry-group">
+        <h3 class="entry-date"><time datetime="${esc(day)}">${esc(expenseDate(day, today, yesterday))}</time><span class="entry-day-total" aria-label="Траты за день: ${total}">${total}</span></h3>
+        ${rows.join("")}
+      </section>`;
+    })
     .join("");
 }
 function render() {
@@ -225,10 +236,23 @@ function render() {
     })
     .join("");
   const filter = $("filter").value;
+  const weekRange = new Intl.DateTimeFormat("ru-RU", {
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC",
+  });
+  const dayOfMonth = (day) =>
+    ExpenseAnalytics.date(selected + "-" + String(day).padStart(2, "0"));
   $("filter").innerHTML =
     '<option value="">Весь месяц</option>' +
     m.weeks
-      .map((w, i) => `<option value="${i}">Неделя ${i + 1}</option>`)
+      .map((w, i) => {
+        const label = weekRange.formatRange(
+          dayOfMonth(w.start),
+          dayOfMonth(w.end),
+        );
+        return `<option value="${i}">${esc(label)}</option>`;
+      })
       .join("");
   $("filter").value = filter;
   const merchantFilter = $("historyMerchant").value;
@@ -238,7 +262,9 @@ function render() {
   $("historyMerchant").innerHTML =
     '<option value="">Все магазины</option><option value="__none__">Без магазина</option>' +
     MerchantDictionary.all(state.merchants, true)
-      .filter((item) => usedMerchants.has(item.id))
+      .filter(
+        (item) => usedMerchants.has(item.id) || item.id === merchantFilter,
+      )
       .map(
         (item) => `<option value="${esc(item.id)}">${esc(item.name)}</option>`,
       )
@@ -248,11 +274,19 @@ function render() {
   )
     ? merchantFilter
     : "";
-  $("history").innerHTML = entries(
-    m,
-    filter === "" ? undefined : Number(filter),
-    $("historyMerchant").value,
+  const merchant = $("historyMerchant").value;
+  const visibleExpenses = m.expenses.filter(
+    (expense) =>
+      (filter === "" || expense.week === Number(filter)) &&
+      (!merchant ||
+        (merchant === "__none__"
+          ? !expense.merchantId
+          : expense.merchantId === merchant)),
   );
+  $("historyTotalLabel").textContent =
+    filter || merchant ? "Потрачено по фильтрам" : "Потрачено за месяц";
+  $("historyTotal").textContent = money(sumExpenses(visibleExpenses));
+  $("history").innerHTML = entries(visibleExpenses);
   $("categories").innerHTML =
     cats
       .map((c, i) => {
@@ -283,7 +317,9 @@ function renderWeek() {
   $("weekforecast").innerHTML = forecastMarkup(week, true);
   $("weekeditable").hidden = w.closed;
   $("limit").value = w.limit / 100;
-  $("weekexpenses").innerHTML = entries(m, week);
+  $("weekexpenses").innerHTML = entries(
+    m.expenses.filter((expense) => expense.week === week),
+  );
   const date = $("expenseform").elements.date,
     min = `${selected}-${String(w.start).padStart(2, "0")}`,
     max = `${selected}-${String(w.end).padStart(2, "0")}`;
@@ -506,27 +542,6 @@ $("closeform").onsubmit = async (e) => {
   if (await mutate({ type: "close", mode: $("closemode").value }))
     toast("Неделя закрыта");
 };
-async function deleteExpense(event) {
-  const more = event.target.closest("[data-expense-menu]");
-  if (more) {
-    openExpenseMenu(more);
-    return;
-  }
-  if (event.target.closest("[data-recategorize]")) {
-    openCategoryEditor(event.target.closest("[data-recategorize]"));
-    return;
-  }
-  const button = event.target.closest("[data-delete]");
-  if (button && confirm("Удалить эту трату?"))
-    await mutate({
-      type: "delete",
-      month: button.dataset.month,
-      id: button.dataset.delete,
-      week: Number(button.dataset.expenseWeek),
-    });
-}
-$("weekexpenses").onclick = deleteExpense;
-$("history").onclick = deleteExpense;
 
 load();
 

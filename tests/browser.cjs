@@ -136,9 +136,20 @@ const assert = require("node:assert/strict");
       await page.locator("#dismiss").click();
     }
     await page.locator("#tab-history").click();
-    await page.locator(".history .select-trigger").click();
+    await page.locator('.history button[aria-label="Фильтр недели"]').click();
     await page.locator('.picker[open] [data-option="2"]').click();
     assert.equal(await page.locator("#history .entry").count(), 1);
+    const filteredAmount = await page
+      .locator("#history .entry strong")
+      .textContent();
+    assert.equal(
+      await page.locator(".entry-day-total:visible").textContent(),
+      filteredAmount,
+    );
+    assert.equal(
+      await page.locator("#historyTotal").textContent(),
+      filteredAmount,
+    );
     await page.locator("#tab-overview").click();
     await page.locator('[data-week="1"]').click();
     await page.locator("#closeform").locator("..").locator("summary").click();
@@ -212,9 +223,12 @@ const assert = require("node:assert/strict");
     // Closed weeks allow only category corrections, without reopening.
     assert.equal(await page.locator("#reopen").count(), 0);
     const historical = after.expenses[0];
-    await page.locator("#weekexpenses [data-expense-menu]").click();
-    assert.equal(await page.locator("#expenseMenuDelete").isDisabled(), true);
-    await page.locator("#expenseMenuCategory").click();
+    await page.locator("#weekexpenses [data-expense-id]").click();
+    assert.equal(
+      await page.locator("#expenseDetailsDelete").isDisabled(),
+      true,
+    );
+    await page.locator("#expenseDetailsEdit").click();
     await page.locator("#categoryEditor .select-trigger").click();
     await page
       .locator(".picker[open] [data-option]")
@@ -565,17 +579,26 @@ const assert = require("node:assert/strict");
       await page.locator("#quickclose").click();
     }
     await page.locator("#tab-history").click();
+    assert.equal(await page.locator("#history .entry button").count(), 0);
     assert.equal(
-      await page.locator("#history .entry [data-recategorize]").count(),
-      0,
+      await page
+        .locator("#quickopen")
+        .evaluate((el) => getComputedStyle(el).position),
+      "static",
     );
     assert.match(
       await page.locator("#history time").first().textContent(),
       /ноября/,
     );
-    await page.locator("#history [data-expense-menu]").first().click();
+    const firstExpense = page.locator("#history [data-expense-id]").first();
+    await firstExpense.focus();
+    await page.keyboard.press("Enter");
     assert.equal(
-      await page.locator("#expenseActions").evaluate((el) => {
+      await page.locator("#expenseDetailsDate").getAttribute("datetime"),
+      await firstExpense.locator("..").locator("time").getAttribute("datetime"),
+    );
+    assert.equal(
+      await page.locator("#expenseDetails").evaluate((el) => {
         const r = el.getBoundingClientRect();
         return (
           r.left >= 0 &&
@@ -587,24 +610,30 @@ const assert = require("node:assert/strict");
       true,
     );
     await page.keyboard.press("Escape");
-    assert.equal(await page.locator("#expenseActions").isVisible(), false);
+    assert.equal(await page.locator("#expenseDetails").isVisible(), false);
+    assert.equal(
+      await firstExpense.evaluate((el) => el === document.activeElement),
+      true,
+    );
     await page.screenshot({
       path: dir + "/mobile-history-compact.png",
       fullPage: true,
     });
     assert.match(await page.evaluate(() => expenseDate("2025-11-07")), /2025/);
-    // Deletion from the same menu remains available for an open week.
-    await page.locator("#panel-history .select-trigger").click();
+    // Deletion from the details dialog remains available for an open week.
+    await page
+      .locator('#panel-history button[aria-label="Фильтр недели"]')
+      .click();
     await page.locator('.picker[open] [data-option="0"]').click();
     const removable = await page.evaluate(
       () =>
         state.months["2026-11"].expenses.find((e) => e.date === "2026-11-10")
           .id,
     );
-    await page.locator(`#history [data-expense-menu="${removable}"]`).click();
-    assert.equal(await page.locator("#expenseMenuDelete").isEnabled(), true);
+    await page.locator(`#history [data-expense-id="${removable}"]`).click();
+    assert.equal(await page.locator("#expenseDetailsDelete").isEnabled(), true);
     page.once("dialog", (dialog) => dialog.accept());
-    await page.locator("#expenseMenuDelete").click();
+    await page.locator("#expenseDetailsDelete").click();
     await page.waitForFunction(
       (id) => !state.months["2026-11"].expenses.some((e) => e.id === id),
       removable,
