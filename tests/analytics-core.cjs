@@ -101,6 +101,40 @@ const f = A.forecast(history, "2026-11", 0, "2026-11-13");
 assert.equal(f.total, 70000);
 assert.equal(f.left, 10000);
 assert.equal(f.status, "forecast");
+assert.equal(f.observations, 6);
+assert.equal(f.adaptability, 4 / 7);
+
+const changingPace = structuredClone(history);
+for (const month of Object.values(changingPace.months)) {
+  for (const expense of month.expenses) {
+    if (expense.date < "2026-09-28" || expense.date === "2026-10-30")
+      expense.amount = 100000;
+    if (expense.date >= "2026-11-09") expense.amount = 20000;
+  }
+}
+assert.equal(A.forecast(changingPace, "2026-11", 0, "2026-11-09").total, 80000);
+const adapted = A.forecast(changingPace, "2026-11", 0, "2026-11-13");
+assert.equal(adapted.total, 127143);
+assert.equal(adapted.left, -47143);
+
+const shiftingSpend = structuredClone(history);
+for (const month of Object.values(shiftingSpend.months)) {
+  month.expenses = month.expenses.filter(
+    (expense) => expense.date < "2026-11-09",
+  );
+  for (const expense of month.expenses)
+    if (expense.date >= "2026-09-28") expense.amount = 0;
+}
+for (let i = 0; i < 6; i++) {
+  const date = A.shift("2026-09-28", i * 8);
+  shiftingSpend.months[date.slice(0, 7)].expenses.find(
+    (expense) => expense.date === date,
+  ).amount = 70000;
+}
+assert.equal(
+  A.forecast(shiftingSpend, "2026-11", 0, "2026-11-09").total,
+  70000,
+);
 history.months["2026-11"].expenses.push({
   id: "large",
   date: "2026-11-13",

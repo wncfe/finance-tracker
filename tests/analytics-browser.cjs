@@ -95,6 +95,15 @@ const assert = require("node:assert/strict");
       el.value = "2026-11";
       el.dispatchEvent(new Event("change", { bubbles: true }));
     });
+    const historyDays = page.locator("#history .entry-group");
+    assert.deepEqual(
+      await historyDays
+        .locator(".entry-date")
+        .allTextContents()
+        .then((labels) => labels.slice(0, 3)),
+      ["Сегодня", "Вчера", "11 ноября"],
+    );
+    assert.equal(await historyDays.first().locator(".entry").count(), 2);
     assert.match(
       await page.locator('[data-week="1"]').textContent(),
       /Ожидаемый остаток/,

@@ -223,52 +223,77 @@
         from: month + "-" + String(w.start).padStart(2, "0"),
         to: month + "-" + String(w.end).padStart(2, "0"),
       };
-    const data = index(source),
-      actual = summarize(data, p).total;
-    if (w.closed || p.to < today)
+    const data = index(source);
+    if (w.closed || p.to < today) {
+      const actual = summarize(data, p).total;
       return { status: "actual", total: actual, left: w.limit - actual };
+    }
     if (p.from > today) return null;
+    const actual = summarize(data, { from: p.from, to: today }).total;
     const completed = daily(
       data,
       { from: p.from, to: shift(today, -1) },
       today,
     ).filter((d) => data.first && d.date >= data.first);
-    const n = completed.length,
-      pace = n ? completed.reduce((s, d) => s + d.amount, 0) / n : 0;
+    const completedDays = completed.length,
+      spent = completed.reduce((sum, d) => sum + d.amount, 0);
+    const historyWeeks = 6,
+      periodDays = length(p),
+      overlapWeeks = Math.ceil(periodDays / 7) - 1;
     const history = daily(
       data,
-      { from: shift(p.from, -56), to: shift(p.from, -1) },
+      {
+        from: shift(p.from, -7 * (historyWeeks + overlapWeeks)),
+        to: shift(p.from, -1),
+      },
       today,
-    ).filter((d) => data.first && d.date >= data.first);
-    const samples = Array.from({ length: 7 }, (_, i) =>
-      history.filter((d) => weekday(d.date) === i),
     );
-    const remaining = daily(data, { from: today, to: p.to }, today);
-    const enough = remaining.every((d) => samples[weekday(d.date)].length >= 4);
-    if (!enough && n < 2)
-      return { status: "insufficient", observations: history.length };
-    const weight = n / (n + 3);
-    let total = completed.reduce((s, d) => s + d.amount, 0);
-    for (const d of remaining) {
-      const sample = samples[weekday(d.date)];
-      const historical = sample.length
-        ? sample.reduce((s, x) => s + x.amount, 0) / sample.length
-        : 0;
-      const expected = enough
-        ? weight * pace + (1 - weight) * historical
-        : pace;
-      total += d.date === today ? Math.max(d.amount || 0, expected) : expected;
+    const elapsed = length({ from: p.from, to: shift(today, -1) }),
+      remaining = length({ from: today, to: p.to });
+    const sum = (days) => days.reduce((total, d) => total + d.amount, 0);
+    const samples = [];
+    for (let offset = 0; offset + periodDays <= history.length; offset += 7) {
+      if (!data.first || history[offset].date < data.first) continue;
+      samples.push({
+        elapsed: sum(history.slice(offset, offset + elapsed)),
+        remaining: sum(
+          history.slice(offset + elapsed, offset + elapsed + remaining),
+        ),
+        future: sum(
+          history.slice(offset + elapsed + 1, offset + elapsed + remaining),
+        ),
+      });
     }
-    total = Math.max(actual, Math.round(total));
+    const enough = samples.length >= 4;
+    if (!enough && completedDays < 2)
+      return { status: "insufficient", observations: samples.length };
+    const adaptability = enough ? completedDays / (completedDays + 3) : 1;
+    const median = (part) =>
+      quantile(
+        samples.map((sample) => sample[part]),
+        0.5,
+      );
+    const paceAdjustment = completedDays
+      ? (spent - (enough ? median("elapsed") : 0)) / completedDays
+      : 0;
+    const estimate = (part, days) =>
+      (enough ? median(part) : 0) + adaptability * paceAdjustment * days;
+    const total = Math.round(
+      Math.max(
+        spent + estimate("remaining", remaining),
+        actual + Math.max(0, estimate("future", remaining - 1)),
+      ),
+    );
     return {
       status: "forecast",
       total,
       left: w.limit - total,
       method: enough
-        ? "История по дням недели и текущий темп"
+        ? "Медиана расходов за сопоставимые дни прошлых недель"
         : "Темп завершённых дней недели",
-      observations: history.length,
-      completedDays: n,
+      observations: samples.length,
+      completedDays,
+      adaptability,
     };
   }
   const thresholds = Object.freeze({
