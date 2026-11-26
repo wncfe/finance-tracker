@@ -220,15 +220,6 @@
               aria-label="Фильтр по категории"
             ></div>
             <div class="history-category-actions">
-              <button
-                type="button"
-                id="historyExpandCategories"
-                aria-controls="historyCategories"
-                aria-expanded="false"
-                hidden
-              >
-                Все категории
-              </button>
               <button type="button" id="historyClearCategory" hidden>
                 Сбросить категорию
               </button>
@@ -543,6 +534,15 @@
         </div>
       </section>
     </main>
+    <dialog id="historyRemainderDialog" aria-labelledby="historyRemainderTitle">
+      <div class="dialoghead">
+        <h2 id="historyRemainderTitle">Остальные категории</h2>
+        <button type="button" id="historyRemainderClose" aria-label="Закрыть">
+          ✕
+        </button>
+      </div>
+      <div id="historyRemainderCategories" class="history-categories"></div>
+    </dialog>
     <dialog id="weekdialog" aria-labelledby="weektitle">
       <div class="dialoghead">
         <div>

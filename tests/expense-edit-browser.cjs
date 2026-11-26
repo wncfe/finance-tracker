@@ -346,6 +346,82 @@ const assert = require("node:assert/strict");
       path: folder + "/history-categories.png",
       fullPage: true,
     });
+    const monthTotal = 6184569;
+    const breakdown = [
+      ["Супермаркеты", 2250000],
+      ["Другое", 850000],
+      ["Фастфуд", 650000],
+      ["Одежда и обувь", 575000],
+      ["Развлечения", 500000],
+      ["Такси", 450000],
+      ["Спорт", 350000],
+      ["Дом", 260000],
+      ["Красота", 180000],
+    ];
+    breakdown.push([
+      "Подписки и цифровые сервисы",
+      monthTotal -
+        36000 -
+        breakdown.reduce((sum, [, amount]) => sum + amount, 0),
+    ]);
+    await action({
+      type: "expenses",
+      items: breakdown.map(([category, amount]) => ({
+        category,
+        amount,
+        date: "2026-11-13",
+        note: category,
+      })),
+    });
+    await page.reload();
+    await page.locator("#dashboard").waitFor({ state: "visible" });
+    await page.locator("#tab-history").click();
+    await assertAmount(monthTotal, 13);
+    assert.equal(await chart.locator("path.history-ring-segment").count(), 6);
+    assert.ok(
+      await chart
+        .locator("#historyChartAmount")
+        .evaluate((el) => el.getBBox().width < 137),
+    );
+    const remainder = page.locator("#historyRemainderDialog");
+    const remainderChip = page.locator(
+      "#historyCategories [data-history-remainder]",
+    );
+    assert.equal(
+      await remainderChip.locator("strong").textContent(),
+      await page.evaluate((n) => money(n), 6184569 - 4850000),
+    );
+    await ring.scrollIntoViewIfNeeded();
+    const groupedArc = await chart.boundingBox();
+    const groupedAngle = (1 + 4850000 / monthTotal) * Math.PI - Math.PI / 2;
+    await page.mouse.click(
+      groupedArc.x +
+        (groupedArc.width * (116 + 85 * Math.cos(groupedAngle))) / 232,
+      groupedArc.y +
+        (groupedArc.height * (116 + 85 * Math.sin(groupedAngle))) / 232,
+    );
+    assert.equal(await remainder.isVisible(), true);
+    await page.keyboard.press("Escape");
+    assert.equal(await remainder.isVisible(), false);
+    await remainderChip.click();
+    assert.equal(await remainder.locator("[data-history-category]").count(), 5);
+    await page.screenshot({ path: folder + "/history-remainder.png" });
+    await remainder.locator('[data-history-category="Красота"]').click();
+    await assertAmount(180000, 1);
+    assert.equal(await remainder.isVisible(), false);
+    assert.equal(
+      await page
+        .locator('#historyCategories [data-history-category="Красота"]')
+        .getAttribute("aria-pressed"),
+      "true",
+    );
+    await page.locator("#historyClearCategory").click();
+    await assertAmount(monthTotal, 13);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.screenshot({
+      path: folder + "/history-rounded-ring.png",
+      fullPage: true,
+    });
     assert.deepEqual(errors, []);
     console.log(
       "Expense history and editor browser: totals, filters, modal, deletion, editing, retry, closed weeks, reload and mobile widths passed",

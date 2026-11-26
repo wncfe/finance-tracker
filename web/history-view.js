@@ -52,7 +52,6 @@ const ExpenseHistoryView = (() => {
   let scale = "month";
   let anchor = "";
   let activeCategory = "";
-  let expanded = false;
   let animation = null;
   let drag = null;
 
@@ -123,7 +122,56 @@ const ExpenseHistoryView = (() => {
     return A.shift(direction < 0 ? p.from : p.to, direction);
   }
 
-  function chartMarkup(summary, slot) {
+  function chartBreakdown(summary) {
+    const primary = summary.categories.filter(
+      (item, i) => i < 5 && (i === 0 || item.amount / summary.total >= 0.06),
+    );
+    const selectedItem = summary.categories.find(
+      (item) => item.category === activeCategory,
+    );
+    if (selectedItem && !primary.includes(selectedItem)) {
+      if (primary.length === 5) primary.pop();
+      primary.push(selectedItem);
+    }
+    const tail = summary.categories.filter((item) => !primary.includes(item));
+    if (tail.length < 2) return { slices: primary.concat(tail), remaining: [] };
+    return {
+      slices: primary.concat({
+        amount: tail.reduce((sum, item) => sum + item.amount, 0),
+        grouped: true,
+      }),
+      remaining: tail,
+    };
+  }
+
+  const outerRadius = 97;
+  const innerRadius = 73;
+  const midRadius = (outerRadius + innerRadius) / 2;
+  const turn = Math.PI * 2;
+  const point = (r, a) => [116 + r * Math.cos(a), 116 + r * Math.sin(a)];
+  const xy = (r, a) =>
+    point(r, a)
+      .map((value) => value.toFixed(2))
+      .join(" ");
+
+  function sector(start, end) {
+    // Round each corner independently so thin slices keep the same radial thickness.
+    const corner = Math.min(5, ((end - start) * innerRadius) / 4);
+    const outerTrim = corner / outerRadius;
+    const innerTrim = corner / innerRadius;
+    const largeArc = (trim) => Number(end - start - 2 * trim > Math.PI);
+    return `M ${xy(outerRadius, start + outerTrim)}
+      A ${outerRadius} ${outerRadius} 0 ${largeArc(outerTrim)} 1 ${xy(outerRadius, end - outerTrim)}
+      Q ${xy(outerRadius, end)} ${xy(outerRadius - corner, end)}
+      L ${xy(innerRadius + corner, end)}
+      Q ${xy(innerRadius, end)} ${xy(innerRadius, end - innerTrim)}
+      A ${innerRadius} ${innerRadius} 0 ${largeArc(innerTrim)} 0 ${xy(innerRadius, start + innerTrim)}
+      Q ${xy(innerRadius, start)} ${xy(innerRadius + corner, start)}
+      L ${xy(outerRadius - corner, start)}
+      Q ${xy(outerRadius, start)} ${xy(outerRadius, start + outerTrim)} Z`;
+  }
+
+  function chartMarkup(summary, slices, slot) {
     const current = slot === "current";
     const amount = money(
       activeCategory
@@ -131,55 +179,58 @@ const ExpenseHistoryView = (() => {
             ?.amount || 0
         : summary.total,
     );
+    const chartLabel = activeCategory || "Траты за период";
     const parts = [];
     const labels = [];
-    const gradients = [];
-    let offset = 0;
-    for (const { category, amount } of summary.categories) {
+    let start = -Math.PI / 2;
+    for (const { category, amount, grouped } of slices) {
       const index = cats.indexOf(category);
-      const color = colors[index] || "#687776";
-      const key = `history-ring-${slot}-${parts.length}`;
-      const share = (amount / summary.total) * 100;
-      const full = summary.categories.length === 1;
-      const rounded = !full && share >= 6.5;
-      const gap = full ? 0 : Math.min(1.05, share * 0.24) + (rounded ? 4.6 : 0);
-      const position = offset + gap / 2;
-      const radians = ((offset + share / 2) * Math.PI) / 50 - Math.PI / 2;
-      offset += share;
+      const label = grouped ? "Остальные" : category;
+      const color = grouped ? "#748780" : colors[index] || "#687776";
+      const share = amount / summary.total;
+      const end = start + share * turn;
+      const middle = (start + end) / 2;
+      const gap = Math.min(2.6 / midRadius, (end - start) * 0.16);
+      const full = slices.length === 1;
       const muted = activeCategory && activeCategory !== category;
-      const hint = `${esc(category)} · ${percentage.format(share / 100)} · ${money(amount)}`;
+      const hint = `${esc(label)} · ${percentage.format(share)} · ${money(amount)}`;
+      const action = !current
+        ? ""
+        : grouped
+          ? "data-history-remainder"
+          : `data-history-category="${esc(category)}"`;
+      const attributes = `class="history-ring-segment" ${action} ${muted ? 'opacity=".25"' : ""}`;
+      parts.push(
+        full
+          ? `<circle ${attributes} cx="116" cy="116" r="${midRadius}" fill="none" stroke="${color}" stroke-width="${outerRadius - innerRadius}"><title>${hint}</title></circle>`
+          : `<path ${attributes} fill="${color}" d="${sector(start + gap / 2, end - gap / 2)}"><title>${hint}</title></path>`,
+      );
+      start = end;
 
-      gradients.push(`<linearGradient id="${key}" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop stop-color="${color}" /><stop offset="100%" stop-color="${color}" stop-opacity=".78" />
-      </linearGradient>`);
-      parts.push(`<circle class="history-ring-segment" ${current ? `data-history-category="${esc(category)}"` : ""}
-        cx="116" cy="116" r="86" pathLength="100" transform="rotate(-90 116 116)"
-        stroke="url(#${key})" stroke-linecap="${rounded ? "round" : "butt"}"
-        stroke-dasharray="${share - gap} 100" stroke-dashoffset="${-position}"
-        ${muted ? 'opacity=".24"' : ""}><title>${hint}</title></circle>`);
-
-      if (full || share < 11) continue;
-      const x = Math.max(17, Math.min(215, 116 + Math.cos(radians) * 108));
-      const y = Math.max(12, Math.min(220, 116 + Math.sin(radians) * 108));
+      if (full || share < 0.07) continue;
+      const withIcon = share >= 0.14;
+      const [x, y] = point(midRadius, middle + (withIcon ? 13 / midRadius : 0));
+      const [ix, iy] = point(midRadius, middle - 13 / midRadius);
       const symbol = iconNames[index] || "ellipsis";
-      labels.push(`<g ${muted ? 'opacity=".32"' : ""}>
-        <text x="${x}" y="${y}" text-anchor="middle">${Math.round(share)}%</text>
-        <image href="/icons/${symbol}.svg" x="${108 + Math.cos(radians) * 86}" y="${108 + Math.sin(radians) * 86}" width="16" height="16" />
+      labels.push(`<g ${muted ? 'opacity=".36"' : ""}>
+        <text x="${x}" y="${y}" text-anchor="middle">${Math.round(share * 100)}%</text>
+        ${withIcon ? `<image href="/icons/${symbol}.svg" x="${ix - 7}" y="${iy - 7}" width="14" height="14" />` : ""}
       </g>`);
     }
     const marker = current
-      ? ""
+      ? `role="group" aria-label="${esc(chartLabel)} · ${amount}"`
       : `aria-hidden="true" data-history-preview="${slot === "previous" ? -1 : 1}"`;
+    const amountSize = Math.min(25, 128 / (amount.length * 0.62));
+    const labelSize = Math.min(12, 124 / (chartLabel.length * 0.62));
     return `<div class="history-slide ${current ? "is-current" : "is-preview"}" ${marker}>
       <svg ${current ? 'id="historyChart"' : ""} viewBox="0 0 232 232" aria-hidden="true">
-        <defs>${gradients.join("")}</defs>
-        <circle class="history-ring-track" cx="116" cy="116" r="86" />
+        ${parts.length ? "" : `<circle class="history-ring-track" cx="116" cy="116" r="${midRadius}" stroke-width="${outerRadius - innerRadius}" />`}
         ${parts.join("")}<g class="history-ring-labels">${labels.join("")}</g>
+        <g class="history-ring-center" text-anchor="middle">
+          <text ${current ? 'id="historyChartLabel"' : ""} x="116" y="109" font-size="${labelSize}">${esc(chartLabel)}</text>
+          <text ${current ? 'id="historyChartAmount"' : ""} x="116" y="134" class="history-ring-amount" font-size="${amountSize}">${amount}</text>
+        </g>
       </svg>
-      <div class="history-ring-center">
-        <span ${current ? 'id="historyChartLabel"' : ""}>${esc(activeCategory || "Траты за период")}</span>
-        <strong ${current ? 'id="historyChartAmount"' : ""} ${amount.length >= 13 ? 'class="is-long"' : ""}>${amount}</strong>
-      </div>
     </div>`;
   }
 
@@ -196,7 +247,7 @@ const ExpenseHistoryView = (() => {
     );
   }
 
-  function renderCarousel(data, p, summary, merchant) {
+  function renderCarousel(data, p, summary, slices, merchant) {
     animation?.cancel();
     animation = null;
     drag = null;
@@ -204,50 +255,49 @@ const ExpenseHistoryView = (() => {
       const at = adjacent(p, direction);
       if (!at) return '<div class="history-slide" aria-hidden="true"></div>';
       const range = period(at);
-      return chartMarkup(
-        A.summarize(
-          { expenses: trackedExpenses(data, range, merchant) },
-          range,
-        ),
-        slot,
+      const neighbor = A.summarize(
+        { expenses: trackedExpenses(data, range, merchant) },
+        range,
       );
+      return chartMarkup(neighbor, chartBreakdown(neighbor).slices, slot);
     };
     const track = $("historyTrack");
     track.style.removeProperty("--history-drag");
     track.innerHTML =
       preview(-1, "previous") +
-      chartMarkup(summary, "current") +
+      chartMarkup(summary, slices, "current") +
       preview(1, "next");
   }
 
-  function renderCategories(summary) {
-    const limit = 6;
-    const visible = summary.categories.filter(
-      (item, i) => expanded || i < limit || item.category === activeCategory,
-    );
-    const container = $("historyCategories");
-    container.innerHTML = visible
-      .map(({ category, amount }) => {
-        const index = cats.indexOf(category);
-        return `<button type="button" class="history-category" data-history-category="${esc(category)}" aria-pressed="${category === activeCategory}">
-        <span class="history-category-icon" aria-hidden="true">${icons[index] || icon("ellipsis")}</span>
-        <span class="history-category-copy">
-          <span>${esc(category)}</span><strong>${money(amount)}</strong>
-        </span>
-      </button>`;
-      })
-      .join("");
-    for (const button of container.children) {
-      const color =
-        colors[cats.indexOf(button.dataset.historyCategory)] || "#687776";
-      button.style.setProperty("--category-color", color);
+  function categoryChip({ category, amount, grouped }) {
+    const index = cats.indexOf(category);
+    const color = grouped ? "#748780" : colors[index] || "#687776";
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "history-category";
+    chip.style.setProperty("--category-color", color);
+    if (grouped) {
+      chip.setAttribute("data-history-remainder", "");
+      chip.setAttribute("aria-haspopup", "dialog");
+      chip.setAttribute("aria-controls", "historyRemainderDialog");
+    } else {
+      chip.dataset.historyCategory = category;
+      chip.setAttribute("aria-pressed", String(category === activeCategory));
     }
-    const expand = $("historyExpandCategories");
-    expand.hidden = summary.categories.length <= limit;
-    expand.setAttribute("aria-expanded", String(expanded));
-    expand.textContent = expanded
-      ? "Свернуть категории"
-      : `Все категории (${summary.categories.length})`;
+    chip.innerHTML = `<span class="history-category-icon" aria-hidden="true">${icons[index] || icon("ellipsis")}</span>
+      <span class="history-category-copy">
+        <span>${grouped ? "Остальные" : esc(category)}</span><strong>${money(amount)}</strong>
+      </span>`;
+    return chip;
+  }
+
+  function renderCategories({ slices, remaining }) {
+    $("historyCategories").replaceChildren(...slices.map(categoryChip));
+    $("historyRemainderCategories").replaceChildren(
+      ...remaining.map(categoryChip),
+    );
+    if (!remaining.length && $("historyRemainderDialog").open)
+      $("historyRemainderDialog").close();
     $("historyClearCategory").hidden = !activeCategory;
   }
 
@@ -284,8 +334,9 @@ const ExpenseHistoryView = (() => {
         String(button.dataset.historyScale === scale),
       );
 
-    renderCarousel(data, p, summary, merchant);
-    renderCategories(summary);
+    const breakdown = chartBreakdown(summary);
+    renderCarousel(data, p, summary, breakdown.slices, merchant);
+    renderCategories(breakdown);
     $("historyTotalLabel").textContent =
       budgetWeek || merchant || activeCategory
         ? "Потрачено по фильтрам"
@@ -348,6 +399,7 @@ const ExpenseHistoryView = (() => {
 
   function init() {
     const ring = $("historyRing");
+    const remainderDialog = $("historyRemainderDialog");
     let swiped = false;
     ring.addEventListener("pointerdown", (event) => {
       if (!event.isPrimary || event.button !== 0 || animation) return;
@@ -407,6 +459,13 @@ const ExpenseHistoryView = (() => {
       if (ring.contains(event.target) && (swiped || animation)) return;
       const preview = event.target.closest("[data-history-preview]");
       if (preview) settle(Number(preview.dataset.historyPreview));
+      if (event.target.closest("[data-history-remainder]")) {
+        $("historyCategories")
+          .querySelector("[data-history-remainder]")
+          ?.focus({ preventScroll: true });
+        remainderDialog.showModal();
+        return;
+      }
       const categoryButton = event.target.closest("[data-history-category]");
       if (categoryButton)
         toggleCategory(
@@ -416,9 +475,12 @@ const ExpenseHistoryView = (() => {
     });
     $("historyPrevious").onclick = () => settle(-1);
     $("historyNext").onclick = () => settle(1);
-    $("historyExpandCategories").onclick = () => {
-      expanded = !expanded;
-      render();
+    $("historyRemainderClose").onclick = () => remainderDialog.close();
+    $("historyRemainderCategories").onclick = (event) => {
+      const button = event.target.closest("[data-history-category]");
+      if (!button) return;
+      remainderDialog.close();
+      toggleCategory(button.dataset.historyCategory, true);
     };
     $("historyClearCategory").onclick = () => {
       activeCategory = "";

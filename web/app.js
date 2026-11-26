@@ -102,6 +102,7 @@ async function api(path, data) {
       if ($("categoryEditor").open) $("categoryEditor").close();
       for (const id of [
         "expenseDetails",
+        "historyRemainderDialog",
         "analysisDetails",
         "reportDialog",
         "simulatorDialog",
