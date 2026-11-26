@@ -52,9 +52,7 @@
     const expenses = Object.values(state.months)
       .flatMap((m) => m.expenses)
       .map((e) =>
-        e.merchantId
-          ? { ...e, merchantName: merchants.get(e.merchantId) || e.note }
-          : e,
+        e.merchantId ? { ...e, merchantName: merchants.get(e.merchantId) } : e,
       )
       .sort((a, b) => a.date.localeCompare(b.date));
     return { expenses, first: expenses[0]?.date || null };
@@ -163,24 +161,44 @@
       .replace(/[^\p{L}\p{N}\s]/gu, " ")
       .replace(/\s+/g, " ")
       .trim();
-  const habitKey = (e) =>
-    e.merchantId
-      ? JSON.stringify(["merchant", e.merchantId])
-      : JSON.stringify(["description", e.category, normalize(e.note || "")]);
+  const descriptionKey = (category, name) =>
+    JSON.stringify(["description", category, normalize(name)]);
+  const habitKey = (e, merchantId = e.merchantId) =>
+    merchantId
+      ? JSON.stringify(["merchant", merchantId])
+      : descriptionKey(e.category, e.note || "");
+  function habitMerchantLookup(expenses, today) {
+    const names = new Map();
+    for (const e of expenses) {
+      if (e.date > today || !e.merchantId || !normalize(e.merchantName || ""))
+        continue;
+      const key = descriptionKey(e.category, e.merchantName);
+      if (!names.has(key))
+        names.set(key, { id: e.merchantId, name: e.merchantName });
+      else if (names.get(key)?.id !== e.merchantId) names.set(key, null);
+    }
+    return (e) =>
+      e.merchantId
+        ? { id: e.merchantId, name: e.merchantName }
+        : names.get(descriptionKey(e.category, e.note || ""));
+  }
   function habits(source, p, today, category = "") {
+    const data = source.expenses ? source : index(source);
     const groups = new Map(),
-      first = source.first ?? rows(source)[0]?.date;
+      first = data.first ?? data.expenses[0]?.date;
+    const merchantFor = habitMerchantLookup(data.expenses, today);
     const start = first && first > p.from ? first : p.from,
       end = p.to > today ? today : p.to;
     const span = length({ from: start, to: end });
-    for (const e of operations(source, { from: start, to: end }, category)) {
+    for (const e of operations(data, { from: start, to: end }, category)) {
       if (!normalize(e.note || "")) continue;
-      const key = habitKey(e);
+      const merchant = merchantFor(e);
+      const key = habitKey(e, merchant?.id);
       if (!groups.has(key))
         groups.set(key, {
           key,
-          label: e.merchantName || e.note,
-          merchantId: e.merchantId || null,
+          label: merchant?.name || e.note,
+          merchantId: merchant?.id || null,
           category: e.category,
           total: 0,
           count: 0,
@@ -197,16 +215,20 @@
       g.expenses.push(e);
     }
     const prior = { from: shift(p.from, -length(p)), to: shift(p.from, -1) };
+    const previous = new Map();
+    for (const e of operations(data, prior, category)) {
+      const key = habitKey(e, merchantFor(e)?.id);
+      if (!previous.has(key)) previous.set(key, { count: 0, total: 0 });
+      const group = previous.get(key);
+      group.count++;
+      group.total += e.amount;
+    }
     return [...groups.values()]
       .filter((g) => g.count >= 3 && g.dates.size >= 3)
       .map((g) => ({
         ...g,
-        previousCount: operations(source, prior, category).filter(
-          (e) => habitKey(e) === g.key,
-        ).length,
-        previousTotal: operations(source, prior, category)
-          .filter((e) => habitKey(e) === g.key)
-          .reduce((s, e) => s + e.amount, 0),
+        previousCount: previous.get(g.key)?.count || 0,
+        previousTotal: previous.get(g.key)?.total || 0,
         dates: g.dates.size,
         average: Math.round(g.total / g.count),
         monthly: span >= 28 ? Math.round((g.total / span) * 30.4375) : null,
@@ -377,8 +399,10 @@
   function simulate(source, month, scenarios, today) {
     if (!/^\d{4}-\d{2}$/.test(month) || month >= today.slice(0, 7))
       throw Error("Выберите завершённый месяц");
+    const data = source.expenses ? source : index(source);
     const p = range("month", month + "-01"),
-      expenses = operations(source, p);
+      expenses = operations(data, p);
+    const merchantFor = habitMerchantLookup(data.expenses, today);
     const rules = scenarios.map((s) => {
       if (!Number.isFinite(s.value) || s.value < 0)
         throw Error("Укажите неотрицательное сокращение");
@@ -388,7 +412,9 @@
       )
         throw Error("Некорректный сценарий");
       const match = (e) =>
-        s.kind === "category" ? e.category === s.key : habitKey(e) === s.key;
+        s.kind === "category"
+          ? e.category === s.key
+          : habitKey(e, merchantFor(e)?.id) === s.key;
       const base = expenses.filter(match).reduce((a, e) => a + e.amount, 0);
       const ratio =
         s.mode === "percent"
@@ -407,7 +433,7 @@
         0,
       ),
     );
-    return { monthly, yearly: monthly * 12, base: summarize(source, p).total };
+    return { monthly, yearly: monthly * 12, base: summarize(data, p).total };
   }
   function report(source, month, today) {
     const p = range("month", month + "-01");

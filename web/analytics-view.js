@@ -964,11 +964,14 @@
     const h = e.target.closest("[data-habit]");
     if (h) {
       const habit = repeated[Number(h.dataset.habit)];
+      const includesDescriptions = habit.expenses.some((e) => !e.merchantId);
       showOperations(
         habit.label,
         habit.expenses,
         habit.merchantId
-          ? "Операции одного магазина или сервиса"
+          ? includesDescriptions
+            ? "Расходы сервиса и записи той же категории с совпадающим описанием"
+            : "Операции одного магазина или сервиса"
           : "Покупки одной категории с одинаковым описанием",
       );
     }

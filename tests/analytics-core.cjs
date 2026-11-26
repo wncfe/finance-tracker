@@ -263,6 +263,70 @@ assert.equal(linkedHabits[0].label, "Магнит");
 assert.equal(linkedHabits[0].total, 600);
 assert.equal(linkedHabits[0].category, "Разные категории");
 
+const taxiMerchant = { id: "taxi", name: "Такси" };
+const taxi = {
+  merchants: [taxiMerchant],
+  months: {
+    "2026-10": {
+      expenses: [
+        { date: "2026-10-31", category: "Такси", note: "Такси", amount: 40000 },
+      ],
+    },
+    "2026-11": {
+      expenses: [38100, 38100, 38100, 38100, 38800, 38800, 38800, 38900].map(
+        (amount, i) => ({
+          date: `2026-11-0${i + 1}`,
+          category: "Такси",
+          note: i < 4 ? "ТАКСИ" : "Поездка",
+          amount,
+          ...(i < 4 ? {} : { merchantId: taxiMerchant.id }),
+        }),
+      ),
+    },
+  },
+};
+const taxiPeriod = { from: "2026-11-01", to: "2026-11-26" };
+const taxiRows = taxi.months["2026-11"].expenses;
+const taxiBefore = structuredClone(taxi);
+const [taxiHabit, ...extraTaxiHabits] = A.habits(
+  taxi,
+  taxiPeriod,
+  taxiPeriod.to,
+);
+assert.deepEqual(extraTaxiHabits, []);
+assert.equal(taxiHabit.label, "Такси");
+assert.equal(taxiHabit.count, 8);
+assert.equal(taxiHabit.total, 307700);
+assert.equal(taxiHabit.previousCount, 1);
+assert.equal(taxiHabit.previousTotal, 40000);
+assert.equal(taxiHabit.expenses.filter((e) => !e.merchantId).length, 4);
+assert.equal(
+  A.simulate(
+    A.index(taxi),
+    "2026-11",
+    [{ kind: "habit", key: taxiHabit.key, mode: "percent", value: 50 }],
+    "2026-12-01",
+  ).monthly,
+  153850,
+);
+assert.deepEqual(taxi, taxiBefore);
+
+const otherMerchant = { id: "other-taxi", name: "Такси" };
+taxi.merchants.push(otherMerchant);
+taxiRows.push({
+  date: "2026-11-09",
+  category: "Дом",
+  note: "Такси",
+  amount: 100,
+  merchantId: otherMerchant.id,
+});
+assert.equal(A.habits(taxi, taxiPeriod, taxiPeriod.to)[0].count, 8);
+taxiRows.at(-1).category = "Такси";
+assert.deepEqual(
+  A.habits(taxi, taxiPeriod, taxiPeriod.to).map((habit) => habit.count),
+  [4, 4],
+);
+
 // Coverage explains empty findings without changing the existing anomaly output.
 const coverage = {};
 assert.deepEqual(
