@@ -256,9 +256,6 @@ textarea {
 .merchant-category-icon img {
   filter: brightness(0) invert(1);
 }
-.entry .icon {
-  background: color-mix(in srgb, var(--category-color, #687776) 14%, white);
-}
 .operations-dialog {
   width: min(760px, calc(100vw - 24px));
   font-variant-numeric: tabular-nums;
@@ -814,7 +811,10 @@ h3 {
   width: 38px;
   height: 38px;
   border-radius: 12px;
-  background: #edf1eb;
+  background: var(--category-color, #687776);
+}
+.entry .icon .svgicon {
+  filter: brightness(0) invert(1);
 }
 .entry .description {
   min-width: 0;

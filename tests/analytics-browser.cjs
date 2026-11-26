@@ -96,6 +96,25 @@ const assert = require("node:assert/strict");
       el.dispatchEvent(new Event("change", { bubbles: true }));
     });
     const historyDays = page.locator("#history .entry-group");
+    const assertColoredEntryIcons = async (entries) => {
+      const icons = await entries.locator(".entry .icon").evaluateAll((items) =>
+        items.map((item) => {
+          const expected = document.createElement("span");
+          expected.style.backgroundColor = item.dataset.entryColor;
+          return [
+            getComputedStyle(item).backgroundColor,
+            expected.style.backgroundColor,
+            getComputedStyle(item.querySelector("img")).filter,
+          ];
+        }),
+      );
+      assert.ok(icons.length > 0);
+      for (const [background, expected, filter] of icons) {
+        assert.equal(background, expected);
+        assert.equal(filter, "brightness(0) invert(1)");
+      }
+    };
+    await assertColoredEntryIcons(page.locator("#history"));
     assert.deepEqual(
       await historyDays
         .locator(".entry-date time")
@@ -185,6 +204,7 @@ const assert = require("node:assert/strict");
       true,
       "the selected bar opens its operations via the detail action",
     );
+    await assertColoredEntryIcons(page.locator("#analysisDetailsBody"));
     await page.keyboard.press("Escape");
     const ratios = await page
       .locator(".category-bar-track > span")
