@@ -122,6 +122,36 @@ const assert = require("node:assert/strict");
       await secondPage.locator("#weekMerchant").inputValue(),
       "b-magnit",
     );
+    await secondPage.locator("#weekMerchant + button").click();
+    await secondPage
+      .locator('.picker input[aria-label="Поиск магазина"]')
+      .fill("Магни");
+    await secondPage
+      .locator(".picker [data-option]")
+      .filter({ hasText: "Магнит" })
+      .click();
+    assert.equal(
+      await secondPage.locator("#weekMerchant").inputValue(),
+      "b-magnit",
+    );
+    await secondPage.locator("#weekMerchant + button").click();
+    assert.equal(
+      await secondPage
+        .locator(".picker .merchant-picker-section")
+        .first()
+        .textContent(),
+      "Недавние",
+    );
+    assert.equal(
+      await secondPage
+        .locator(".picker .merchant-picker-section")
+        .first()
+        .locator("..")
+        .getByText("Магнит", { exact: true })
+        .count(),
+      1,
+    );
+    await secondPage.keyboard.press("Escape");
     await secondContext.close();
     await page.reload();
     await page.locator("#dashboard").waitFor({ state: "visible" });

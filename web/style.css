@@ -1194,6 +1194,9 @@ details form {
 }
 .picker {
   width: 340px;
+  max-width: calc(100% - 24px);
+  max-height: min(90dvh, 760px);
+  overflow: auto;
   padding: 20px;
 }
 .picker-head {
@@ -1257,6 +1260,23 @@ details form {
   justify-content: space-between;
   gap: 10px;
   font-size: 14px;
+}
+.merchant-picker-search {
+  display: grid;
+  gap: 5px;
+  margin: 12px 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+.merchant-picker-section {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+.merchant-picker-section:not(:first-child) {
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
 }
 #closeform .picker-trigger {
   white-space: normal;

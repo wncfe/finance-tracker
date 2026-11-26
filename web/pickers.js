@@ -156,29 +156,106 @@ function attachSelect(select) {
   select.after(trigger);
   select.hidden = true;
   const dialog = pickerDialog(trigger.getAttribute("aria-label"));
+  const isMerchant = ["weekMerchant", "editExpenseMerchant"].includes(
+    select.id,
+  );
+  const recentKey = "finance.recentMerchants";
+  const readRecent = () => {
+    if (!isMerchant) return [];
+    try {
+      const ids = JSON.parse(localStorage.getItem(recentKey) || "[]");
+      return Array.isArray(ids)
+        ? ids.filter((id) => typeof id === "string")
+        : [];
+    } catch {
+      return [];
+    }
+  };
+  const remember = (value) => {
+    if (!isMerchant || !value) return;
+    try {
+      localStorage.setItem(
+        recentKey,
+        JSON.stringify(
+          [value, ...readRecent().filter((id) => id !== value)].slice(0, 5),
+        ),
+      );
+    } catch {
+      // The picker remains usable when browser storage is unavailable.
+    }
+  };
+  const drawOptions = (query = "") => {
+    const normalized = isMerchant ? MerchantDictionary.normalize(query) : "";
+    const options = Array.from(select.options);
+    const namesById = new Map(
+      isMerchant
+        ? MerchantDictionary.all(state.merchants || [], true).map((m) => [
+            m.id,
+            [m.name, ...(m.aliases || [])].map(MerchantDictionary.normalize),
+          ])
+        : [],
+    );
+    const matches = options.filter(
+      (o) =>
+        !normalized ||
+        (
+          namesById.get(o.value) || [
+            MerchantDictionary.normalize(o.textContent),
+          ]
+        ).some((name) => name.includes(normalized)),
+    );
+    const recent =
+      isMerchant && !normalized
+        ? readRecent()
+            .map((id) => options.find((o) => o.value === id))
+            .filter(Boolean)
+        : [];
+    const recentSet = new Set(recent.map((o) => o.value));
+    const button = (o, i) =>
+      `<button type="button" data-option="${i}" ${o.disabled ? "disabled" : ""} aria-pressed="${o.selected}">${esc(o.textContent)}<span>${o.selected ? "✓" : ""}</span></button>`;
+    const group = (title, items) =>
+      items.length
+        ? `<h3 class="merchant-picker-section">${title}</h3>${items.map((o) => button(o, options.indexOf(o))).join("")}`
+        : "";
+    const remaining = normalized
+      ? matches
+      : matches.filter((o) => !recentSet.has(o.value));
+    const list = `${group("Недавние", recent)}${group(normalized ? "Результаты" : "Все магазины", remaining)}`;
+    const body = list || '<p class="muted">Ничего не найдено</p>';
+    dialog.querySelector(".option-list").innerHTML = body;
+  };
   const sync = () => {
     trigger.textContent = select.selectedOptions[0]?.textContent || "Выбрать";
   };
   trigger.onclick = () => {
     if (select.disabled) return;
-    dialog.innerHTML =
-      "<h2>" +
-      esc(trigger.getAttribute("aria-label")) +
-      '</h2><div class="option-list">' +
-      Array.from(select.options)
-        .map(
-          (o, i) =>
-            `<button type="button" data-option="${i}" ${o.disabled ? "disabled" : ""} aria-pressed="${o.selected}">${esc(o.textContent)}<span>${o.selected ? "✓" : ""}</span></button>`,
-        )
-        .join("") +
-      '</div><button type="button" class="picker-cancel">Закрыть</button>';
+    dialog.innerHTML = isMerchant
+      ? `<h2>${esc(trigger.getAttribute("aria-label"))}</h2><label class="merchant-picker-search">Поиск<input type="search" autocomplete="off" placeholder="Название магазина" aria-label="Поиск магазина"></label><div class="option-list"></div><button type="button" class="picker-cancel">Закрыть</button>`
+      : "<h2>" +
+        esc(trigger.getAttribute("aria-label")) +
+        '</h2><div class="option-list">' +
+        Array.from(select.options)
+          .map(
+            (o, i) =>
+              `<button type="button" data-option="${i}" ${o.disabled ? "disabled" : ""} aria-pressed="${o.selected}">${esc(o.textContent)}<span>${o.selected ? "✓" : ""}</span></button>`,
+          )
+          .join("") +
+        '</div><button type="button" class="picker-cancel">Закрыть</button>';
+    if (isMerchant) {
+      drawOptions();
+      const search = dialog.querySelector("input[type=search]");
+      search.addEventListener("input", () => drawOptions(search.value));
+      dialog.addEventListener("shown", () => search.focus(), { once: true });
+    }
     dialog.showModal();
+    if (isMerchant) dialog.querySelector("input[type=search]").focus();
   };
   dialog.onclick = (e) => {
     const b = e.target.closest("button");
     if (!b || b.disabled) return;
     if (b.dataset.option !== undefined) {
       select.selectedIndex = Number(b.dataset.option);
+      remember(select.value);
       select.dispatchEvent(new Event("input", { bubbles: true }));
       select.dispatchEvent(new Event("change", { bubbles: true }));
       sync();
