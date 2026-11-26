@@ -55,9 +55,30 @@ const categoryColors = [
   "#a06658", "#9063a9", "#8a7844", "#526d8b", "#615faa", "#35818a",
   "#b45d86", "#537787", "#56844e", "#895e3f",
 ];
+const customCategoryIcons = [
+  "wallet", "sparkles", "shopping-bag", "house", "gift", "coffee",
+  "book", "monitor", "shirt", "burger", "car", "plane", "phone",
+  "heart-pulse", "dumbbell", "baby", "clapperboard", "utensils",
+];
 const categoryIndex = (category) => cats.indexOf(category);
-const categoryIcon = (category) => iconNames[categoryIndex(category)] || "ellipsis";
-const categoryColor = (category) => categoryColors[categoryIndex(category)] || "#687776";
+function customCategoryIndex(category) {
+  let hash = 0;
+  for (const char of category)
+    hash = (hash * 31 + char.codePointAt(0)) >>> 0;
+  return hash;
+}
+const categoryIcon = (category) => {
+  const index = categoryIndex(category);
+  return index >= 0 && index < iconNames.length
+    ? iconNames[index]
+    : customCategoryIcons[customCategoryIndex(category) % customCategoryIcons.length];
+};
+const categoryColor = (category) => {
+  const index = categoryIndex(category);
+  return index >= 0 && index < categoryColors.length
+    ? categoryColors[index]
+    : categoryColors[customCategoryIndex(category) % categoryColors.length];
+};
 const categoryChoice = (category, selected) => {
   const index = categoryIndex(category), name = categoryIcon(category);
   return `<button type="button" class="category-choice" data-category="${index}" style="--category-color:${categoryColor(category)}" aria-pressed="${String(category === selected)}">${icon(name)}<span>${esc(category)}</span></button>`;
