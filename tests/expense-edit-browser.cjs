@@ -159,6 +159,7 @@ const assert = require("node:assert/strict");
       "Супермаркеты",
     );
     assert.equal(await manualCategory.isVisible(), false);
+    assert.equal(await manualCategory.inputValue(), "Супермаркеты");
     assert.equal(await linkedCategory.textContent(), "Супермаркеты");
     assert.equal(await linkedCategory.locator("img").count(), 1);
     await linkedCategory.locator("img").hover();
