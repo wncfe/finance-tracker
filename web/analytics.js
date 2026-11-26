@@ -5,7 +5,6 @@
     return;
   }
   if (typeof document === "undefined") return;
-  const syncCategory = attachSelect($("expenseCategory"));
   const syncMerchant = attachSelect($("editExpenseMerchant"));
   let editing = null;
   function syncLinkedCategory() {
@@ -33,10 +32,12 @@
     editing = { month, id: expense.id, week: expense.week };
     $("categoryEditorNote").textContent = expense.note || expense.category;
     $("expenseCategory").innerHTML = categoryOptions()
-      .map((c) => `<option>${esc(c)}</option>`)
+      .map((c) => `<option value="${esc(c)}">${esc(c)}</option>`)
       .join("");
     $("expenseCategory").value = expense.category;
-    syncCategory();
+    $("editCategoryChoices").innerHTML = categoryOptions()
+      .map((c) => categoryChoice(c, expense.category))
+      .join("");
     const closed = state.months[month].weeks[expense.week].closed;
     $("editExpenseAmount").value = (expense.amount / 100).toFixed(2);
     $("editExpenseDate").value = expense.date;
@@ -66,6 +67,15 @@
   $("editExpenseMerchant").addEventListener("change", syncLinkedCategory);
   $("categoryEditorClose").onclick = () => {
     if (!busy) $("categoryEditor").close();
+  };
+  $("editCategoryChoices").onclick = (event) => {
+    const button = event.target.closest("[data-category]");
+    if (!button) return;
+    const value = cats[Number(button.dataset.category)];
+    if (!value) return;
+    $("expenseCategory").value = value;
+    for (const choice of $("editCategoryChoices").children)
+      choice.setAttribute("aria-pressed", String(choice === button));
   };
   $("categoryEditor").addEventListener("cancel", (e) => {
     if (busy) e.preventDefault();

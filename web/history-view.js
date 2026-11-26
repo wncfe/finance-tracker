@@ -4,30 +4,6 @@ const ExpenseHistoryView = (() => {
   const A = ExpenseAnalytics;
   const firstDate = "2000-01-01";
   const lastDate = "2100-12-31";
-  const colors = [
-    "#ce7044",
-    "#ae674d",
-    "#a76b39",
-    "#567fa0",
-    "#477694",
-    "#5571a2",
-    "#427a64",
-    "#a75666",
-    "#8461a3",
-    "#775798",
-    "#a85b88",
-    "#42766e",
-    "#a06658",
-    "#9063a9",
-    "#8a7844",
-    "#526d8b",
-    "#615faa",
-    "#35818a",
-    "#b45d86",
-    "#537787",
-    "#56844e",
-    "#895e3f",
-  ];
   const monthLabel = new Intl.DateTimeFormat("ru-RU", {
     month: "long",
     year: "numeric",
@@ -103,8 +79,8 @@ const ExpenseHistoryView = (() => {
     point(r, a)
       .map((value) => value.toFixed(3))
       .join(" ");
-  const segmentSymbol = (category, index) =>
-    category === "Другое" ? "wallet" : iconNames[index] || "ellipsis";
+  const segmentSymbol = (category) =>
+    category === "Другое" ? "wallet" : categoryIcon(category);
 
   function sector(start, end) {
     const largeArc = Number(end - start > Math.PI);
@@ -134,16 +110,14 @@ const ExpenseHistoryView = (() => {
     ] of slices.entries()) {
       const index = cats.indexOf(category);
       const label = grouped ? "Остальные" : category;
-      const categoryColor = grouped
-        ? remainingColor
-        : colors[index] || "#687776";
+      const sliceColor = grouped ? remainingColor : categoryColor(category);
       const share = amount / summary.total;
       const end = start + share * turn;
       const middle = (start + end) / 2;
       const muted = activeCategory && activeCategory !== category;
       const color = muted
-        ? `color-mix(in srgb, ${categoryColor} 25%, #f5f8f2)`
-        : categoryColor;
+        ? `color-mix(in srgb, ${sliceColor} 25%, #f5f8f2)`
+        : sliceColor;
       const hint = `${esc(label)} · ${percentage.format(share)} · ${money(amount)}`;
       const action = !current
         ? ""
@@ -168,7 +142,7 @@ const ExpenseHistoryView = (() => {
           inset + nextLength * 0.55,
         );
         const [x, y] = point(midRadius, end - inset / midRadius);
-        const symbol = segmentSymbol(category, index);
+        const symbol = segmentSymbol(category);
         heads.push(`<g class="history-ring-trailing">
           <circle class="history-ring-head history-ring-segment" ${action} cx="${x}" cy="${y}" r="${capRadius}" fill="${color}"><title>${hint}</title></circle>
           ${capRadius >= 8 ? `<image class="history-ring-symbol" href="/icons/${symbol}.svg" x="${x - 6.5}" y="${y - 6.5}" width="13" height="13" ${muted ? 'opacity=".5"' : ""} />` : ""}
@@ -233,7 +207,7 @@ const ExpenseHistoryView = (() => {
 
   function categoryChip({ category, amount, grouped }) {
     const index = cats.indexOf(category);
-    const color = grouped ? remainingColor : colors[index] || "#687776";
+    const color = grouped ? remainingColor : categoryColor(category);
     const chip = document.createElement("button");
     chip.type = "button";
     chip.className = "history-category";
@@ -246,7 +220,7 @@ const ExpenseHistoryView = (() => {
       chip.dataset.historyCategory = category;
       chip.setAttribute("aria-pressed", String(category === activeCategory));
     }
-    chip.innerHTML = `<span class="history-category-icon" aria-hidden="true">${icon(segmentSymbol(category, index))}</span>
+    chip.innerHTML = `<span class="history-category-icon" aria-hidden="true">${icon(segmentSymbol(category))}</span>
       <span class="history-category-copy">
         <span>${grouped ? "Остальные" : esc(category)}</span><strong>${money(amount)}</strong>
       </span>`;

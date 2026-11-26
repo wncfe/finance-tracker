@@ -242,6 +242,45 @@ textarea {
   overflow: auto;
   padding: 3px;
 }
+.category-choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+  gap: 7px;
+  max-height: 260px;
+  margin: 6px 0 14px;
+  overflow: auto;
+}
+.category-choice {
+  --category-color: #687776;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 7px 10px;
+  border: 1px solid color-mix(in srgb, var(--category-color) 24%, white);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--category-color) 9%, white);
+  color: var(--ink);
+  text-align: left;
+}
+.category-choice .svgicon {
+  flex: 0 0 auto;
+  width: 19px;
+  height: 19px;
+  filter: brightness(0) saturate(100%) opacity(.78);
+}
+.category-choice[aria-pressed="true"] {
+  border-color: var(--category-color);
+  background: color-mix(in srgb, var(--category-color) 18%, white);
+  box-shadow: inset 0 0 0 1px var(--category-color);
+}
+.entry .icon {
+  background: color-mix(in srgb, var(--category-color, #687776) 14%, white);
+}
+.operations-dialog {
+  width: min(760px, calc(100vw - 24px));
+  font-variant-numeric: tabular-nums;
+}
 #quickrules {
   margin-top: 20px;
 }
@@ -795,26 +834,6 @@ h3 {
   border-radius: 12px;
   background: #edf1eb;
 }
-.entry [data-icon="bus"],
-.entry [data-icon="car"],
-.entry [data-icon="plane"],
-.entry [data-icon="phone"],
-.entry [data-icon="monitor"] {
-  background: #e4edf2;
-}
-.entry [data-icon="burger"],
-.entry [data-icon="utensils"],
-.entry [data-icon="coffee"],
-.entry [data-icon="shopping-basket"] {
-  background: #f6ecd9;
-}
-.entry [data-icon="sparkles"],
-.entry [data-icon="shirt"],
-.entry [data-icon="heart-pulse"],
-.entry [data-icon="gift"],
-.entry [data-icon="clapperboard"] {
-  background: #f3e8ef;
-}
 .entry .description {
   min-width: 0;
   overflow-wrap: anywhere;
@@ -1131,6 +1150,13 @@ details form {
 }
 .chips button[aria-pressed="true"] .svgicon {
   filter: invert(1);
+}
+.chips .category-choice[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--category-color) 18%, white);
+  color: var(--ink);
+}
+.chips .category-choice[aria-pressed="true"] .svgicon {
+  filter: brightness(0) saturate(100%) opacity(.78);
 }
 .categoryrow > div > span {
   display: inline-flex;
@@ -1514,8 +1540,7 @@ details form {
   color: var(--muted);
   margin-top: 6px;
 }
-#reportDialog,
-#analysisDetails {
+#reportDialog {
   width: min(760px, calc(100vw - 24px));
 }
 #reportBody,
@@ -1954,8 +1979,7 @@ details form {
 #reportDialog .analysis-metrics strong {
   font-size: 20px;
 }
-#reportDialog,
-#analysisDetails {
+#reportDialog {
   font-variant-numeric: tabular-nums;
 }
 @media (max-width: 1099px) {

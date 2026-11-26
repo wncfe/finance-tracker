@@ -135,7 +135,7 @@ const assert = require("node:assert/strict");
         .category,
       "Супермаркеты",
     );
-    await choose("Новая категория", "Супермаркеты");
+    assert.equal(await page.locator("#expenseCategory").inputValue(), "Супермаркеты");
     for (const width of [320, 390, 1440]) {
       await page.setViewportSize({ width, height: 844 });
       const box = await page.locator("#categoryEditor").boundingBox();

@@ -49,6 +49,19 @@ const $ = (id) => document.getElementById(id),
     "coffee",
   ];
 let cats = [...baseCats];
+const categoryColors = [
+  "#ce7044", "#ae674d", "#a76b39", "#567fa0", "#477694", "#5571a2",
+  "#427a64", "#a75666", "#8461a3", "#775798", "#a85b88", "#42766e",
+  "#a06658", "#9063a9", "#8a7844", "#526d8b", "#615faa", "#35818a",
+  "#b45d86", "#537787", "#56844e", "#895e3f",
+];
+const categoryIndex = (category) => cats.indexOf(category);
+const categoryIcon = (category) => iconNames[categoryIndex(category)] || "ellipsis";
+const categoryColor = (category) => categoryColors[categoryIndex(category)] || "#687776";
+const categoryChoice = (category, selected) => {
+  const index = categoryIndex(category), name = categoryIcon(category);
+  return `<button type="button" class="category-choice" data-category="${index}" style="--category-color:${categoryColor(category)}" aria-pressed="${String(category === selected)}">${icon(name)}<span>${esc(category)}</span></button>`;
+};
 const icon = (name) =>
     `<img class="svgicon" src="/icons/${name}.svg" alt="" aria-hidden="true">`,
   icons = iconNames.map(icon);
@@ -209,11 +222,10 @@ function entries(expenses) {
       const items = groups.get(day),
         total = money(sumExpenses(items));
       const rows = items.map((expense) => {
-        const iconName =
-          iconNames[baseCats.indexOf(expense.category)] || "ellipsis";
+        const iconName = categoryIcon(expense.category);
         const title = expenseTitle(expense, merchants.get(expense.merchantId));
         return `<button type="button" class="entry" data-expense-id="${esc(expense.id)}" data-month="${esc(day.slice(0, 7))}" aria-haspopup="dialog" aria-controls="expenseDetails">
-          <span class="icon" data-icon="${iconName}" aria-hidden="true">${icon(iconName)}</span>
+          <span class="icon" data-icon="${iconName}" style="--category-color:${categoryColor(expense.category)}" aria-hidden="true">${icon(iconName)}</span>
           <span class="description"><span class="expense-title">${esc(title)}</span><small>${esc(expense.category)}</small></span>
           <strong>${money(expense.amount)}</strong>
         </button>`;
@@ -292,10 +304,7 @@ function renderWeek() {
   $("expenseform").querySelector("button.primary").disabled =
     min > todayDate() || (!!selectedMerchant && !selectedMerchant.category);
   $("categorybuttons").innerHTML = categoryOptions()
-    .map(
-      (c) =>
-        `<button type="button" data-category="${esc(c)}" aria-pressed="${c === category}">${icons[baseCats.indexOf(c)] || icons[baseCats.indexOf("Другое")]} ${esc(c)}</button>`,
-    )
+    .map((c) => categoryChoice(c, category))
     .join("");
 }
 function updateCloseAvailability() {
