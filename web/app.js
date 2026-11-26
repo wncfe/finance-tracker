@@ -105,7 +105,6 @@ async function api(path, data) {
         "historyRemainderDialog",
         "analysisDetails",
         "reportDialog",
-        "simulatorDialog",
       ])
         if ($(id).open) $(id).close();
     }
@@ -237,17 +236,6 @@ function render() {
     })
     .join("");
   ExpenseHistoryView.render();
-  $("categories").innerHTML =
-    cats
-      .map((c, i) => {
-        let sum = m.expenses
-          .filter((e) => e.category === c)
-          .reduce((a, e) => a + e.amount, 0);
-        return sum
-          ? `<div class="categoryrow"><div><span>${icons[i]} ${c}</span><strong>${money(sum)}</strong></div><progress max="${total || 1}" value="${sum}"></progress></div>`
-          : "";
-      })
-      .join("") || '<p class="muted">Категории появятся после первой траты</p>';
 }
 function forecastMarkup(i, detailed = false) {
   const f = ExpenseAnalytics.forecast(state, selected, i, todayDate());

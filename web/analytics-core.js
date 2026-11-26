@@ -396,45 +396,6 @@
     }
     return result.sort((a, b) => b.amount - b.median - (a.amount - a.median));
   }
-  function simulate(source, month, scenarios, today) {
-    if (!/^\d{4}-\d{2}$/.test(month) || month >= today.slice(0, 7))
-      throw Error("Выберите завершённый месяц");
-    const data = source.expenses ? source : index(source);
-    const p = range("month", month + "-01"),
-      expenses = operations(data, p);
-    const merchantFor = habitMerchantLookup(data.expenses, today);
-    const rules = scenarios.map((s) => {
-      if (!Number.isFinite(s.value) || s.value < 0)
-        throw Error("Укажите неотрицательное сокращение");
-      if (
-        !["percent", "amount"].includes(s.mode) ||
-        !["category", "habit"].includes(s.kind)
-      )
-        throw Error("Некорректный сценарий");
-      const match = (e) =>
-        s.kind === "category"
-          ? e.category === s.key
-          : habitKey(e, merchantFor(e)?.id) === s.key;
-      const base = expenses.filter(match).reduce((a, e) => a + e.amount, 0);
-      const ratio =
-        s.mode === "percent"
-          ? Math.min(100, s.value) / 100
-          : base
-            ? Math.min(base, s.value) / base
-            : 0;
-      return { match, ratio };
-    });
-    const monthly = Math.round(
-      expenses.reduce(
-        (sum, e) =>
-          sum +
-          e.amount *
-            Math.max(0, ...rules.filter((r) => r.match(e)).map((r) => r.ratio)),
-        0,
-      ),
-    );
-    return { monthly, yearly: monthly * 12, base: summarize(data, p).total };
-  }
   function report(source, month, today) {
     const p = range("month", month + "-01");
     const actualPeriod = { from: p.from, to: p.to > today ? today : p.to };
@@ -669,7 +630,6 @@
     thresholds,
     deviation,
     anomalies,
-    simulate,
     report,
     historicalMonths,
     spendingPace,

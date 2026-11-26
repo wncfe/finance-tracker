@@ -150,23 +150,47 @@ const assert = require("node:assert/strict");
     assert.equal(await page.locator("#panel-analytics").isVisible(), true);
     assert.equal(await page.locator("#panel-overview").isVisible(), false);
     assert.equal(await page.locator("#trendChart svg").count(), 1);
+    assert.equal(await page.locator("#dashboard .monthnav").isVisible(), false);
+    await page.locator("#analysisFilters > summary").click();
+    await page.locator("#analysisMonth + button").click();
+    await page.locator('dialog.picker[open] [data-value="2026-10"]').click();
+    assert.match(
+      await page.locator("#analysisFilterSummary").textContent(),
+      /Октябрь 2026/,
+    );
+    assert.equal(
+      await page.locator("#analysisFilters").getAttribute("open"),
+      null,
+    );
+    await page.locator("#openReport").click();
+    assert.equal(await page.locator("#reportMonth").inputValue(), "2026-10");
+    await page.locator('[data-close="reportDialog"]').click();
+    await page.locator("#analysisFilters > summary").click();
+    await page.locator("#analysisMonth + button").click();
+    await page.locator('dialog.picker[open] [data-value="2026-11"]').click();
     assert.ok((await page.locator("#habits [data-habit]").count()) > 0);
     assert.ok((await page.locator("#anomalies [data-anomaly]").count()) > 0);
     const chooseBucket = async (locator) => {
-      await page.locator('[data-trend-mode="daily"]').focus();
+      await page.locator("#openReport").focus();
       await locator.focus();
     };
     assert.equal(await page.locator("#spendingPace").isVisible(), true);
     assert.match(
       await page.locator("#paceHeadline").textContent(),
-      /Без исторического сравнения/,
+      /Сравнение появится, когда накопится история/,
     );
-    assert.equal(await page.locator(".pace-reference").count(), 0);
+    assert.equal(await page.locator("#paceChart").isVisible(), false);
+    assert.equal(
+      await page.locator("#trendDailyDetails").getAttribute("open"),
+      null,
+    );
     await page.locator('[data-bucket="12"]').click();
+    assert.equal(await page.locator("#analysisDetails").isVisible(), false);
+    await page.locator("#openTrendOperations").click();
     assert.equal(
       await page.locator("#analysisDetails").isVisible(),
       true,
-      "click on a bar opens its operations",
+      "the selected bar opens its operations via the detail action",
     );
     await page.keyboard.press("Escape");
     const ratios = await page
@@ -193,14 +217,11 @@ const assert = require("node:assert/strict");
     await page.locator("#trendTitle").hover();
     assert.match(await page.locator("#trendSelection").textContent(), /5\s100/);
     await chooseBucket(page.locator('[data-bucket="12"]'));
-    assert.equal(await page.locator("#trendTooltip").isVisible(), true);
     await page.keyboard.press("ArrowLeft");
     assert.match(
       await page.locator("#trendSelection").textContent(),
-      /12.11.2026/,
+      /12 ноября/,
     );
-    await page.keyboard.press("Escape");
-    assert.equal(await page.locator("#trendTooltip").isVisible(), false);
     await chooseBucket(page.locator('[data-bucket="12"]'));
     await page.locator("#openTrendOperations").click();
     assert.match(
@@ -208,46 +229,50 @@ const assert = require("node:assert/strict");
       /Ноутбук/,
     );
     await page.keyboard.press("Escape");
-    await page.locator("#habits [data-habit]").first().click();
+    const habit = page.locator("#habits .habit-card").first();
+    assert.equal(await habit.locator("[data-habit]").isVisible(), false);
+    await habit.locator("summary").click();
+    assert.equal(await habit.locator(".habit-weekdays li").count(), 7);
+    await habit.locator("[data-habit]").click();
     assert.match(
       await page.locator("#analysisDetailsBody").textContent(),
       /кофе/,
     );
     await page.keyboard.press("Escape");
-    await page.locator("#habits [data-sim-habit]").first().click();
-    assert.equal(await page.locator("#simulatorDialog").isVisible(), true);
+    await habit.locator("summary").click();
+    assert.equal(await page.locator("#trendChart path").count(), 0);
+    const metrics = page.locator("#analysisMetrics > div");
+    assert.deepEqual(
+      await metrics.locator(".kpi-label > span").allTextContents(),
+      ["За период", "Среднее", "Медиана"],
+    );
+    assert.deepEqual(
+      (await metrics.locator("strong").allTextContents()).map((value) =>
+        value.replace(/\s/g, ""),
+      ),
+      ["6700₽", "515,38₽", "100₽"],
+    );
+    const tooltip = page.locator("#analyticsHelp");
+    const totalHelp = metrics.first().getByRole("button");
+    const averageHelp = metrics.nth(1).getByRole("button");
+    const medianHelp = metrics.nth(2).getByRole("button");
+    await totalHelp.hover();
+    await tooltip.waitFor();
+    assert.match(await tooltip.textContent(), /За прошлый сопоставимый период/);
+    await averageHelp.focus();
+    await page.keyboard.press("Tab");
+    assert.equal(
+      await medianHelp.evaluate((button) => document.activeElement === button),
+      true,
+    );
+    assert.match(await tooltip.textContent(), /В половине дней/);
     await page.keyboard.press("Escape");
-    await page.locator("#trendReference").evaluate((el) => {
-      el.value = "previous";
-      el.dispatchEvent(new Event("change", { bubbles: true }));
-    });
-    await page.locator("#toggleTrendComparison").click();
-    assert.equal(await page.locator(".chart-prior").count(), 1);
-    await chooseBucket(page.locator('[data-bucket="12"]'));
-    assert.match(
-      await page.locator(".selected-comparison").textContent(),
-      /13.10.2026/,
-    );
-    assert.match(
-      await page.locator(".selected-comparison").textContent(),
-      /100/,
-    );
-    await page.emulateMedia({ reducedMotion: "reduce" });
-    await page.screenshot({
-      path: dir + "/analytics-comparison-1440.png",
-      fullPage: true,
-    });
-    await page.locator("#openPriorOperations").click();
-    assert.match(
-      await page.locator("#analysisDetailsTitle").textContent(),
-      /13.10.2026/,
-    );
-    assert.doesNotMatch(
-      await page.locator("#analysisDetailsBody").textContent(),
-      /Ноутбук/,
-    );
-    await page.keyboard.press("Escape");
-    await page.locator("#toggleTrendComparison").click();
+    await tooltip.waitFor({ state: "hidden" });
+    await averageHelp.click();
+    await tooltip.waitFor();
+    assert.match(await tooltip.textContent(), /Средний расход за день/);
+    await page.locator("#trendTitle").click();
+    await tooltip.waitFor({ state: "hidden" });
     const singleHabit = await page
       .locator("#habits .habit-card")
       .first()
@@ -311,13 +336,14 @@ const assert = require("node:assert/strict");
       const e = state.months["2026-11"].expenses.find(
         (e) => e.note === "Ноутбук",
       );
-      await mutate({
+      const saved = await mutate({
         type: "recategorize",
         month: "2026-11",
         week: e.week,
         id: e.id,
         category: "Кофейни",
       });
+      if (!saved) throw new Error($("saveStatus").textContent);
       return e.id;
     });
     try {
@@ -355,18 +381,6 @@ const assert = require("node:assert/strict");
     }, changed);
     assert.match(await page.locator("#reportBody").textContent(), /Покупки/);
     await page.locator('[data-close="reportDialog"]').click();
-    await page.locator("#openSimulator").click();
-    assert.equal(
-      await page.locator("#simulationMonth").inputValue(),
-      "2026-10",
-    );
-    await page.locator("#simulationForm button[type=submit]").click();
-    assert.match(
-      await page.locator("#simulationResult").textContent(),
-      /Потенциальная экономия/,
-    );
-    assert.equal(await page.locator("[data-remove-scenario]").count(), 1);
-    await page.locator('[data-close="simulatorDialog"]').click();
     await page.locator("#quickopen").click();
     await page.locator("#quicktext").fill("14 ноября кофе 250");
     await page.locator("#quickparse button").click();
@@ -463,39 +477,23 @@ const assert = require("node:assert/strict");
         true,
         "overflow " + width,
       );
-      await page.locator("#toggleTrendComparison").click();
       await chooseBucket(page.locator("[data-bucket]").last());
-      assert.equal(await page.locator("#trendTooltip").isVisible(), true);
-      assert.equal(
-        await page.evaluate(
-          () => document.documentElement.scrollWidth <= innerWidth,
-        ),
-        true,
-        "tooltip overflow " + width,
-      );
-      await page.keyboard.press("Escape");
-      if (width === 390) {
-        await page.evaluate(() => window.scrollTo(0, 0));
-        await page.emulateMedia({ reducedMotion: "reduce" });
-        await page.screenshot({
-          path: dir + "/analytics-comparison-390.png",
-          fullPage: true,
-        });
-      }
-      await page.locator("#toggleTrendComparison").click();
+      assert.equal(await page.locator("#trendSelection").isVisible(), true);
       await page.locator("#tab-analytics").focus();
-      if (width <= 680) {
-        assert.equal(
-          await page.locator("#analysisFilters").getAttribute("open"),
-          null,
-        );
-        await page.locator("#analysisFilters > summary").click();
-        assert.equal(
-          await page.locator("#analysisCategory + button").isVisible(),
-          true,
-        );
-        await page.locator("#analysisFilters > summary").click();
-      }
+      assert.equal(
+        await page.locator("#analysisFilters").getAttribute("open"),
+        null,
+      );
+      assert.equal(
+        await page.locator("#analysisCategory + button").isVisible(),
+        true,
+      );
+      await page.locator("#analysisFilters > summary").click();
+      assert.equal(
+        await page.locator("#analysisMonth + button").isVisible(),
+        true,
+      );
+      await page.locator("#analysisFilters > summary").click();
       await page.emulateMedia({ reducedMotion: "reduce" });
       await page.screenshot({
         path: dir + "/analytics-" + width + ".png",
@@ -522,7 +520,7 @@ const assert = require("node:assert/strict");
     assert.equal(await page.locator(".pace-reference").count(), 1);
     assert.match(
       await page.locator("#paceHeadline").textContent(),
-      /Исторический ориентир.*3 месяца/,
+      /5\s066,67.*больше обычного/,
     );
     const paceExpected = await page.evaluate(() =>
       ExpenseAnalytics.spendingPace(
@@ -551,7 +549,7 @@ const assert = require("node:assert/strict");
     await page.keyboard.press("ArrowLeft");
     assert.match(
       await page.locator("#paceSelection").textContent(),
-      /12.11.2026/,
+      /12 ноября.*Факт.*Обычно/,
     );
     await page.locator("#openPaceDay").click();
     assert.match(
@@ -559,29 +557,9 @@ const assert = require("node:assert/strict");
       /12.11.2026/,
     );
     await page.keyboard.press("Escape");
-    await page.locator("#trendReference").evaluate((el) => {
-      el.value = "historical";
-      el.dispatchEvent(new Event("change", { bubbles: true }));
-    });
-    await page.locator("#toggleTrendComparison").click();
-    assert.equal(await page.locator(".historical-reference").count(), 1);
-    await chooseBucket(page.locator('[data-bucket="12"]'));
-    assert.match(
-      await page.locator(".historical-selection").textContent(),
-      /5\s000/,
-    );
-    assert.match(
-      await page.locator("#trendSelection").textContent(),
-      /Больше всего: Покупки/,
-    );
-    await page.locator('[data-trend-mode="cumulative"]').click();
-    assert.equal(await page.locator(".trend-cumulative").count(), 1);
-    assert.equal(await page.locator(".trend-bar").count(), 0);
-    await chooseBucket(page.locator('[data-bucket="12"]'));
-    assert.match(
-      await page.locator(".historical-selection").textContent(),
-      /5\s066,67/,
-    );
+    assert.equal(await page.locator("#trendChart path").count(), 0);
+    assert.equal(await page.locator(".pace-actual").count(), 1);
+    assert.equal(await page.locator(".pace-reference").count(), 1);
     for (const width of [1440, 768, 390, 320]) {
       await page.setViewportSize({ width, height: 1000 });
       await page.emulateMedia({ reducedMotion: "reduce" });
@@ -646,7 +624,7 @@ const assert = require("node:assert/strict");
     await page.locator(".pace-more > summary").click();
     assert.equal(
       await page.locator("#paceCategories .pace-category").count(),
-      8,
+      7,
     );
     await page.evaluate(() => {
       state.months["2026-11"].expenses = state.months[
@@ -667,7 +645,7 @@ const assert = require("node:assert/strict");
     });
     assert.match(
       await page.locator("#paceHeadline").textContent(),
-      /Тратишь меньше обычного/,
+      /меньше обычного/,
     );
     assert.match(await page.locator("#paceHeadline").textContent(), /333,33/);
     await page
@@ -686,24 +664,19 @@ const assert = require("node:assert/strict");
     });
     assert.match(
       await page.locator("#paceHeadline").textContent(),
-      /Предварительно.*1 месяц/,
+      /предварительно/,
     );
     await page.locator("#paceWindow").evaluate((el) => {
       el.value = "12";
       el.dispatchEvent(new Event("change", { bubbles: true }));
     });
     assert.match(
-      await page.locator("#paceMethod").textContent(),
-      /12 предыдущих/,
+      await page.locator("#paceHelp").getAttribute("data-analytics-help"),
+      /последних 12 мес/,
     );
     await page.evaluate(() => {
       state = JSON.parse(window.paceFixtureBackup);
       render();
-    });
-    await page.locator('[data-trend-mode="daily"]').click();
-    await page.locator("#trendReference").evaluate((el) => {
-      el.value = "previous";
-      el.dispatchEvent(new Event("change", { bubbles: true }));
     });
     // Presentation stress cases are local to this isolated test account.
     await page.setViewportSize({ width: 1440, height: 1000 });
@@ -781,7 +754,7 @@ const assert = require("node:assert/strict");
     await page.locator("#openTrendOperations").click();
     assert.match(
       await page.locator("#analysisDetailsTitle").textContent(),
-      /01.08.2026 — 02.08.2026/,
+      /1–2 августа/,
     );
     await page.keyboard.press("Escape");
     await page.setViewportSize({ width: 320, height: 1000 });
@@ -798,37 +771,28 @@ const assert = require("node:assert/strict");
     await setFilter("analysisTo", "2026-11-01");
     assert.equal(await page.locator("#analysisContent").isVisible(), false);
     assert.match(
-      await page.locator("#analysisRange").textContent(),
+      await page.locator("#analysisError").textContent(),
       /начало не позже/,
     );
     await setFilter("analysisMode", "month");
     await setFilter("analysisDate", "2026-12-01");
     assert.match(
-      await page.locator("#analysisRange").textContent(),
+      await page.locator("#analysisError").textContent(),
       /ещё не начался/,
     );
     await setFilter("analysisDate", "2026-07-01");
     assert.equal(await page.locator("#analysisContent").isVisible(), true);
-    assert.match(
-      await page.locator("#analysisMetrics").textContent(),
-      /Ранее расходов не было/,
-    );
+    assert.equal(await metrics.first().getByRole("button").count(), 0);
     assert.match(
       await page.locator("#anomalies").textContent(),
       /Пока мало истории для выводов/,
     );
-    assert.match(
-      await page.locator("#habits").textContent(),
-      /минимум три покупки/,
-    );
+    assert.match(await page.locator("#habits").textContent(), /три разных дня/);
     await page.screenshot({
       path: dir + "/analytics-empty-320.png",
       fullPage: true,
     });
-    assert.equal(
-      await page.locator("#toggleTrendComparison").isDisabled(),
-      true,
-    );
+    assert.equal(await page.locator("#trendChart").isVisible(), false);
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.screenshot({
       path: dir + "/analytics-empty-1440.png",
@@ -860,8 +824,28 @@ const assert = require("node:assert/strict");
       "true",
     );
     assert.deepEqual(errors, []);
+    const touchContext = await browser.newContext({
+      storageState: await page.context().storageState(),
+      viewport: { width: 320, height: 740 },
+      isMobile: true,
+      hasTouch: true,
+    });
+    const touchPage = await touchContext.newPage();
+    await touchPage.goto("http://127.0.0.1:8003/");
+    await touchPage.locator("#tab-analytics").tap();
+    await touchPage
+      .getByRole("button", { name: "О показателе «Медиана»" })
+      .tap();
+    const touchHelp = touchPage.getByRole("tooltip");
+    await touchHelp.waitFor();
+    assert.match(await touchHelp.textContent(), /В половине дней/);
+    const helpBounds = await touchHelp.boundingBox();
+    assert.ok(helpBounds.x >= 0 && helpBounds.x + helpBounds.width <= 320);
+    await touchPage.locator("#trendTitle").tap();
+    await touchHelp.waitFor({ state: "hidden" });
+    await touchContext.close();
     console.log(
-      "Analytics browser passed: filters, drill-down, forecast, reports, simulator, future dates, keyboard, 320/390/768/1024/1440px, chart geometry/CSP, empty states and long periods. Screenshots: " +
+      "Analytics browser passed: filters, drill-down, forecast, reports, help, future dates, keyboard, 320/390/768/1024/1440px, chart geometry/CSP, empty states and long periods. Screenshots: " +
         dir,
     );
   } catch (e) {
