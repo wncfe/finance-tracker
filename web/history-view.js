@@ -6,8 +6,8 @@ const ExpenseHistoryView = (() => {
   const lastDate = "2100-12-31";
   const periodLabels = { week: "неделю", month: "месяц", year: "год" };
   const colors = [
-    "#ad5e42",
-    "#906049",
+    "#ce7044",
+    "#ae674d",
     "#a76b39",
     "#567fa0",
     "#477694",
@@ -19,14 +19,14 @@ const ExpenseHistoryView = (() => {
     "#a85b88",
     "#42766e",
     "#a06658",
-    "#8f526e",
+    "#9063a9",
     "#8a7844",
     "#526d8b",
     "#615faa",
     "#35818a",
-    "#a05679",
-    "#687776",
-    "#5b803f",
+    "#b45d86",
+    "#537787",
+    "#56844e",
     "#895e3f",
   ];
   const monthLabel = new Intl.DateTimeFormat("ru-RU", {
@@ -144,31 +144,39 @@ const ExpenseHistoryView = (() => {
     };
   }
 
-  const outerRadius = 97;
-  const innerRadius = 73;
+  const center = 124;
+  const outerRadius = 95;
+  const innerRadius = 69;
   const midRadius = (outerRadius + innerRadius) / 2;
+  const labelRadius = 115;
+  const remainingColor = "#788780";
   const turn = Math.PI * 2;
-  const point = (r, a) => [116 + r * Math.cos(a), 116 + r * Math.sin(a)];
+  const point = (r, a) => [center + r * Math.cos(a), center + r * Math.sin(a)];
   const xy = (r, a) =>
     point(r, a)
-      .map((value) => value.toFixed(2))
+      .map((value) => value.toFixed(3))
       .join(" ");
+  const segmentSymbol = (category, index) =>
+    category === "Другое" ? "wallet" : iconNames[index] || "ellipsis";
 
   function sector(start, end) {
-    // Round each corner independently so thin slices keep the same radial thickness.
-    const corner = Math.min(5, ((end - start) * innerRadius) / 4);
-    const outerTrim = corner / outerRadius;
-    const innerTrim = corner / innerRadius;
+    // The fillets are tangent to the two circular edges and to the radial cuts.
+    const corner = Math.min(11, ((end - start) * innerRadius) / 4);
+    const outerMiddle = outerRadius - corner;
+    const innerMiddle = innerRadius + corner;
+    const outerTrim = Math.asin(corner / outerMiddle);
+    const innerTrim = Math.asin(corner / innerMiddle);
+    const outerSide = outerMiddle * Math.cos(outerTrim);
+    const innerSide = innerMiddle * Math.cos(innerTrim);
     const largeArc = (trim) => Number(end - start - 2 * trim > Math.PI);
+    const round = (r, a) => `A ${corner} ${corner} 0 0 1 ${xy(r, a)}`;
     return `M ${xy(outerRadius, start + outerTrim)}
       A ${outerRadius} ${outerRadius} 0 ${largeArc(outerTrim)} 1 ${xy(outerRadius, end - outerTrim)}
-      Q ${xy(outerRadius, end)} ${xy(outerRadius - corner, end)}
-      L ${xy(innerRadius + corner, end)}
-      Q ${xy(innerRadius, end)} ${xy(innerRadius, end - innerTrim)}
+      ${round(outerSide, end)} L ${xy(innerSide, end)}
+      ${round(innerRadius, end - innerTrim)}
       A ${innerRadius} ${innerRadius} 0 ${largeArc(innerTrim)} 0 ${xy(innerRadius, start + innerTrim)}
-      Q ${xy(innerRadius, start)} ${xy(innerRadius + corner, start)}
-      L ${xy(outerRadius - corner, start)}
-      Q ${xy(outerRadius, start)} ${xy(outerRadius, start + outerTrim)} Z`;
+      ${round(innerSide, start)} L ${xy(outerSide, start)}
+      ${round(outerRadius, start + outerTrim)} Z`;
   }
 
   function chartMarkup(summary, slices, slot) {
@@ -182,15 +190,16 @@ const ExpenseHistoryView = (() => {
     const chartLabel = activeCategory || "Траты за период";
     const parts = [];
     const labels = [];
+    const symbols = [];
     let start = -Math.PI / 2;
     for (const { category, amount, grouped } of slices) {
       const index = cats.indexOf(category);
       const label = grouped ? "Остальные" : category;
-      const color = grouped ? "#748780" : colors[index] || "#687776";
+      const color = grouped ? remainingColor : colors[index] || "#687776";
       const share = amount / summary.total;
       const end = start + share * turn;
       const middle = (start + end) / 2;
-      const gap = Math.min(2.6 / midRadius, (end - start) * 0.16);
+      const gap = Math.min(2.2 / midRadius, (end - start) * 0.16);
       const full = slices.length === 1;
       const muted = activeCategory && activeCategory !== category;
       const hint = `${esc(label)} · ${percentage.format(share)} · ${money(amount)}`;
@@ -202,19 +211,22 @@ const ExpenseHistoryView = (() => {
       const attributes = `class="history-ring-segment" ${action} ${muted ? 'opacity=".25"' : ""}`;
       parts.push(
         full
-          ? `<circle ${attributes} cx="116" cy="116" r="${midRadius}" fill="none" stroke="${color}" stroke-width="${outerRadius - innerRadius}"><title>${hint}</title></circle>`
+          ? `<circle ${attributes} cx="${center}" cy="${center}" r="${midRadius}" fill="none" stroke="${color}" stroke-width="${outerRadius - innerRadius}"><title>${hint}</title></circle>`
           : `<path ${attributes} fill="${color}" d="${sector(start + gap / 2, end - gap / 2)}"><title>${hint}</title></path>`,
       );
       start = end;
 
-      if (full || share < 0.07) continue;
-      const withIcon = share >= 0.14;
-      const [x, y] = point(midRadius, middle + (withIcon ? 13 / midRadius : 0));
-      const [ix, iy] = point(midRadius, middle - 13 / midRadius);
-      const symbol = iconNames[index] || "ellipsis";
-      labels.push(`<g ${muted ? 'opacity=".36"' : ""}>
-        <text x="${x}" y="${y}" text-anchor="middle">${Math.round(share * 100)}%</text>
-        ${withIcon ? `<image href="/icons/${symbol}.svg" x="${ix - 7}" y="${iy - 7}" width="14" height="14" />` : ""}
+      if (full || share < 0.047) continue;
+      const [x, y] = point(labelRadius, middle);
+      const labelX = Math.max(15, Math.min(233, x));
+      const [ix, iy] = point(midRadius, middle);
+      const symbol = segmentSymbol(category, index);
+      labels.push(
+        `<text x="${labelX}" y="${y}" ${muted ? 'opacity=".4"' : ""}>${Math.round(share * 100)}%</text>`,
+      );
+      symbols.push(`<g ${muted ? 'opacity=".36"' : ""}>
+        <circle cx="${ix}" cy="${iy}" r="10" />
+        <image href="/icons/${symbol}.svg" x="${ix - 6.5}" y="${iy - 6.5}" width="13" height="13" />
       </g>`);
     }
     const marker = current
@@ -223,12 +235,14 @@ const ExpenseHistoryView = (() => {
     const amountSize = Math.min(25, 128 / (amount.length * 0.62));
     const labelSize = Math.min(12, 124 / (chartLabel.length * 0.62));
     return `<div class="history-slide ${current ? "is-current" : "is-preview"}" ${marker}>
-      <svg ${current ? 'id="historyChart"' : ""} viewBox="0 0 232 232" aria-hidden="true">
-        ${parts.length ? "" : `<circle class="history-ring-track" cx="116" cy="116" r="${midRadius}" stroke-width="${outerRadius - innerRadius}" />`}
-        ${parts.join("")}<g class="history-ring-labels">${labels.join("")}</g>
+      <svg ${current ? 'id="historyChart"' : ""} viewBox="0 0 ${center * 2} ${center * 2}" aria-hidden="true">
+        ${parts.length ? "" : `<circle class="history-ring-track" cx="${center}" cy="${center}" r="${midRadius}" stroke-width="${outerRadius - innerRadius}" />`}
+        ${parts.join("")}
+        <g class="history-ring-symbols">${symbols.join("")}</g>
+        <g class="history-ring-labels" text-anchor="middle">${labels.join("")}</g>
         <g class="history-ring-center" text-anchor="middle">
-          <text ${current ? 'id="historyChartLabel"' : ""} x="116" y="109" font-size="${labelSize}">${esc(chartLabel)}</text>
-          <text ${current ? 'id="historyChartAmount"' : ""} x="116" y="134" class="history-ring-amount" font-size="${amountSize}">${amount}</text>
+          <text ${current ? 'id="historyChartLabel"' : ""} x="${center}" y="${center - 6}" font-size="${labelSize}">${esc(chartLabel)}</text>
+          <text ${current ? 'id="historyChartAmount"' : ""} x="${center}" y="${center + 19}" class="history-ring-amount" font-size="${amountSize}">${amount}</text>
         </g>
       </svg>
     </div>`;
@@ -271,7 +285,7 @@ const ExpenseHistoryView = (() => {
 
   function categoryChip({ category, amount, grouped }) {
     const index = cats.indexOf(category);
-    const color = grouped ? "#748780" : colors[index] || "#687776";
+    const color = grouped ? remainingColor : colors[index] || "#687776";
     const chip = document.createElement("button");
     chip.type = "button";
     chip.className = "history-category";
@@ -284,7 +298,7 @@ const ExpenseHistoryView = (() => {
       chip.dataset.historyCategory = category;
       chip.setAttribute("aria-pressed", String(category === activeCategory));
     }
-    chip.innerHTML = `<span class="history-category-icon" aria-hidden="true">${icons[index] || icon("ellipsis")}</span>
+    chip.innerHTML = `<span class="history-category-icon" aria-hidden="true">${icon(segmentSymbol(category, index))}</span>
       <span class="history-category-copy">
         <span>${grouped ? "Остальные" : esc(category)}</span><strong>${money(amount)}</strong>
       </span>`;

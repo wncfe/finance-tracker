@@ -292,8 +292,8 @@ const assert = require("node:assert/strict");
     assert.equal(await chart.locator(".history-ring-labels text").count(), 2);
     const angle = ((25000 / 36000) * Math.PI * 2) / 2 - Math.PI / 2;
     await page.mouse.click(
-      arc.x + (arc.width * (116 + 86 * Math.cos(angle))) / 232,
-      arc.y + (arc.height * (116 + 86 * Math.sin(angle))) / 232,
+      arc.x + (arc.width * (124 + 82 * Math.cos(angle))) / 248,
+      arc.y + (arc.height * (124 + 82 * Math.sin(angle))) / 248,
     );
     await assertAmount(25000, 2);
     await page.locator("#historyClearCategory").click();
@@ -378,6 +378,23 @@ const assert = require("node:assert/strict");
     await page.locator("#tab-history").click();
     await assertAmount(monthTotal, 13);
     assert.equal(await chart.locator("path.history-ring-segment").count(), 6);
+    assert.equal(
+      await chart.locator(".history-ring-labels text").evaluateAll(
+        (labels) =>
+          labels.length === 6 &&
+          labels.every((label) => {
+            const { x, y, width, height } = label.getBBox();
+            const viewBox = label.ownerSVGElement.viewBox.baseVal;
+            return (
+              x >= 0 &&
+              y >= 0 &&
+              x + width <= viewBox.width &&
+              y + height <= viewBox.height
+            );
+          }),
+      ),
+      true,
+    );
     assert.ok(
       await chart
         .locator("#historyChartAmount")
@@ -396,9 +413,9 @@ const assert = require("node:assert/strict");
     const groupedAngle = (1 + 4850000 / monthTotal) * Math.PI - Math.PI / 2;
     await page.mouse.click(
       groupedArc.x +
-        (groupedArc.width * (116 + 85 * Math.cos(groupedAngle))) / 232,
+        (groupedArc.width * (124 + 82 * Math.cos(groupedAngle))) / 248,
       groupedArc.y +
-        (groupedArc.height * (116 + 85 * Math.sin(groupedAngle))) / 232,
+        (groupedArc.height * (124 + 82 * Math.sin(groupedAngle))) / 248,
     );
     assert.equal(await remainder.isVisible(), true);
     await page.keyboard.press("Escape");
