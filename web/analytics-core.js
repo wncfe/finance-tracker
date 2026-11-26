@@ -318,6 +318,33 @@
       adaptability,
     };
   }
+  function smartBudget(source, period, today) {
+    const remainingDays = daily(source, period, today).filter(
+        (d) => d.date >= today && d.date <= period.to,
+      ).length,
+      left = period.limit - period.spent;
+    if (!remainingDays) return { status: "actual", left, perDay: 0, forecast: left };
+    const history = daily(
+      source,
+      { from: shift(today, -28), to: shift(today, -1) },
+      shift(today, -1),
+    ).filter((d) => d.date >= (source.first || today));
+    const sample = history.map((d) => d.amount);
+    if (sample.length < 14)
+      return { status: "insufficient", left, remainingDays, observations: sample.length };
+    const rate = Math.round(quantile(sample, 0.5));
+    const forecast = left - rate * remainingDays;
+    return {
+      status: "forecast",
+      left,
+      remainingDays,
+      perDay: left < 0 ? 0 : Math.floor(left / remainingDays),
+      over: Math.max(0, -left),
+      forecast,
+      dailyMedian: rate,
+      observations: sample.length,
+    };
+  }
   const thresholds = Object.freeze({
     weeks: 12,
     minSamples: 8,
@@ -627,6 +654,7 @@
     habitKey,
     habits,
     forecast,
+    smartBudget,
     thresholds,
     deviation,
     anomalies,

@@ -13,6 +13,27 @@ function add(date, amount, category = "Кофейни", note = "Кофе") {
     note,
   });
 }
+const smartState = { months: {} };
+for (let n = 28; n >= 15; n--) {
+  const d = A.shift("2026-11-29", -n);
+  const month = d.slice(0, 7);
+  smartState.months[month] ||= { expenses: [] };
+  smartState.months[month].expenses.push({ date: d, amount: n % 2 ? 1000 : 3000 });
+}
+const smart = A.smartBudget(
+  A.index(smartState),
+  { from: "2026-11-29", to: "2026-11-30", limit: 10000, spent: 2000 },
+  "2026-11-29",
+);
+assert.equal(smart.status, "forecast");
+assert.equal(smart.observations, 28);
+assert.equal(smart.dailyMedian, 500);
+assert.equal(smart.perDay, 4000);
+assert.equal(smart.forecast, 7000);
+assert.equal(
+  A.smartBudget(A.index(smartState), { from: "2026-11-29", to: "2026-11-30", limit: 10000, spent: 12000 }, "2026-11-29").perDay,
+  0,
+);
 assert.equal(A.todayAt(new Date("2026-11-12T18:59:59Z")), "2026-11-12");
 assert.equal(A.todayAt(new Date("2026-11-12T19:00:00Z")), "2026-11-13");
 add("2026-02-01", 100);

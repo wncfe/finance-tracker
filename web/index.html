@@ -97,6 +97,10 @@
           /><button id="next" aria-label="Следующий месяц">→</button>
         </div>
       </div>
+      <div class="dashboard-actions">
+        <button id="quickopen" class="primary" aria-label="Добавить расход">＋ Добавить расход</button>
+        <button id="settingsOpen" type="button" aria-label="Настройки" title="Настройки">⚙</button>
+      </div>
       <nav
         id="mobileTabs"
         class="mobile-tabs"
@@ -112,30 +116,29 @@
         <button type="button" id="tab-analytics" data-tab="analytics">
           Аналитика
         </button>
-        <button type="button" id="tab-budget" data-tab="budget">Бюджет</button>
       </nav>
-      <section class="quick-launch card">
-        <div>
-          <h2>Запишите расход своими словами</h2>
-          <p class="muted">Кофе 250 · вчера такси 430 · продукты 1 250,50</p>
-        </div>
-        <button id="quickopen" class="primary" aria-label="Добавить расход">
-          ＋<span> Добавить расход</span>
-        </button>
-      </section>
       <div class="layout">
         <section>
           <section id="panel-overview" data-nav-panel="overview">
-            <div class="hero">
-              <span>Осталось на месяц</span>
-              <div id="balance" class="balance"></div>
-              <div class="herofoot">
-                <div>Доступный бюджет<strong id="total"></strong></div>
-                <div>Потрачено<strong id="spent"></strong></div>
-              </div>
+            <div class="budget-cards">
+              <article class="budget-card week-budget">
+                <span>Осталось на неделю</span><strong id="weekBalance"></strong>
+                <div class="budget-card-meta"><span>Лимит <b id="weekLimit"></b></span><span>Потрачено <b id="weekSpent"></b></span></div>
+                <div class="budget-progress"><span id="weekProgress"></span></div><p id="weekForecast" class="smart-note"></p>
+              </article>
+              <article class="budget-card month-budget">
+                <span>Осталось на месяц</span><strong id="balance"></strong>
+                <div class="budget-card-meta"><span>Лимит <b id="total"></b></span><span>Потрачено <b id="spent"></b></span></div>
+                <div class="budget-progress"><span id="monthProgress"></span></div><p id="monthForecast" class="smart-note"></p>
+              </article>
             </div>
+            <section class="current-week card" id="currentWeekCard">
+              <div><span class="eyebrow">ТЕКУЩАЯ НЕДЕЛЯ</span><h2 id="currentWeekTitle"></h2></div>
+              <div class="daily-allowance"><span>Доступно в день</span><strong id="dailyAllowance"></strong><small id="daysRemaining"></small></div>
+              <button type="button" id="openCurrentWeek">Подробнее о неделе →</button>
+            </section>
             <div class="sectionhead">
-              <h2>Недели месяца</h2>
+              <h2>Остальные недели</h2>
               <span class="muted" id="weekcount"></span>
             </div>
             <div id="weeks" class="weeks"></div>

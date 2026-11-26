@@ -202,7 +202,7 @@ const assert = require("node:assert/strict");
       merchantId,
     );
     await page.locator("#quickclose").click();
-    await page.locator("#tab-budget").click();
+    await page.locator("#settingsOpen").click();
     await page.locator("#merchantOpen").click();
     await page.locator("#merchantSearch").fill("Мой тестовый");
     await page.locator(`[data-merchant-edit="${merchantId}"]`).click();

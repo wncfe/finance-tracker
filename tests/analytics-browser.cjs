@@ -137,7 +137,6 @@ const assert = require("node:assert/strict");
       "desktop navigation must provide access to analytics",
     );
     assert.equal(await page.locator("#tab-analytics").isVisible(), true);
-    assert.equal(await page.locator("#tab-budget").isVisible(), false);
     await page.locator("#tab-analytics").focus();
     await page.keyboard.press("ArrowRight");
     assert.equal(
@@ -145,18 +144,16 @@ const assert = require("node:assert/strict");
       "true",
     );
     await page.setViewportSize({ width: 390, height: 1000 });
-    await page.locator("#tab-budget").waitFor({ state: "visible" });
-    assert.equal(await page.locator("#tab-budget").isVisible(), true);
-    await page.locator("#tab-budget").click();
+    await page.locator("#settingsOpen").click();
     assert.equal(await page.locator("#panel-budget").isVisible(), true);
     await page.setViewportSize({ width: 1440, height: 1000 });
-    await page.locator("#tab-budget").waitFor({ state: "hidden" });
-    assert.equal(await page.locator("#tab-budget").isVisible(), false);
     assert.equal(
       await page.locator("#tab-overview").getAttribute("aria-selected"),
       "true",
     );
     assert.equal(await page.locator("#panel-overview").isVisible(), true);
+    assert.equal(await page.locator("#panel-budget").isVisible(), false);
+    await page.locator("#settingsOpen").click();
     assert.equal(await page.locator("#panel-budget").isVisible(), true);
     await page.locator("#tab-analytics").click();
     assert.equal(await page.locator("#panel-analytics").isVisible(), true);

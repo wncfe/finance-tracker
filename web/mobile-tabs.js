@@ -6,28 +6,22 @@
     panels = [...document.querySelectorAll("[data-nav-panel]")];
   let current = "overview";
   function sync() {
-    if (!media.matches && current === "budget") {
-      current = "overview";
-      if (document.activeElement === $("tab-budget")) $("tab-overview").focus();
-    }
     nav.hidden = false;
     nav.setAttribute("role", "tablist");
     for (const tab of tabs) {
-      tab.hidden = !media.matches && tab.dataset.tab === "budget";
+      tab.hidden = false;
       tab.setAttribute("aria-controls", "panel-" + tab.dataset.tab);
       tab.setAttribute("role", "tab");
       tab.setAttribute("aria-selected", String(tab.dataset.tab === current));
       tab.tabIndex = tab.dataset.tab === current ? 0 : -1;
     }
     for (const panel of panels) {
-      panel.hidden = media.matches
-        ? panel.dataset.navPanel !== current
-        : current === "overview"
-          ? panel.dataset.navPanel === "analytics"
-          : panel.dataset.navPanel !== current;
+      panel.hidden = panel.dataset.navPanel !== current;
       if (panel.id) {
         panel.setAttribute("role", "tabpanel");
-        panel.setAttribute("aria-labelledby", "tab-" + panel.dataset.navPanel);
+        const tab = $("tab-" + panel.dataset.navPanel);
+        if (tab) panel.setAttribute("aria-labelledby", tab.id);
+        else panel.removeAttribute("aria-labelledby");
       }
     }
     $("dashboard").dataset.view = current;
@@ -38,6 +32,10 @@
     sync();
     tab.focus();
   }
+  window.financeNavigate = (panel) => {
+    current = panel;
+    sync();
+  };
   nav.onclick = (e) => {
     const tab = e.target.closest("[data-tab]");
     if (tab) choose(tab);
@@ -57,5 +55,9 @@
     choose(visibleTabs[next]);
   };
   media.addEventListener("change", sync);
+  $("openReport")?.addEventListener("click", () => {
+    current = "analytics";
+    sync();
+  });
   sync();
 })();

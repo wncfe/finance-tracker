@@ -569,14 +569,11 @@ const assert = require("node:assert/strict");
     await page.setViewportSize({ width: 390, height: 844 });
     await page.locator("#mobileTabs").waitFor({ state: "visible" });
     assert.equal(await page.locator("#mobileTabs").isVisible(), true);
-    assert.equal(await page.locator(".quick-launch > div").isVisible(), false);
-    for (const section of ["overview", "history", "analytics", "budget"]) {
+    assert.equal(await page.locator("#quickopen").isVisible(), true);
+    for (const section of ["overview", "history", "analytics"]) {
       await page.locator("#tab-" + section).click();
       assert.equal(await page.locator("#panel-" + section).isVisible(), true);
-      assert.equal(
-        await page.locator("[data-nav-panel]:not([hidden])").count(),
-        section === "budget" ? 2 : 1,
-      );
+      assert.equal(await page.locator("[data-nav-panel]:not([hidden])").count(), 1);
       if (section === "analytics") continue;
       const launcher = page.locator(
         section === "history" ? "#historyQuickopen" : "#quickopen",
@@ -585,6 +582,9 @@ const assert = require("node:assert/strict");
       await page.locator("#quickdialog").waitFor({ state: "visible" });
       await page.locator("#quickclose").click();
     }
+    await page.locator("#settingsOpen").click();
+    assert.equal(await page.locator("#panel-budget").isVisible(), true);
+    assert.equal(await page.locator("#merchantOpen").isVisible(), true);
     await page.locator("#tab-history").click();
     assert.equal(await page.locator("#history .entry button").count(), 0);
     assert.equal(await page.locator("#historyQuickopen").isVisible(), true);
@@ -670,10 +670,11 @@ const assert = require("node:assert/strict");
     assert.equal(await page.locator("#panel-analytics").isVisible(), true);
     assert.equal(await page.locator("#mobileTabs").isVisible(), true);
     await page.locator("#tab-overview").click();
-    for (const section of ["overview", "history", "budget"])
-      assert.equal(await page.locator("#panel-" + section).isVisible(), true);
+    assert.equal(await page.locator("#panel-overview").isVisible(), true);
+    assert.equal(await page.locator("#panel-history").isVisible(), false);
+    assert.equal(await page.locator("#panel-budget").isVisible(), false);
     assert.equal(await page.locator("#panel-analytics").isVisible(), false);
-    assert.equal(await page.locator(".quick-launch > div").isVisible(), true);
+    assert.equal(await page.locator("#quickopen").isVisible(), true);
     await page.evaluate(() =>
       localStorage.setItem(
         "expense-rules:browser-test",

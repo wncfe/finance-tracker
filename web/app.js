@@ -101,6 +101,7 @@ let selected = serverToday.slice(0, 7),
   state = { months: {} },
   revision = 0,
   week = 0,
+  activeOverviewWeek = 0,
   busy = false,
   accountLogin = "";
 function categoryOptions() {
@@ -270,6 +271,39 @@ function render() {
   $("balance").textContent = money(effective - total);
   $("total").textContent = money(effective);
   $("spent").textContent = money(total);
+  const today = todayDate(),
+    currentWeekIndex = selected === today.slice(0, 7)
+      ? m.weeks.findIndex((w) => w.start <= Number(today.slice(8)) && w.end >= Number(today.slice(8)))
+      : selected < today.slice(0, 7)
+        ? m.weeks.length - 1
+        : 0,
+    safeWeekIndex = Math.max(0, currentWeekIndex),
+    currentPeriod = m.weeks[safeWeekIndex],
+    weekSpent = spent(m, safeWeekIndex),
+    weekLeft = currentPeriod.limit - weekSpent,
+    currentWeekStart = `${selected}-${String(currentPeriod.start).padStart(2, "0")}`,
+    currentWeekEnd = `${selected}-${String(currentPeriod.end).padStart(2, "0")}`,
+    monthDays = new Date(Number(selected.slice(0, 4)), Number(selected.slice(5, 7)), 0).getDate(),
+    monthPeriod = { from: `${selected}-01`, to: `${selected}-${String(monthDays).padStart(2, "0")}`, limit: effective, spent: total },
+    budgetSource = ExpenseAnalytics.index(state),
+    weekSmart = ExpenseAnalytics.smartBudget(budgetSource, { from: currentWeekStart, to: currentWeekEnd, limit: currentPeriod.limit, spent: weekSpent }, today),
+    monthSmart = ExpenseAnalytics.smartBudget(budgetSource, monthPeriod, today);
+  activeOverviewWeek = safeWeekIndex;
+  $("weekBalance").textContent = money(weekLeft);
+  $("weekLimit").textContent = money(currentPeriod.limit);
+  $("weekSpent").textContent = money(weekSpent);
+  $("weekProgress").style.width = `${currentPeriod.limit ? Math.min(100, Math.max(0, weekSpent / currentPeriod.limit * 100)) : 0}%`;
+  $("monthProgress").style.width = `${effective ? Math.min(100, Math.max(0, total / effective * 100)) : 0}%`;
+  $("currentWeekTitle").textContent = `${currentPeriod.start}–${currentPeriod.end} ${new Date(selected + "-01T12:00:00").toLocaleDateString("ru-RU", { month: "long" })}`;
+  $("dailyAllowance").textContent = weekSmart.status === "insufficient" ? "Недостаточно истории" : money(weekSmart.perDay);
+  $("daysRemaining").textContent = weekSmart.status === "insufficient" ? "Нужно 14 завершённых дней" : `${weekSmart.remainingDays} ${weekSmart.remainingDays === 1 ? "день" : "дней"} осталось`;
+  const setForecast = (id, result) => {
+    const el = $(id);
+    el.textContent = result.status === "insufficient" ? "Прогноз: недостаточно истории" : result.status === "actual" ? "Период завершён" : `Прогноз остатка: ${money(result.forecast)}`;
+    el.classList.toggle("negative", result.status === "forecast" && result.forecast < 0);
+  };
+  setForecast("weekForecast", weekSmart);
+  setForecast("monthForecast", monthSmart);
   $("budget").value = m.budget / 100;
   $("weekcount").textContent =
     `${m.weeks.filter((w) => w.closed).length} из ${m.weeks.length} закрыто` +
@@ -277,14 +311,24 @@ function render() {
       ? " · Сохранены исторические периоды"
       : "");
   $("weeks").innerHTML = m.weeks
-    .map((w, i) => {
+    .map((w, i) => ({ w, i }))
+    .filter(({ i }) => i !== safeWeekIndex)
+    .map(({ w, i }) => {
       let s = spent(m, i),
         left = w.limit - s;
-      return `<button class="week ${w.closed ? "closed" : ""}" data-week="${i}"><div class="weekhead"><div><strong>Неделя ${i + 1}</strong><span class="weekdate">${w.start}–${w.end} · ${w.days} дн.</span></div><span class="badge">${w.closed ? "Закрыта ✓" : "Управление ↗"}</span></div><div class="weeknumbers"><div>Лимит<strong>${money(w.limit)}</strong></div><div>Остаток<strong class="${left < 0 ? "negative" : ""}">${money(left)}</strong></div></div><div class="progress"><progress max="100" value="${w.limit ? Math.min(100, (s / w.limit) * 100) : s ? 100 : 0}"></progress></div><span class="muted">Потрачено ${money(s)}</span>${forecastMarkup(i)}</button>`;
+      return `<button class="week ${i === safeWeekIndex ? "current" : "compact"} ${w.closed ? "closed" : ""}" data-week="${i}"><div class="weekhead"><div><strong>Неделя ${i + 1}</strong><span class="weekdate">${w.start}–${w.end} · ${w.days} дн.</span></div><span class="badge">${w.closed ? "Закрыта ✓" : "Открыта"}</span></div><div class="weeknumbers"><div>Лимит<strong>${money(w.limit)}</strong></div><div>Остаток<strong class="${left < 0 ? "negative" : ""}">${money(left)}</strong></div></div><div class="progress"><progress max="100" value="${w.limit ? Math.min(100, (s / w.limit) * 100) : s ? 100 : 0}"></progress></div><span class="muted">Потрачено ${money(s)}</span>${i === safeWeekIndex ? forecastMarkup(i) : ""}</button>`;
     })
     .join("");
   ExpenseHistoryView.render();
 }
+$("settingsOpen").addEventListener("click", () =>
+  window.financeNavigate("budget"),
+);
+$("openCurrentWeek").addEventListener("click", () => {
+  week = activeOverviewWeek;
+  $("weekdialog").showModal();
+  renderWeek();
+});
 function forecastMarkup(i) {
   const f = ExpenseAnalytics.forecast(state, selected, i, todayDate());
   if (!f || f.status === "actual") return "";

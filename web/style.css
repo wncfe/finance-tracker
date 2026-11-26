@@ -74,23 +74,106 @@
   }
 }
 .mobile-tabs {
-  display: none;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 0 24px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 8px;
+}
+.mobile-tabs button[aria-selected="true"] {
+  color: white;
+  background: var(--green);
+}
+.dashboard-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin: -12px 0 16px;
+}
+.dashboard-actions #settingsOpen {
+  min-width: 44px;
+}
+.budget-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.budget-card {
+  min-width: 0;
+  padding: 24px;
+  border-radius: 22px;
+  background: #173d32;
+  color: white;
+}
+.budget-card.month-budget {
+  background: #e2efcd;
+  color: var(--ink);
+}
+.budget-card > span,
+.daily-allowance > span {
+  display: block;
+  color: var(--muted);
+  font-size: 13px;
+}
+.week-budget > span { color: #c4d6ca; }
+.budget-card > strong {
+  display: block;
+  margin: 5px 0 16px;
+  font-size: clamp(30px, 4vw, 46px);
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+.budget-card-meta { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--muted); }
+.week-budget .budget-card-meta { color: #c4d6ca; }
+.budget-card-meta b { display: block; margin-top: 3px; color: inherit; font-size: 16px; }
+.budget-progress { height: 8px; margin-top: 14px; border-radius: 9px; background: #183f3630; overflow: hidden; }
+.week-budget .budget-progress { background: #ffffff35; }
+.budget-progress span { display: block; width: 0; height: 100%; border-radius: inherit; background: #cce998; }
+.month-budget .budget-progress span { background: #6e9e7e; }
+.smart-note { min-height: 18px; margin: 12px 0 0; font-size: 13px; }
+.current-week { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 14px; }
+.current-week h2 { margin: 6px 0 0; }
+.daily-allowance strong { display: block; margin: 3px 0; font-size: 25px; }
+.daily-allowance small { color: var(--muted); }
+.week.current { grid-column: 1 / -1; border-color: #96b77f; }
+.week.compact { padding: 14px 18px; }
+.week.compact .weekhead { margin-bottom: 8px; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
 @media (max-width: 680px) {
   .mobile-tabs:not([hidden]) {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 3px;
-    position: sticky;
-    top: 8px;
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: max(8px, env(safe-area-inset-bottom));
     z-index: 4;
     background: var(--bg);
     border: 1px solid var(--line);
     border-radius: 16px;
     padding: 4px;
-    margin: 0 0 18px;
+    margin: 0;
     box-shadow: 0 4px 16px #183f3610;
   }
+  #dashboard { padding-bottom: 92px; }
+  #dashboard .top { flex-direction: row; align-items: center; }
+  #dashboard .top h1 { font-size: 21px; }
+  .dashboard-actions { justify-content: stretch; margin: 0 0 12px; }
+  .dashboard-actions #quickopen { flex: 1; min-height: 48px; }
+  .budget-cards { gap: 8px; }
+  .budget-card { padding: 16px 13px; border-radius: 17px; }
+  .budget-card > strong { font-size: clamp(23px, 7vw, 32px); }
+  .budget-card-meta { display: block; font-size: 11px; }
+  .budget-card-meta span + span { margin-top: 6px; }
+  .budget-card-meta b { display: inline; margin: 0 0 0 3px; font-size: 13px; }
+  .current-week { flex-wrap: wrap; padding: 16px; }
+  .current-week > button { width: 100%; }
+  .week.compact { padding: 14px; }
+  .week.compact .weeknumbers { font-size: 12px; }
   .mobile-tabs button {
     padding: 8px 2px;
     font-size: 12px;
@@ -424,6 +507,14 @@ h3 {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 310px;
   gap: 26px;
+}
+#dashboard[data-view="overview"] .layout,
+#dashboard[data-view="budget"] .layout,
+#dashboard[data-view="history"] .layout {
+  grid-template-columns: minmax(0, 1fr);
+}
+#dashboard[data-view="budget"] .layout > aside {
+  width: 100%;
 }
 .hero {
   background: var(--green);
