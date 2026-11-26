@@ -9,6 +9,7 @@ def migrate(db):
         merge_categories(db)
         remove_transfers(db)
         migrate_merchants(db)
+        migrate_merchant_categories(db)
         migrate_transport_categories(db)
         return
     script=(ROOT/'cloudflare/migrations/0003_normalized_finances.sql').read_text('utf-8')
@@ -23,6 +24,7 @@ def migrate(db):
         merge_categories(db)
         remove_transfers(db)
         migrate_merchants(db)
+        migrate_merchant_categories(db)
         migrate_transport_categories(db)
     except Exception:
         db.rollback()
@@ -49,6 +51,13 @@ def migrate_merchants(db):
             db.rollback()
             raise
 
+def migrate_merchant_categories(db):
+    if 'user_merchants' in [r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'") ] and 'category' not in [r[1] for r in db.execute('PRAGMA table_info(user_merchants)')]:
+        try:db.executescript('BEGIN IMMEDIATE;\n'+(ROOT/'cloudflare/migrations'/'0009_merchant_category.sql').read_text('utf-8')+'\nCOMMIT;')
+        except Exception:
+            db.rollback()
+            raise
+
 def load(db,user_id):
     state={'months':{}}
     columns=[r[1] for r in db.execute('PRAGMA table_info(months)')]
@@ -69,7 +78,7 @@ def load(db,user_id):
         if merchant_id is not None:expense['merchantId']=merchant_id
         state['months'][key]['expenses'].append(expense)
     if has_merchants:
-        merchants=[dict(id=i,name=n,aliases=json.loads(a),hidden=bool(h)) for i,n,a,h in db.execute('SELECT id,name,aliases,hidden FROM user_merchants WHERE user_id=? ORDER BY id',(user_id,))]
+        merchants=[dict(id=i,name=n,aliases=json.loads(a),**({'category':c} if c else {}),hidden=bool(h)) for i,n,a,c,h in db.execute('SELECT id,name,aliases,category,hidden FROM user_merchants WHERE user_id=? ORDER BY id',(user_id,))]
         if merchants:state['merchants']=merchants
     return state
 
@@ -79,7 +88,7 @@ def save(db,user_id,before,after):
     prior_merchants={m['id']:m for m in before.get('merchants',[])}
     for m in after.get('merchants',[]):
         if prior_merchants.get(m['id'])!=m:
-            db.execute('INSERT INTO user_merchants(user_id,id,name,aliases,hidden) VALUES(?,?,?,?,?) ON CONFLICT(user_id,id) DO UPDATE SET name=excluded.name,aliases=excluded.aliases,hidden=excluded.hidden',(user_id,m['id'],m['name'],json.dumps(m['aliases'],ensure_ascii=False),int(m['hidden'])))
+            db.execute('INSERT INTO user_merchants(user_id,id,name,aliases,category,hidden) VALUES(?,?,?,?,?,?) ON CONFLICT(user_id,id) DO UPDATE SET name=excluded.name,aliases=excluded.aliases,category=excluded.category,hidden=excluded.hidden',(user_id,m['id'],m['name'],json.dumps(m['aliases'],ensure_ascii=False),m.get('category'),int(m['hidden'])))
     for key,m in after['months'].items():
         old=before['months'].get(key)
         if old==m:continue

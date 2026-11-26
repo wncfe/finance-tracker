@@ -145,7 +145,7 @@ export function apply(original, action, today = todayAt()) {
     );
     check(
       Object.keys(item).every((key) =>
-        ["id", "name", "aliases", "hidden"].includes(key),
+        ["id", "name", "aliases", "category", "hidden"].includes(key),
       ),
       "Некорректный магазин",
     );
@@ -172,6 +172,12 @@ export function apply(original, action, today = todayAt()) {
         ),
       "Некорректные варианты названия",
     );
+    check(
+      item.category == null ||
+        item.category === "" ||
+        categories.includes(item.category),
+      "Неизвестная категория магазина",
+    );
     check(typeof item.hidden === "boolean", "Некорректный статус магазина");
     const state = structuredClone(original);
     const merchants = (state.merchants || []).filter((m) => m.id !== item.id);
@@ -179,6 +185,7 @@ export function apply(original, action, today = todayAt()) {
       id: item.id,
       name: item.name.trim(),
       aliases: item.aliases.map((s) => s.trim()),
+      ...(item.category ? { category: item.category } : {}),
       hidden: item.hidden,
     });
     merchants.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));

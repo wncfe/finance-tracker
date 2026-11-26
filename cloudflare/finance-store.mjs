@@ -16,7 +16,7 @@ export async function loadFinance(db, userId) {
       .bind(userId),
     db
       .prepare(
-        "SELECT id,name,aliases,hidden FROM user_merchants WHERE user_id=? ORDER BY id",
+        "SELECT id,name,aliases,category,hidden FROM user_merchants WHERE user_id=? ORDER BY id",
       )
       .bind(userId),
   ]);
@@ -55,6 +55,7 @@ export async function loadFinance(db, userId) {
       id: m.id,
       name: m.name,
       aliases: JSON.parse(m.aliases),
+      ...(m.category ? { category: m.category } : {}),
       hidden: !!m.hidden,
     }));
   return {
@@ -82,8 +83,15 @@ export function financeWrites(db, userId, before, after, token) {
     );
     if (!same(previous, m))
       add(
-        `INSERT INTO user_merchants(user_id,id,name,aliases,hidden) SELECT ?,?,?,?,? WHERE ${guard} ON CONFLICT(user_id,id) DO UPDATE SET name=excluded.name,aliases=excluded.aliases,hidden=excluded.hidden`,
-        [userId, m.id, m.name, JSON.stringify(m.aliases), m.hidden ? 1 : 0],
+        `INSERT INTO user_merchants(user_id,id,name,aliases,category,hidden) SELECT ?,?,?,?,?,? WHERE ${guard} ON CONFLICT(user_id,id) DO UPDATE SET name=excluded.name,aliases=excluded.aliases,category=excluded.category,hidden=excluded.hidden`,
+        [
+          userId,
+          m.id,
+          m.name,
+          JSON.stringify(m.aliases),
+          m.category ?? null,
+          m.hidden ? 1 : 0,
+        ],
       );
   }
   for (const [key, m] of Object.entries(after.months)) {

@@ -177,6 +177,7 @@ const merchant = {
   id: "c-" + "2".repeat(32),
   name: "Тестовый магазин",
   aliases: ["магазин тест"],
+  category: "Кафе",
   hidden: false,
 };
 const merchantAction = {

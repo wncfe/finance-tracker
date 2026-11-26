@@ -50,6 +50,11 @@
     $("merchantForm").reset();
     $("merchantFormTitle").textContent = "Новый магазин или сервис";
     $("merchantError").textContent = "";
+    $("merchantCategory").innerHTML =
+      '<option value="">Не задана</option>' +
+      categoryOptions()
+        .map((category) => `<option>${esc(category)}</option>`)
+        .join("");
   }
 
   function renderList() {
@@ -61,41 +66,56 @@
       matches
         .map(
           (m) =>
-            `<button class="merchant-list-item" type="button" data-merchant-edit="${esc(m.id)}"><span>${esc(m.name)}${m.hidden ? " <small>(скрыт)</small>" : ""}</span><small>${esc(m.aliases.join(", "))}</small></button>`,
+            `<button class="merchant-list-item" type="button" data-merchant-edit="${esc(m.id)}"><span>${esc(m.name)}${m.hidden ? " <small>(скрыт)</small>" : ""}</span><small>${m.category ? `Категория: ${esc(m.category)} · ` : ""}${esc(m.aliases.join(", "))}</small></button>`,
         )
         .join("") || '<p class="muted">Ничего не найдено</p>';
   }
 
-  function open(callback, suggested = "") {
+  function openForm(callback, suggested = "", item = null) {
     if (busy) return;
     onSaved = callback || null;
     clearForm();
-    $("merchantSearch").value = "";
     $("merchantName").value = suggested;
+    if (item) {
+      editing = item.id;
+      $("merchantFormTitle").textContent = "Редактировать магазин";
+      $("merchantName").value = item.name;
+      $("merchantAliases").value = item.aliases.join("\n");
+      $("merchantCategory").value = item.category || "";
+      $("merchantHidden").checked = !!item.hidden;
+    }
+    $("merchantFormDialog").showModal();
+    $("merchantName").focus();
+  }
+
+  function open(callback, suggested = "") {
+    openForm(callback, suggested);
+  }
+
+  function openLibrary() {
+    if (busy) return;
+    $("merchantSearch").value = "";
     renderList();
     $("merchantDialog").showModal();
   }
 
-  $("merchantOpen").onclick = () => open();
+  $("merchantOpen").onclick = openLibrary;
+  $("merchantAdd").onclick = () => openForm();
   $("merchantClose").onclick = () => {
     if (!busy) $("merchantDialog").close();
+  };
+  $("merchantFormClose").onclick = () => {
+    if (!busy) $("merchantFormDialog").close();
   };
   $("merchantDialog").addEventListener("cancel", (e) => {
     if (busy) e.preventDefault();
   });
   $("merchantSearch").oninput = renderList;
-  $("merchantClear").onclick = clearForm;
   $("merchantList").onclick = (e) => {
     const id = e.target.closest("[data-merchant-edit]")?.dataset.merchantEdit;
     const item = D.all(state.merchants || [], true).find((m) => m.id === id);
     if (!item) return;
-    editing = item.id;
-    $("merchantFormTitle").textContent = "Изменить магазин или сервис";
-    $("merchantName").value = item.name;
-    $("merchantAliases").value = item.aliases.join("\n");
-    $("merchantHidden").checked = !!item.hidden;
-    $("merchantError").textContent = "";
-    $("merchantName").focus();
+    openForm(null, "", item);
   };
   $("merchantForm").onsubmit = async (e) => {
     e.preventDefault();
@@ -114,7 +134,14 @@
       editing ||
       draftId ||
       (draftId = "c-" + crypto.randomUUID().replaceAll("-", ""));
-    const item = { id, name, aliases, hidden: $("merchantHidden").checked };
+    const category = $("merchantCategory").value;
+    const item = {
+      id,
+      name,
+      aliases,
+      category: category || null,
+      hidden: $("merchantHidden").checked,
+    };
     const sameName = D.all(state.merchants || [], true).find(
       (m) => m.id !== id && D.normalize(m.name) === D.normalize(name),
     );
@@ -129,12 +156,11 @@
       if (onSaved && !item.hidden) {
         const callback = onSaved;
         onSaved = null;
-        $("merchantDialog").close();
+        $("merchantFormDialog").close();
         callback(id);
       } else {
-        editing = id;
-        $("merchantFormTitle").textContent = "Изменить магазин или сервис";
-        $("merchantError").textContent = "Сохранено";
+        $("merchantFormDialog").close();
+        if (!$("merchantDialog").open) openLibrary();
       }
     } else
       $("merchantError").textContent =

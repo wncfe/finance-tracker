@@ -100,7 +100,7 @@ def apply(state, action, today=None):
         raise ValueError('Переносы между месяцами больше не поддерживаются')
     if action.get('type') == 'merchant_save':
         item=action.get('merchant')
-        if not isinstance(item,dict) or set(item)-{'id','name','aliases','hidden'}:
+        if not isinstance(item,dict) or set(item)-{'id','name','aliases','category','hidden'}:
             raise ValueError('Некорректный магазин')
         identifier=item.get('id')
         if not isinstance(identifier,str) or not (any(m['id']==identifier for m in MERCHANT_DEFAULTS) or re.fullmatch(r'c-[0-9a-f]{32}',identifier)):
@@ -111,10 +111,15 @@ def apply(state, action, today=None):
         aliases=item.get('aliases')
         if not isinstance(aliases,list) or len(aliases)>30 or any(not isinstance(a,str) or not 1<=utf16len(a.strip())<=100 for a in aliases):
             raise ValueError('Некорректные варианты названия')
+        category=item.get('category')
+        if category not in (None,'') and category not in CATEGORIES:
+            raise ValueError('Неизвестная категория магазина')
         if type(item.get('hidden')) is not bool: raise ValueError('Некорректный статус магазина')
         state=copy.deepcopy(state)
         merchants=[m for m in state.get('merchants',[]) if m['id']!=identifier]
-        merchants.append(dict(id=identifier,name=name.strip(),aliases=[a.strip() for a in aliases],hidden=item['hidden']))
+        merchant=dict(id=identifier,name=name.strip(),aliases=[a.strip() for a in aliases],hidden=item['hidden'])
+        if category: merchant['category']=category
+        merchants.append(merchant)
         state['merchants']=sorted(merchants,key=lambda m:m['id'])
         return state
     if action.get('type') == 'expenses':

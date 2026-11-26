@@ -581,8 +581,8 @@
         <button id="merchantClose" type="button" aria-label="Закрыть">✕</button>
       </div>
       <p class="muted">
-        Названия и варианты сохраняются в аккаунте. Описания и категории
-        расходов не меняются.
+        Здесь можно искать, добавлять и редактировать магазины. Для выбора
+        магазина в операции откройте форму операции.
       </p>
       <label
         >Поиск<input
@@ -591,8 +591,18 @@
           placeholder="Название магазина"
       /></label>
       <div id="merchantList" class="merchant-list"></div>
+      <button id="merchantAdd" class="primary" type="button">
+        Добавить магазин
+      </button>
+    </dialog>
+    <dialog id="merchantFormDialog" aria-labelledby="merchantFormTitle">
+      <div class="dialoghead">
+        <h2 id="merchantFormTitle">Новый магазин или сервис</h2>
+        <button id="merchantFormClose" type="button" aria-label="Закрыть">
+          ✕
+        </button>
+      </div>
       <form id="merchantForm">
-        <h3 id="merchantFormTitle">Новый магазин или сервис</h3>
         <label
           >Название<input id="merchantName" maxlength="100" required
         /></label>
@@ -603,12 +613,12 @@
             placeholder="Каждый вариант с новой строки"
           ></textarea>
         </label>
+        <label>Категория магазина<select id="merchantCategory"></select></label>
         <label class="checkline"
           ><input id="merchantHidden" type="checkbox" /> Скрыть из выбора</label
         >
         <p id="merchantError" role="alert"></p>
         <button class="primary" type="submit">Сохранить</button>
-        <button id="merchantClear" type="button">Новый магазин</button>
       </form>
     </dialog>
     <dialog id="quickdialog" aria-labelledby="quicktitle">

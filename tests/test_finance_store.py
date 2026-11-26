@@ -82,6 +82,14 @@ class StoreTests(unittest.TestCase):
             deleted=budget.apply(after,dict(type='delete',month='2026-11',week=0,id=identifier))
             store.save(db,1,after,deleted);self.assertEqual(store.load(db,1),deleted)
 
+    def test_merchant_category_roundtrip(self):
+        with self.legacy({'months':{}}) as db:
+            store.migrate(db)
+            before=store.load(db,1)
+            after=budget.apply(before,dict(type='merchant_save',merchant=dict(id='c-'+'1'*32,name='Магазин с категорией',aliases=[],category='Кафе',hidden=False)))
+            store.save(db,1,before,after);db.commit()
+            self.assertEqual(store.load(db,1)['merchants'][0]['category'],'Кафе')
+
     def test_foreign_keys_and_atomic_rollback(self):
         with self.legacy({'months':{}}) as db:
             store.migrate(db)

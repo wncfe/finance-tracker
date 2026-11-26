@@ -120,13 +120,21 @@ const assert = require("node:assert/strict");
     await page.locator("#editExpenseDate").fill("2026-11-10");
     await page.getByRole("button", { name: "Магазин операции" }).click();
     await page.locator(".picker[open] [data-merchant-create]").click();
-    await page.locator("#merchantDialog").waitFor({ state: "visible" });
+    await page.locator("#merchantFormDialog").waitFor({ state: "visible" });
     await page.locator("#merchantName").fill("Новый из редактора");
+    await page
+      .locator("#merchantCategory")
+      .selectOption({ label: "Супермаркеты" });
     await page.locator("#merchantForm button[type=submit]").click();
-    await page.locator("#merchantDialog").waitFor({ state: "hidden" });
+    await page.locator("#merchantFormDialog").waitFor({ state: "hidden" });
     const createdMerchantId = (await state()).state.merchants.find(
       (m) => m.name === "Новый из редактора",
     ).id;
+    assert.equal(
+      (await state()).state.merchants.find((m) => m.id === createdMerchantId)
+        .category,
+      "Супермаркеты",
+    );
     await choose("Новая категория", "Супермаркеты");
     for (const width of [320, 390, 1440]) {
       await page.setViewportSize({ width, height: 844 });

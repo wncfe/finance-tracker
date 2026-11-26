@@ -37,6 +37,7 @@ const assert = require("node:assert/strict");
     });
     await page.goto("http://127.0.0.1:8004/");
     await page.locator("#toast").waitFor({ state: "visible" });
+    await page.locator("#sessionRetry").click();
     await page.locator("[name=login]").fill("merchant-browser");
     await page.locator("[name=password]").fill("browser-password-123");
     await page.locator("#register").click();
@@ -86,9 +87,27 @@ const assert = require("node:assert/strict");
     assert.equal(expenses[0].merchantId, merchantId);
     assert.equal(expenses[0].note, "Магнит");
     await page.locator("#tab-history").click();
-    await page.locator("#historyMerchant").selectOption(merchantId);
+    const historyMerchant = page.locator("#historyMerchant");
+    const historyMerchantIndex = await historyMerchant
+      .locator("option")
+      .evaluateAll(
+        (options, id) => options.findIndex((option) => option.value === id),
+        merchantId,
+      );
+    await page.locator("#historyMerchant + button").click();
+    await page
+      .locator(`.picker[open] [data-option="${historyMerchantIndex}"]`)
+      .click();
     assert.equal(await page.locator("#history .entry").count(), 1);
-    await page.locator("#historyMerchant").selectOption("__none__");
+    const noMerchantIndex = await historyMerchant
+      .locator("option")
+      .evaluateAll((options) =>
+        options.findIndex((option) => option.value === "__none__"),
+      );
+    await page.locator("#historyMerchant + button").click();
+    await page
+      .locator(`.picker[open] [data-option="${noMerchantIndex}"]`)
+      .click();
     assert.equal(await page.locator("#history .entry").count(), 0);
     const secondContext = await browser.newContext({
       viewport: { width: 1440, height: 900 },
@@ -169,10 +188,11 @@ const assert = require("node:assert/strict");
     await page.locator("#merchantOpen").click();
     await page.locator("#merchantSearch").fill("Мой тестовый");
     await page.locator(`[data-merchant-edit="${merchantId}"]`).click();
+    await page.locator("#merchantFormDialog").waitFor({ state: "visible" });
     await page.locator("#merchantName").fill("Обновлённый магазин");
     await page.locator("#merchantHidden").check();
     await page.locator("#merchantForm button[type=submit]").click();
-    await page.locator("#merchantError").getByText("Сохранено").waitFor();
+    await page.locator("#merchantFormDialog").waitFor({ state: "hidden" });
     await page.locator("#merchantClose").click();
     state = await page.evaluate(() =>
       fetch("/api/state").then((r) => r.json()),
@@ -184,11 +204,24 @@ const assert = require("node:assert/strict");
     );
     assert.equal(expenses[0].merchantId, merchantId);
     await page.locator("#merchantOpen").click();
+    await page.locator("#merchantAdd").click();
     await page.locator("#merchantName").fill("Другой магазин");
     await page.locator("#merchantAliases").fill("Магнит");
+    await page
+      .locator("#merchantCategory")
+      .selectOption({ label: "Супермаркеты" });
     await page.locator("#merchantForm button[type=submit]").click();
-    await page.locator("#merchantError").getByText("Сохранено").waitFor();
+    await page.locator("#merchantFormDialog").waitFor({ state: "hidden" });
     await page.locator("#merchantClose").click();
+    state = await page.evaluate(() =>
+      fetch("/api/state").then((r) => r.json()),
+    );
+    assert.equal(
+      state.state.merchants.find(
+        (merchant) => merchant.name === "Другой магазин",
+      ).category,
+      "Супермаркеты",
+    );
     await page.locator("#quickopen").click();
     await page.locator("#quicktext").fill("Магнит 150");
     await page.locator("#quickparse button").click();
