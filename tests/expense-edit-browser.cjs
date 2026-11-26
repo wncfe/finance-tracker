@@ -479,6 +479,10 @@ const assert = require("node:assert/strict");
       "#historyCategories [data-history-remainder]",
     );
     assert.equal(
+      await remainderChip.locator("img").getAttribute("src"),
+      "/icons/ellipsis.svg",
+    );
+    assert.equal(
       await remainderChip.locator("strong").textContent(),
       await page.evaluate((n) => money(n), 6184569 - 4850000),
     );

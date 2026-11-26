@@ -149,6 +149,28 @@ const assert = require("node:assert/strict");
     assert.equal(expenses[0].merchantId, merchantId);
     assert.equal(expenses[0].category, "Тестовая категория");
     assert.equal(expenses[0].note, "Магнит");
+    await page.locator("#month").evaluate((input, month) => {
+      input.value = month;
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    }, expenses[0].date.slice(0, 7));
+    await page.locator("#tab-history").click();
+    const customRow = page.locator("#history .entry").filter({
+      hasText: "Тестовая категория",
+    });
+    const customChip = page.locator(
+      '#historyCategories [data-history-category="Тестовая категория"]',
+    );
+    assert.equal(
+      await customRow.locator("img").getAttribute("src"),
+      await customChip.locator("img").getAttribute("src"),
+    );
+    const background = (locator) =>
+      locator.evaluate((element) => getComputedStyle(element).backgroundColor);
+    assert.equal(
+      await background(customRow.locator(".icon")),
+      await background(customChip.locator(".history-category-icon")),
+    );
+    await page.locator("#tab-overview").click();
     const secondContext = await browser.newContext({
       viewport: { width: 1440, height: 900 },
     });
