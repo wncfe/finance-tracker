@@ -79,8 +79,8 @@ const ExpenseHistoryView = (() => {
     point(r, a)
       .map((value) => value.toFixed(3))
       .join(" ");
-  const segmentSymbol = (category) =>
-    category === "Другое" ? "wallet" : categoryIcon(category);
+  const segmentSymbol = (category, grouped) =>
+    grouped ? "ellipsis" : categoryIcon(category);
 
   function sector(start, end) {
     const largeArc = Number(end - start > Math.PI);
@@ -108,7 +108,6 @@ const ExpenseHistoryView = (() => {
       sliceIndex,
       { category, amount, grouped },
     ] of slices.entries()) {
-      const index = cats.indexOf(category);
       const label = grouped ? "Остальные" : category;
       const sliceColor = grouped ? remainingColor : categoryColor(category);
       const share = amount / summary.total;
@@ -142,7 +141,7 @@ const ExpenseHistoryView = (() => {
           inset + nextLength * 0.55,
         );
         const [x, y] = point(midRadius, end - inset / midRadius);
-        const symbol = segmentSymbol(category);
+        const symbol = segmentSymbol(category, grouped);
         heads.push(`<g class="history-ring-trailing">
           <circle class="history-ring-head history-ring-segment" ${action} cx="${x}" cy="${y}" r="${capRadius}" fill="${color}"><title>${hint}</title></circle>
           ${capRadius >= 8 ? `<image class="history-ring-symbol" href="/icons/${symbol}.svg" x="${x - 6.5}" y="${y - 6.5}" width="13" height="13" ${muted ? 'opacity=".5"' : ""} />` : ""}
@@ -206,7 +205,6 @@ const ExpenseHistoryView = (() => {
   }
 
   function categoryChip({ category, amount, grouped }) {
-    const index = cats.indexOf(category);
     const color = grouped ? remainingColor : categoryColor(category);
     const chip = document.createElement("button");
     chip.type = "button";
@@ -220,7 +218,7 @@ const ExpenseHistoryView = (() => {
       chip.dataset.historyCategory = category;
       chip.setAttribute("aria-pressed", String(category === activeCategory));
     }
-    chip.innerHTML = `<span class="history-category-icon" aria-hidden="true">${icon(segmentSymbol(category))}</span>
+    chip.innerHTML = `<span class="history-category-icon" aria-hidden="true">${icon(segmentSymbol(category, grouped))}</span>
       <span class="history-category-copy">
         <span>${grouped ? "Остальные" : esc(category)}</span><strong>${money(amount)}</strong>
       </span>`;
@@ -265,7 +263,7 @@ const ExpenseHistoryView = (() => {
     const breakdown = chartBreakdown(summary);
     renderCarousel(data, p, summary, breakdown.slices);
     renderCategories(breakdown);
-    $("history").innerHTML = entries(visible);
+    renderCategoryMarkup($("history"), entries(visible));
   }
 
   function slideOffset() {

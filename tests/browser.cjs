@@ -44,7 +44,7 @@ const assert = require("node:assert/strict");
     await page.locator('[data-week="1"]').click();
     await page.locator("[name=amount]").fill("459.90");
     await page.locator("[name=note]").fill("Супермаркеты <тест>");
-    await page.locator('[data-category="0"]').click();
+    await page.locator('#categorybuttons [data-category="Фастфуд"]').click();
     await page
       .locator("#expenseform label")
       .filter({ has: page.locator("[name=date]") })

@@ -782,9 +782,11 @@
     if (!detail) return;
     const expenses = source().expenses.filter((e) => detail.ids.has(e.id));
     $("analysisDetailsTitle").textContent = detail.title;
-    $("analysisDetailsBody").innerHTML =
+    renderCategoryMarkup(
+      $("analysisDetailsBody"),
       `<p>${esc(detail.explanation)}</p><p>Всего: ${money(expenses.reduce((s, e) => s + e.amount, 0))}</p>` +
-      entries(expenses);
+        entries(expenses),
+    );
   }
   function drawReport() {
     const month = $("reportMonth").value;

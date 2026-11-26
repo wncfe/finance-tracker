@@ -116,6 +116,11 @@ const assert = require("node:assert/strict");
         .click();
     };
     await open(expense.id);
+    const categoryChoices = page.locator("#editCategoryChoices");
+    await categoryChoices
+      .getByRole("button", { name: "Такси", exact: true })
+      .click();
+    assert.equal(await page.locator("#expenseCategory").inputValue(), "Такси");
     await page.locator("#editExpenseAmount").fill("125.50");
     await page.locator("#editExpenseDate").fill("2026-11-10");
     await page.getByRole("button", { name: "Магазин операции" }).click();
@@ -135,7 +140,16 @@ const assert = require("node:assert/strict");
         .category,
       "Супермаркеты",
     );
-    assert.equal(await page.locator("#expenseCategory").inputValue(), "Супермаркеты");
+    assert.equal(
+      await page.locator("#expenseCategory").inputValue(),
+      "Супермаркеты",
+    );
+    const linkedChoice = categoryChoices.getByRole("button", {
+      name: "Супермаркеты",
+      exact: true,
+    });
+    assert.equal(await linkedChoice.getAttribute("aria-pressed"), "true");
+    assert.equal(await linkedChoice.isDisabled(), true);
     for (const width of [320, 390, 1440]) {
       await page.setViewportSize({ width, height: 844 });
       const box = await page.locator("#categoryEditor").boundingBox();
@@ -199,7 +213,8 @@ const assert = require("node:assert/strict");
     assert.equal(await page.locator("#editExpenseAmount").isDisabled(), true);
     assert.equal(await page.locator("#editExpenseDate").isDisabled(), true);
     await choose("Магазин операции", "Магнит");
-    await choose("Новая категория", "Супермаркеты");
+    assert.equal(await linkedChoice.getAttribute("aria-pressed"), "true");
+    assert.equal(await linkedChoice.isDisabled(), true);
     await page.locator("#categoryEditorForm button.primary").click();
     await page.locator("#categoryEditor").waitFor({ state: "hidden" });
     current = await state();
@@ -434,6 +449,10 @@ const assert = require("node:assert/strict");
     const remainder = page.locator("#historyRemainderDialog");
     const remainderChip = page.locator(
       "#historyCategories [data-history-remainder]",
+    );
+    assert.equal(
+      await remainderChip.locator("img").getAttribute("src"),
+      "/icons/ellipsis.svg",
     );
     assert.equal(
       await remainderChip.locator("strong").textContent(),

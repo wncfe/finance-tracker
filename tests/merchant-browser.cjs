@@ -149,6 +149,25 @@ const assert = require("node:assert/strict");
     assert.equal(expenses[0].merchantId, merchantId);
     assert.equal(expenses[0].category, "Тестовая категория");
     assert.equal(expenses[0].note, "Магнит");
+    await page.locator("#tab-history").click();
+    const customRow = page
+      .locator("#history .entry")
+      .filter({ hasText: "Тестовая категория" });
+    const customChip = page.locator(
+      '#historyCategories [data-history-category="Тестовая категория"]',
+    );
+    assert.equal(
+      await customRow.locator("img").getAttribute("src"),
+      await customChip.locator("img").getAttribute("src"),
+    );
+    const colorOf = (locator) =>
+      locator.evaluate((el) =>
+        getComputedStyle(el).getPropertyValue("--category-color").trim(),
+      );
+    const customColor = await colorOf(customRow.locator(".icon"));
+    assert.match(customColor, /^#[0-9a-f]{6}$/);
+    assert.equal(await colorOf(customChip), customColor);
+    assert.notEqual(customColor, "#687776");
     const secondContext = await browser.newContext({
       viewport: { width: 1440, height: 900 },
     });
@@ -159,6 +178,12 @@ const assert = require("node:assert/strict");
     await secondPage.locator("#authform button[type=submit]").click();
     await secondPage.locator("#dashboard").waitFor({ state: "visible" });
     await secondPage.locator('[data-week="0"]').click();
+    const weeklyChoice = secondPage.locator(
+      '#categorybuttons [data-category="Тестовая категория"]',
+    );
+    await weeklyChoice.click();
+    assert.equal(await weeklyChoice.getAttribute("aria-pressed"), "true");
+    assert.equal(await colorOf(weeklyChoice), customColor);
     await secondPage.locator('#expenseform [name="note"]').fill("Магазин Тест");
     assert.equal(
       await secondPage.locator("#weekMerchant").inputValue(),

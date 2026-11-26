@@ -44,7 +44,7 @@ const $ = (id) => document.getElementById(id),
     "monitor",
     "plane",
     "clapperboard",
-    "ellipsis",
+    "wallet",
     "shopping-basket",
     "coffee",
   ];
@@ -60,32 +60,35 @@ const customCategoryIcons = [
   "book", "monitor", "shirt", "burger", "car", "plane", "phone",
   "heart-pulse", "dumbbell", "baby", "clapperboard", "utensils",
 ];
-const categoryIndex = (category) => cats.indexOf(category);
-function customCategoryIndex(category) {
+function customCategoryHash(category) {
   let hash = 0;
-  for (const char of category)
-    hash = (hash * 31 + char.codePointAt(0)) >>> 0;
+  for (const char of category) hash = (hash * 31 + char.codePointAt(0)) >>> 0;
   return hash;
 }
-const categoryIcon = (category) => {
-  const index = categoryIndex(category);
-  return index >= 0 && index < iconNames.length
-    ? iconNames[index]
-    : customCategoryIcons[customCategoryIndex(category) % customCategoryIcons.length];
-};
-const categoryColor = (category) => {
-  const index = categoryIndex(category);
-  return index >= 0 && index < categoryColors.length
-    ? categoryColors[index]
-    : categoryColors[customCategoryIndex(category) % categoryColors.length];
-};
-const categoryChoice = (category, selected) => {
-  const index = categoryIndex(category), name = categoryIcon(category);
-  return `<button type="button" class="category-choice" data-category="${index}" style="--category-color:${categoryColor(category)}" aria-pressed="${String(category === selected)}">${icon(name)}<span>${esc(category)}</span></button>`;
-};
+const categoryIcon = (category) =>
+  iconNames[baseCats.indexOf(CategoryUtils.canonical(category))] ??
+  customCategoryIcons[customCategoryHash(category) % customCategoryIcons.length];
+const categoryColor = (category) =>
+  categoryColors[baseCats.indexOf(CategoryUtils.canonical(category))] ??
+  categoryColors[customCategoryHash(category) % categoryColors.length];
 const icon = (name) =>
-    `<img class="svgicon" src="/icons/${name}.svg" alt="" aria-hidden="true">`,
-  icons = iconNames.map(icon);
+  `<img class="svgicon" src="/icons/${name}.svg" alt="" aria-hidden="true">`;
+function renderCategoryMarkup(target, markup) {
+  target.innerHTML = markup;
+  for (const item of target.querySelectorAll("[data-category-color]"))
+    item.style.setProperty("--category-color", item.dataset.categoryColor);
+}
+function renderCategoryChoices(target, selected, options = categoryOptions()) {
+  renderCategoryMarkup(
+    target,
+    options
+      .map(
+        (name) =>
+          `<button type="button" class="category-choice" data-category="${esc(name)}" data-category-color="${categoryColor(name)}" aria-pressed="${name === selected}">${icon(categoryIcon(name))}<span>${esc(name)}</span></button>`,
+      )
+      .join(""),
+  );
+}
 const money = (n) =>
   new Intl.NumberFormat("ru-RU", {
     style: "currency",
@@ -246,7 +249,7 @@ function entries(expenses) {
         const iconName = categoryIcon(expense.category);
         const title = expenseTitle(expense, merchants.get(expense.merchantId));
         return `<button type="button" class="entry" data-expense-id="${esc(expense.id)}" data-month="${esc(day.slice(0, 7))}" aria-haspopup="dialog" aria-controls="expenseDetails">
-          <span class="icon" data-icon="${iconName}" style="--category-color:${categoryColor(expense.category)}" aria-hidden="true">${icon(iconName)}</span>
+          <span class="icon" data-icon="${iconName}" data-category-color="${categoryColor(expense.category)}" aria-hidden="true">${icon(iconName)}</span>
           <span class="description"><span class="expense-title">${esc(title)}</span><small>${esc(expense.category)}</small></span>
           <strong>${money(expense.amount)}</strong>
         </button>`;
@@ -303,8 +306,9 @@ function renderWeek() {
   $("weekforecast").innerHTML = forecastMarkup(week, true);
   $("weekeditable").hidden = w.closed;
   $("limit").value = w.limit / 100;
-  $("weekexpenses").innerHTML = entries(
-    m.expenses.filter((expense) => expense.week === week),
+  renderCategoryMarkup(
+    $("weekexpenses"),
+    entries(m.expenses.filter((expense) => expense.week === week)),
   );
   const date = $("expenseform").elements.date,
     min = `${selected}-${String(w.start).padStart(2, "0")}`,
@@ -324,9 +328,7 @@ function renderWeek() {
     : "Сначала задайте категорию этому магазину";
   $("expenseform").querySelector("button.primary").disabled =
     min > todayDate() || (!!selectedMerchant && !selectedMerchant.category);
-  $("categorybuttons").innerHTML = categoryOptions()
-    .map((c) => categoryChoice(c, category))
-    .join("");
+  renderCategoryChoices($("categorybuttons"), category);
 }
 function updateCloseAvailability() {
   const m = current(),
