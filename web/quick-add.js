@@ -177,7 +177,7 @@
         if (frozen) el.disabled = true;
       });
   }
-  $("quickopen").onclick = () => {
+  const openQuickAdd = () => {
     if (owner !== accountLogin) {
       rows = [];
       owner = accountLogin;
@@ -220,6 +220,8 @@
     $("quickdialog").showModal();
     $("quicktext").focus();
   };
+  $("quickopen").onclick = openQuickAdd;
+  $("historyQuickopen").onclick = openQuickAdd;
   $("quickclose").onclick = () => {
     if (!saving) $("quickdialog").close();
   };

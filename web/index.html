@@ -144,7 +144,17 @@
             data-nav-panel="history"
             class="card history"
           >
-            <div class="sectionhead"><h2>История трат</h2></div>
+            <div class="sectionhead">
+              <h2>История трат</h2>
+              <button
+                type="button"
+                id="historyQuickopen"
+                class="primary history-add"
+                aria-label="Добавить расход"
+              >
+                ＋ Расход
+              </button>
+            </div>
             <section
               class="history-breakdown"
               aria-label="Расходы по категориям"
@@ -207,14 +217,6 @@
                 <div class="history-carousel-track" id="historyTrack"></div>
               </div>
             </section>
-            <div class="history-filters">
-              <div id="historyBudgetWeek">
-                <select id="filter" aria-label="Фильтр недели"></select>
-              </div>
-              <select id="historyMerchant" aria-label="Фильтр магазина">
-                <option value="">Все магазины</option>
-              </select>
-            </div>
             <div
               class="history-categories"
               id="historyCategories"
@@ -226,10 +228,6 @@
                 Сбросить категорию
               </button>
             </div>
-            <p class="history-summary" aria-live="polite" aria-atomic="true">
-              <span id="historyTotalLabel">Потрачено за месяц</span>
-              <strong id="historyTotal"></strong>
-            </p>
             <div id="history" tabindex="-1"></div>
           </section>
         </section>

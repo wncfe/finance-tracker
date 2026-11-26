@@ -4,7 +4,6 @@ const ExpenseHistoryView = (() => {
   const A = ExpenseAnalytics;
   const firstDate = "2000-01-01";
   const lastDate = "2100-12-31";
-  const periodLabels = { week: "неделю", month: "месяц", year: "год" };
   const colors = [
     "#ce7044",
     "#ae674d",
@@ -40,11 +39,6 @@ const ExpenseHistoryView = (() => {
     year: "numeric",
     timeZone: "UTC",
   });
-  const dayLabel = new Intl.DateTimeFormat("ru-RU", {
-    day: "numeric",
-    month: "short",
-    timeZone: "UTC",
-  });
   const percentage = new Intl.NumberFormat("ru-RU", {
     style: "percent",
     maximumFractionDigits: 1,
@@ -63,53 +57,6 @@ const ExpenseHistoryView = (() => {
     return scale === "year"
       ? { from: year + "-01-01", to: year + "-12-31" }
       : A.range(scale, basis);
-  }
-
-  function updateWeek(month) {
-    const select = $("filter");
-    const previous = select.value;
-    $("historyBudgetWeek").hidden = scale !== "month";
-    const weeks = state.months[month]?.weeks || calendar(month);
-    const dateInMonth = (day) =>
-      A.date(month + "-" + String(day).padStart(2, "0"));
-    select.innerHTML =
-      '<option value="">Весь месяц</option>' +
-      weeks
-        .map((week, i) => {
-          const label = dayLabel.formatRange(
-            dateInMonth(week.start),
-            dateInMonth(week.end),
-          );
-          return `<option value="${i}">${esc(label)}</option>`;
-        })
-        .join("");
-    select.value = weeks[Number(previous)] && previous !== "" ? previous : "";
-    return scale === "month" && select.value !== ""
-      ? weeks[Number(select.value)]
-      : null;
-  }
-
-  function updateMerchant(expenses) {
-    const select = $("historyMerchant");
-    const previous = select.value;
-    const used = new Set(expenses.map((expense) => expense.merchantId));
-    const merchants = MerchantDictionary.all(state.merchants, true).filter(
-      (merchant) => used.has(merchant.id) || merchant.id === previous,
-    );
-    select.innerHTML =
-      '<option value="">Все магазины</option><option value="__none__">Без магазина</option>' +
-      merchants
-        .map(
-          (merchant) =>
-            `<option value="${esc(merchant.id)}">${esc(merchant.name)}</option>`,
-        )
-        .join("");
-    select.value =
-      previous === "__none__" ||
-      merchants.some((merchant) => merchant.id === previous)
-        ? previous
-        : "";
-    return select.value;
   }
 
   function adjacent(p, direction) {
@@ -255,20 +202,14 @@ const ExpenseHistoryView = (() => {
     </div>`;
   }
 
-  function trackedExpenses(data, range, merchant) {
+  function trackedExpenses(data, range) {
     return A.operations(data, {
       from: range.from,
       to: range.to < todayDate() ? range.to : todayDate(),
-    }).filter(
-      (expense) =>
-        !merchant ||
-        (merchant === "__none__"
-          ? !expense.merchantId
-          : expense.merchantId === merchant),
-    );
+    });
   }
 
-  function renderCarousel(data, p, summary, slices, merchant) {
+  function renderCarousel(data, p, summary, slices) {
     animation?.cancel();
     animation = null;
     drag = null;
@@ -277,7 +218,7 @@ const ExpenseHistoryView = (() => {
       if (!at) return '<div class="history-slide" aria-hidden="true"></div>';
       const range = period(at);
       const neighbor = A.summarize(
-        { expenses: trackedExpenses(data, range, merchant) },
+        { expenses: trackedExpenses(data, range) },
         range,
       );
       return chartMarkup(neighbor, chartBreakdown(neighbor).slices, slot);
@@ -324,17 +265,9 @@ const ExpenseHistoryView = (() => {
 
   function render() {
     const p = period();
-    const month = p.from.slice(0, 7);
-    const budgetWeek = updateWeek(month);
-    const range = budgetWeek
-      ? {
-          from: month + "-" + String(budgetWeek.start).padStart(2, "0"),
-          to: month + "-" + String(budgetWeek.end).padStart(2, "0"),
-        }
-      : p;
+    const range = p;
     const data = A.index(state);
-    const merchant = updateMerchant(trackedExpenses(data, range, ""));
-    const matched = trackedExpenses(data, range, merchant);
+    const matched = trackedExpenses(data, range);
     const summary = A.summarize({ expenses: matched }, range);
     const visible = activeCategory
       ? matched.filter((expense) => expense.category === activeCategory)
@@ -356,13 +289,8 @@ const ExpenseHistoryView = (() => {
       );
 
     const breakdown = chartBreakdown(summary);
-    renderCarousel(data, p, summary, breakdown.slices, merchant);
+    renderCarousel(data, p, summary, breakdown.slices);
     renderCategories(breakdown);
-    $("historyTotalLabel").textContent =
-      budgetWeek || merchant || activeCategory
-        ? "Потрачено по фильтрам"
-        : `Потрачено за ${periodLabels[scale]}`;
-    $("historyTotal").textContent = money(sumExpenses(visible));
     $("history").innerHTML = entries(visible);
   }
 
@@ -381,7 +309,6 @@ const ExpenseHistoryView = (() => {
       $("historyTrack").style.removeProperty("--history-drag");
       if (at) {
         anchor = at;
-        $("filter").value = "";
         render();
       }
     };
@@ -474,7 +401,6 @@ const ExpenseHistoryView = (() => {
       const periodButton = event.target.closest("[data-history-scale]");
       if (periodButton && periodButton.dataset.historyScale !== scale) {
         scale = periodButton.dataset.historyScale;
-        $("filter").value = "";
         render();
       }
       if (ring.contains(event.target) && (swiped || animation)) return;
@@ -510,14 +436,10 @@ const ExpenseHistoryView = (() => {
         preventScroll: true,
       });
     };
-    $("filter").onchange = render;
-    $("historyMerchant").onchange = render;
   }
 
   function reset() {
     anchor = "";
-    $("filter").value = "";
-    $("historyMerchant").value = "";
   }
 
   return { init, render, reset };

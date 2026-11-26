@@ -195,15 +195,18 @@ const assert = require("node:assert/strict");
     await page.reload();
     await page.locator("#dashboard").waitFor({ state: "visible" });
     await page.locator("#tab-history").click();
+    const historyAdd = page.locator("#historyQuickopen");
+    assert.equal(await historyAdd.isVisible(), true);
+    assert.equal(await page.locator("#quickopen").isVisible(), false);
+    assert.equal(await page.locator("#filter").count(), 0);
+    assert.equal(await page.locator("#historyMerchant").count(), 0);
+    assert.equal(await page.locator(".history-summary").count(), 0);
+    await historyAdd.click();
+    await page.locator("#quickdialog").waitFor({ state: "visible" });
+    await page.locator("#quickclose").click();
     await page.locator(".monthnav .picker-trigger").click();
     await page.locator('.picker[open] [data-value="2026-10"]').click();
-    await page.getByRole("button", { name: "Фильтр магазина" }).click();
-    await page
-      .locator(".picker[open]")
-      .getByRole("button", { name: "Магнит" })
-      .click();
     const total = await page.evaluate(() => money(12550));
-    assert.equal(await page.locator("#historyTotal").textContent(), total);
     assert.equal(
       await page.locator(".entry-day-total:visible").textContent(),
       total,
@@ -224,14 +227,7 @@ const assert = require("node:assert/strict");
     page.once("dialog", (dialog) => dialog.accept());
     await page.locator("#expenseDetailsDelete").click();
     await expenseRow.waitFor({ state: "detached" });
-    assert.equal(
-      await page.locator("#historyMerchant").inputValue(),
-      "b-magnit",
-    );
-    assert.equal(
-      await page.locator("#historyTotal").textContent(),
-      await page.evaluate(() => money(0)),
-    );
+    assert.equal(await page.locator("#history .entry").count(), 0);
     await action({
       type: "expenses",
       items: [
@@ -261,7 +257,6 @@ const assert = require("node:assert/strict");
           document.querySelector("#historyChartAmount").textContent === text,
         expected,
       );
-      assert.equal(await page.locator("#historyTotal").textContent(), expected);
       assert.equal(await page.locator("#history .entry").count(), count);
     };
     await assertAmount(36000, 3);

@@ -157,8 +157,7 @@ function attachSelect(select) {
   select.hidden = true;
   const dialog = pickerDialog(trigger.getAttribute("aria-label"));
   const sync = () => {
-    trigger.textContent =
-      select.selectedOptions[0]?.textContent || "Выбрать";
+    trigger.textContent = select.selectedOptions[0]?.textContent || "Выбрать";
   };
   trigger.onclick = () => {
     if (select.disabled) return;
@@ -201,19 +200,15 @@ function attachSelect(select) {
 }
 const syncMonth = attachPicker($("month"), "month"),
   syncDate = attachPicker($("expenseform").elements.date, "date"),
-  syncFilter = attachSelect($("filter")),
   syncClose = attachSelect($("closemode"));
 const syncWeekMerchant = attachSelect($("weekMerchant"));
-const syncHistoryMerchant = attachSelect($("historyMerchant"));
 const originalRender = render,
   originalRenderWeek = renderWeek;
 render = function () {
   originalRender();
   syncMonth();
-  syncFilter();
   syncClose();
   syncWeekMerchant();
-  syncHistoryMerchant();
 };
 renderWeek = function () {
   originalRenderWeek();
@@ -222,7 +217,5 @@ renderWeek = function () {
 };
 syncMonth();
 syncDate();
-syncFilter();
 syncClose();
 syncWeekMerchant();
-syncHistoryMerchant();
