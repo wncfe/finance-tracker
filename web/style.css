@@ -1268,6 +1268,11 @@ details form {
   color: var(--muted);
   font-size: 13px;
 }
+.merchant-picker-create {
+  width: 100%;
+  border-color: var(--green);
+  color: var(--green);
+}
 .merchant-picker-section {
   margin: 8px 0 0;
   color: var(--muted);

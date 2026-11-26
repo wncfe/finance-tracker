@@ -230,7 +230,7 @@ function attachSelect(select) {
   trigger.onclick = () => {
     if (select.disabled) return;
     dialog.innerHTML = isMerchant
-      ? `<h2>${esc(trigger.getAttribute("aria-label"))}</h2><label class="merchant-picker-search">Поиск<input type="search" autocomplete="off" placeholder="Название магазина" aria-label="Поиск магазина"></label><div class="option-list"></div><button type="button" class="picker-cancel">Закрыть</button>`
+      ? `<h2>${esc(trigger.getAttribute("aria-label"))}</h2><label class="merchant-picker-search">Поиск<input type="search" autocomplete="off" placeholder="Название магазина" aria-label="Поиск магазина"></label><button type="button" class="merchant-picker-create" data-merchant-create>Добавить магазин</button><div class="option-list"></div><button type="button" class="picker-cancel">Закрыть</button>`
       : "<h2>" +
         esc(trigger.getAttribute("aria-label")) +
         '</h2><div class="option-list">' +
@@ -253,6 +253,24 @@ function attachSelect(select) {
   dialog.onclick = (e) => {
     const b = e.target.closest("button");
     if (!b || b.disabled) return;
+    if (b.hasAttribute("data-merchant-create")) {
+      const suggested = dialog.querySelector("input[type=search]").value.trim();
+      dialog.close();
+      MerchantUI.open((id) => {
+        const merchant = MerchantDictionary.all(state.merchants || []).find(
+          (item) => item.id === id,
+        );
+        if (!merchant) return;
+        if (!Array.from(select.options).some((option) => option.value === id))
+          select.add(new Option(merchant.name, id));
+        select.value = id;
+        remember(id);
+        select.dispatchEvent(new Event("input", { bubbles: true }));
+        select.dispatchEvent(new Event("change", { bubbles: true }));
+        sync();
+      }, suggested);
+      return;
+    }
     if (b.dataset.option !== undefined) {
       select.selectedIndex = Number(b.dataset.option);
       remember(select.value);
