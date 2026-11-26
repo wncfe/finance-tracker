@@ -180,9 +180,11 @@ const ExpenseHistoryView = (() => {
     const labels = [];
     const heads = [];
     const full = slices.length === 1;
-    let previousAmount = slices.at(-1)?.amount;
     let start = -Math.PI / 2;
-    for (const { category, amount, grouped } of slices) {
+    for (const [
+      sliceIndex,
+      { category, amount, grouped },
+    ] of slices.entries()) {
       const index = cats.indexOf(category);
       const label = grouped ? "Остальные" : category;
       const categoryColor = grouped
@@ -208,25 +210,24 @@ const ExpenseHistoryView = (() => {
           : `<path ${attributes} fill="${color}" d="${sector(start, end)}"><title>${hint}</title></path>`,
       );
       if (!full) {
-        // Draw the leading caps above all arcs so the seam at twelve o'clock overlaps too.
+        // Finish each arc with a rounded cap that blends into the next category.
         const length = share * turn * midRadius;
         const inset = Math.min(3, length / 5);
-        const previousLength =
-          (previousAmount / summary.total) * turn * midRadius;
+        const nextAmount = slices[(sliceIndex + 1) % slices.length].amount;
+        const nextLength = (nextAmount / summary.total) * turn * midRadius;
         const capRadius = Math.min(
           (outerRadius - innerRadius) / 2,
           length * 0.46,
-          inset + previousLength * 0.55,
+          inset + nextLength * 0.55,
         );
-        const [x, y] = point(midRadius, start + inset / midRadius);
+        const [x, y] = point(midRadius, end - inset / midRadius);
         const symbol = segmentSymbol(category, index);
-        heads.push(`<g class="history-ring-leading">
+        heads.push(`<g class="history-ring-trailing">
           <circle class="history-ring-head history-ring-segment" ${action} cx="${x}" cy="${y}" r="${capRadius}" fill="${color}"><title>${hint}</title></circle>
           ${capRadius >= 8 ? `<image class="history-ring-symbol" href="/icons/${symbol}.svg" x="${x - 6.5}" y="${y - 6.5}" width="13" height="13" ${muted ? 'opacity=".5"' : ""} />` : ""}
         </g>`);
       }
       start = end;
-      previousAmount = amount;
 
       if (full || share < 0.047) continue;
       const [x, y] = point(labelRadius, middle);

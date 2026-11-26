@@ -297,12 +297,12 @@ const assert = require("node:assert/strict");
     );
     await assertAmount(25000, 2);
     await page.locator("#historyClearCategory").click();
-    const leadingCap = chart.locator(
+    const trailingCap = chart.locator(
       '.history-ring-head[data-history-category="Супермаркеты"]',
     );
     assert.equal(
-      await leadingCap.evaluate((cap) => {
-        const angle = -Math.PI / 2 - 0.06;
+      await trailingCap.evaluate((cap) => {
+        const angle = -Math.PI / 2 + (25000 / 36000) * Math.PI * 2 + 0.06;
         const point = new DOMPoint(
           124 + 82 * Math.cos(angle),
           124 + 82 * Math.sin(angle),
@@ -314,7 +314,7 @@ const assert = require("node:assert/strict");
       }),
       true,
     );
-    await leadingCap.click();
+    await trailingCap.click();
     await assertAmount(25000, 2);
     await page.locator("#historyClearCategory").click();
     await history.getByRole("button", { name: "Год", exact: true }).click();

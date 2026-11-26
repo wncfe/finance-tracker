@@ -633,11 +633,9 @@ h3 {
 .history-ring-segment:hover {
   filter: brightness(0.93);
 }
-.history-ring-head {
-  filter: brightness(1.1) drop-shadow(-0.8px 0.9px 1.2px #183a3240);
-}
+.history-ring-head,
 .history-ring-head:hover {
-  filter: brightness(1.17) drop-shadow(-0.8px 0.9px 1.2px #183a3240);
+  filter: none;
 }
 .history-ring-labels,
 .history-ring-symbol {
