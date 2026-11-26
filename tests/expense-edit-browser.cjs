@@ -255,7 +255,7 @@ const assert = require("node:assert/strict");
     await page.locator("#tab-history").click();
     const historyAdd = page.locator("#historyQuickopen");
     assert.equal(await historyAdd.isVisible(), true);
-    assert.equal(await page.locator("#quickopen").isVisible(), false);
+    assert.equal(await page.locator("#quickopen").isVisible(), true);
     assert.equal(await page.locator("#filter").count(), 0);
     assert.equal(await page.locator("#historyMerchant").count(), 0);
     assert.equal(await page.locator(".history-summary").count(), 0);

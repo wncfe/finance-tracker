@@ -323,7 +323,17 @@
         (d) => d.date >= today && d.date <= period.to,
       ).length,
       left = period.limit - period.spent;
+    if (period.closed)
+      return {
+        status: "closed",
+        left,
+        remainingDays,
+        perDay: 0,
+        over: Math.max(0, -left),
+      };
     if (!remainingDays) return { status: "actual", left, perDay: 0, forecast: left };
+    const perDay = left < 0 ? 0 : Math.floor(left / remainingDays),
+      over = Math.max(0, -left);
     const history = daily(
       source,
       { from: shift(today, -28), to: shift(today, -1) },
@@ -331,15 +341,27 @@
     ).filter((d) => d.date >= (source.first || today));
     const sample = history.map((d) => d.amount);
     if (sample.length < 14)
-      return { status: "insufficient", left, remainingDays, observations: sample.length };
+      return {
+        status: "insufficient",
+        left,
+        remainingDays,
+        perDay,
+        over,
+        observations: sample.length,
+      };
     const rate = Math.round(quantile(sample, 0.5));
-    const forecast = left - rate * remainingDays;
+    const includesToday = period.from <= today && today <= period.to,
+      spentToday = includesToday
+        ? summarize(source, { from: today, to: today }).total
+        : 0,
+      projected = Math.max(0, rate - spentToday) + rate * (remainingDays - 1),
+      forecast = left - projected;
     return {
       status: "forecast",
       left,
       remainingDays,
-      perDay: left < 0 ? 0 : Math.floor(left / remainingDays),
-      over: Math.max(0, -left),
+      perDay,
+      over,
       forecast,
       dailyMedian: rate,
       observations: sample.length,

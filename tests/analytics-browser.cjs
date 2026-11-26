@@ -127,10 +127,7 @@ const assert = require("node:assert/strict");
       await historyDays.first().locator(".entry-day-total").textContent(),
       await page.evaluate(() => money(510000)),
     );
-    assert.match(
-      await page.locator('[data-week="1"]').textContent(),
-      /Ожидаемый остаток/,
-    );
+    assert.match(await page.locator("#weekForecast").textContent(), /Прогноз остатка/);
     assert.equal(
       await page.locator("#mobileTabs").isVisible(),
       true,
@@ -149,11 +146,8 @@ const assert = require("node:assert/strict");
     await page.setViewportSize({ width: 1440, height: 1000 });
     assert.equal(
       await page.locator("#tab-overview").getAttribute("aria-selected"),
-      "true",
+      "false",
     );
-    assert.equal(await page.locator("#panel-overview").isVisible(), true);
-    assert.equal(await page.locator("#panel-budget").isVisible(), false);
-    await page.locator("#settingsOpen").click();
     assert.equal(await page.locator("#panel-budget").isVisible(), true);
     await page.locator("#tab-analytics").click();
     assert.equal(await page.locator("#panel-analytics").isVisible(), true);

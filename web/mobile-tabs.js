@@ -13,7 +13,10 @@
       tab.setAttribute("aria-controls", "panel-" + tab.dataset.tab);
       tab.setAttribute("role", "tab");
       tab.setAttribute("aria-selected", String(tab.dataset.tab === current));
-      tab.tabIndex = tab.dataset.tab === current ? 0 : -1;
+      tab.tabIndex =
+        tab.dataset.tab === current || (current === "budget" && tab.dataset.tab === "overview")
+          ? 0
+          : -1;
     }
     for (const panel of panels) {
       panel.hidden = panel.dataset.navPanel !== current;

@@ -36,11 +36,13 @@ const assert = require("node:assert/strict");
     await page.locator("#dashboard").waitFor({ state: "visible" });
     await page.locator(".monthnav .picker-trigger").click();
     await page.locator('.picker[open] [data-value="2026-11"]').click();
+    await page.locator("#settingsOpen").click();
     await page.locator("#budget").fill("30000");
     await page.locator("#budgetform button").click();
     await page.waitForFunction(() =>
       document.querySelector("#total").textContent.includes("30"),
     );
+    await page.locator("#tab-overview").click();
     const prepareExpense = async (date, amount, note) => {
       await page.locator("#quickopen").click();
       await page.locator("#quicktext").fill(`${date} продукты ${amount}`);
@@ -565,11 +567,19 @@ const assert = require("node:assert/strict");
         "analytics overflow " + width,
       );
     }
-    // Mobile sections remove the long all-in-one page; desktop restores all panels.
+    // The same three sections are available at both viewport sizes.
     await page.setViewportSize({ width: 390, height: 844 });
     await page.locator("#mobileTabs").waitFor({ state: "visible" });
     assert.equal(await page.locator("#mobileTabs").isVisible(), true);
     assert.equal(await page.locator("#quickopen").isVisible(), true);
+    assert.equal(
+      await page.locator("#mobileTabs").evaluate((nav) => {
+        const tab = nav.querySelector("#tab-analytics"),
+          r = tab.getBoundingClientRect();
+        return document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)?.closest("#tab-analytics") === tab;
+      }),
+      true,
+    );
     for (const section of ["overview", "history", "analytics"]) {
       await page.locator("#tab-" + section).click();
       assert.equal(await page.locator("#panel-" + section).isVisible(), true);
@@ -585,6 +595,14 @@ const assert = require("node:assert/strict");
     await page.locator("#settingsOpen").click();
     assert.equal(await page.locator("#panel-budget").isVisible(), true);
     assert.equal(await page.locator("#merchantOpen").isVisible(), true);
+    await page.locator("#settingsOpen").focus();
+    const tabStops = [];
+    for (let i = 0; i < 3; i++) {
+      await page.keyboard.press("Tab");
+      tabStops.push(await page.evaluate(() => document.activeElement.id));
+      if (tabStops.at(-1) === "tab-overview") break;
+    }
+    assert.ok(tabStops.includes("tab-overview"), "Overview remains keyboard reachable from settings");
     await page.locator("#tab-history").click();
     assert.equal(await page.locator("#history .entry button").count(), 0);
     assert.equal(await page.locator("#historyQuickopen").isVisible(), true);

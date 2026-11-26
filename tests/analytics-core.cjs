@@ -34,6 +34,62 @@ assert.equal(
   A.smartBudget(A.index(smartState), { from: "2026-11-29", to: "2026-11-30", limit: 10000, spent: 12000 }, "2026-11-29").perDay,
   0,
 );
+const shortHistory = {
+  months: {
+    "2026-11": { expenses: [{ date: "2026-11-28", amount: 100 }] },
+  },
+};
+const shortSummary = A.smartBudget(
+  A.index(shortHistory),
+  { from: "2026-11-29", to: "2026-11-30", limit: 10000, spent: 2000 },
+  "2026-11-29",
+);
+assert.equal(shortSummary.status, "insufficient");
+assert.equal(shortSummary.perDay, 4000);
+const overBudget = A.smartBudget(
+  A.index(shortHistory),
+  { from: "2026-11-29", to: "2026-11-30", limit: 1000, spent: 2000 },
+  "2026-11-29",
+);
+assert.equal(overBudget.perDay, 0);
+assert.equal(overBudget.over, 1000);
+assert.equal(
+  A.smartBudget(
+    A.index(smartState),
+    { from: "2026-11-29", to: "2026-11-30", limit: 10000, spent: 0, closed: true },
+    "2026-11-29",
+  ).status,
+  "closed",
+);
+const spentToday = structuredClone(smartState);
+spentToday.months["2026-11"].expenses.push({ date: "2026-11-29", amount: 1000 });
+assert.equal(
+  A.smartBudget(
+    A.index(spentToday),
+    { from: "2026-11-29", to: "2026-11-29", limit: 4000, spent: 1000 },
+    "2026-11-29",
+  ).forecast,
+  3000,
+);
+const stableHistory = { months: {} };
+for (let n = 28; n >= 1; n--) {
+  const d = A.shift("2026-11-29", -n), month = d.slice(0, 7);
+  stableHistory.months[month] ||= { expenses: [] };
+  stableHistory.months[month].expenses.push({ date: d, amount: 10000 });
+}
+stableHistory.months["2026-11"].expenses.push({ date: "2026-11-29", amount: 10000 });
+const futureWeek = A.smartBudget(
+  A.index(stableHistory),
+  { from: "2026-11-30", to: "2026-12-05", limit: 100000, spent: 0 },
+  "2026-11-29",
+);
+assert.equal(futureWeek.forecast, 40000);
+const futureMonth = A.smartBudget(
+  A.index(stableHistory),
+  { from: "2026-12-01", to: "2026-12-31", limit: 320000, spent: 0 },
+  "2026-11-29",
+);
+assert.equal(futureMonth.forecast, 10000);
 assert.equal(A.todayAt(new Date("2026-11-12T18:59:59Z")), "2026-11-12");
 assert.equal(A.todayAt(new Date("2026-11-12T19:00:00Z")), "2026-11-13");
 add("2026-02-01", 100);
