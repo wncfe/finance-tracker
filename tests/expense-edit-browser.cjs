@@ -255,14 +255,13 @@ const assert = require("node:assert/strict");
     await page.locator("#tab-history").click();
     const history = page.locator("#panel-history");
     const assertAmount = async (amount, count) => {
-      assert.equal(
-        await page.locator("#historyChartAmount").textContent(),
-        await page.evaluate((n) => money(n), amount),
+      const expected = await page.evaluate((n) => money(n), amount);
+      await page.waitForFunction(
+        (text) =>
+          document.querySelector("#historyChartAmount").textContent === text,
+        expected,
       );
-      assert.equal(
-        await page.locator("#historyTotal").textContent(),
-        await page.evaluate((n) => money(n), amount),
-      );
+      assert.equal(await page.locator("#historyTotal").textContent(), expected);
       assert.equal(await page.locator("#history .entry").count(), count);
     };
     await assertAmount(36000, 3);
@@ -280,12 +279,21 @@ const assert = require("node:assert/strict");
     await assertAmount(36000, 3);
 
     const ring = page.locator("#historyRing");
+    const track = page.locator("#historyTrack");
+    const chart = page.locator("#historyChart");
+    const previousPreview = ring.locator('[data-history-preview="-1"]');
+    const nextPreview = ring.locator('[data-history-preview="1"]');
     await ring.scrollIntoViewIfNeeded();
-    const arc = await ring.boundingBox();
+    const arc = await chart.boundingBox();
+    const frame = await ring.boundingBox();
+    const neighbor = await previousPreview.boundingBox();
+    assert.ok(neighbor.x < frame.x && neighbor.x + neighbor.width > frame.x);
+    assert.equal(await nextPreview.count(), 0);
+    assert.equal(await chart.locator(".history-ring-labels text").count(), 2);
     const angle = ((25000 / 36000) * Math.PI * 2) / 2 - Math.PI / 2;
     await page.mouse.click(
-      arc.x + (arc.width * (116 + 94 * Math.cos(angle))) / 232,
-      arc.y + (arc.height * (116 + 94 * Math.sin(angle))) / 232,
+      arc.x + (arc.width * (116 + 86 * Math.cos(angle))) / 232,
+      arc.y + (arc.height * (116 + 86 * Math.sin(angle))) / 232,
     );
     await assertAmount(25000, 2);
     await page.locator("#historyClearCategory").click();
@@ -310,13 +318,22 @@ const assert = require("node:assert/strict");
           type: "touchMove",
           touchPoints: [{ x: x + distance * direction, y }],
         });
+      assert.ok(
+        Math.abs(
+          await track.evaluate((el) =>
+            parseFloat(el.style.getPropertyValue("--history-drag")),
+          ),
+        ) > 50,
+      );
       await cdp.send("Input.dispatchTouchEvent", {
         type: "touchEnd",
         touchPoints: [],
       });
+      assert.equal(await track.evaluate((el) => el.getAnimations().length), 1);
     }
     await swipe(1);
     await assertAmount(0, 0);
+    assert.equal(await nextPreview.count(), 1);
     await swipe(-1);
     await assertAmount(31000, 2);
     await page.setViewportSize({ width: 320, height: 844 });

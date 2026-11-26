@@ -53,10 +53,12 @@ const ExpenseHistoryView = (() => {
   let anchor = "";
   let activeCategory = "";
   let expanded = false;
+  let animation = null;
+  let drag = null;
 
-  function period() {
+  function period(at = anchor) {
     const basis =
-      anchor ||
+      at ||
       (selected === todayDate().slice(0, 7) ? todayDate() : selected + "-01");
     const year = basis.slice(0, 4);
     return scale === "year"
@@ -111,33 +113,111 @@ const ExpenseHistoryView = (() => {
     return select.value;
   }
 
-  function renderChart(summary) {
-    const track =
-      '<circle class="history-ring-track" cx="116" cy="116" r="94" />';
+  function adjacent(p, direction) {
+    if (
+      direction < 0
+        ? p.from === firstDate
+        : p.to >= todayDate() || p.to === lastDate
+    )
+      return "";
+    return A.shift(direction < 0 ? p.from : p.to, direction);
+  }
+
+  function chartMarkup(summary, slot) {
+    const current = slot === "current";
+    const amount = money(
+      activeCategory
+        ? summary.categories.find((item) => item.category === activeCategory)
+            ?.amount || 0
+        : summary.total,
+    );
+    const parts = [];
+    const labels = [];
+    const gradients = [];
     let offset = 0;
-    const segments = summary.categories.map(({ category, amount }) => {
+    for (const { category, amount } of summary.categories) {
+      const index = cats.indexOf(category);
+      const color = colors[index] || "#687776";
+      const key = `history-ring-${slot}-${parts.length}`;
       const share = (amount / summary.total) * 100;
-      const gap =
-        summary.categories.length > 1 ? Math.min(1.25, share * 0.28) : 0;
+      const full = summary.categories.length === 1;
+      const rounded = !full && share >= 6.5;
+      const gap = full ? 0 : Math.min(1.05, share * 0.24) + (rounded ? 4.6 : 0);
       const position = offset + gap / 2;
+      const radians = ((offset + share / 2) * Math.PI) / 50 - Math.PI / 2;
       offset += share;
-      return `<circle class="history-ring-segment" data-history-category="${esc(category)}"
-        cx="116" cy="116" r="94" pathLength="100" transform="rotate(-90 116 116)"
-        stroke="${colors[cats.indexOf(category)] || "#687776"}"
+      const muted = activeCategory && activeCategory !== category;
+      const hint = `${esc(category)} · ${percentage.format(share / 100)} · ${money(amount)}`;
+
+      gradients.push(`<linearGradient id="${key}" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop stop-color="${color}" /><stop offset="100%" stop-color="${color}" stop-opacity=".78" />
+      </linearGradient>`);
+      parts.push(`<circle class="history-ring-segment" ${current ? `data-history-category="${esc(category)}"` : ""}
+        cx="116" cy="116" r="86" pathLength="100" transform="rotate(-90 116 116)"
+        stroke="url(#${key})" stroke-linecap="${rounded ? "round" : "butt"}"
         stroke-dasharray="${share - gap} 100" stroke-dashoffset="${-position}"
-        ${activeCategory && activeCategory !== category ? 'opacity="0.26"' : ""}>
-        <title>${esc(category)} · ${percentage.format(share / 100)} · ${money(amount)}</title>
-      </circle>`;
-    });
-    $("historyChart").innerHTML = track + segments.join("");
-    const amount = activeCategory
-      ? summary.categories.find((item) => item.category === activeCategory)
-          ?.amount || 0
-      : summary.total;
-    $("historyChartLabel").textContent = activeCategory || "Траты за период";
-    const total = $("historyChartAmount");
-    total.textContent = money(amount);
-    total.classList.toggle("is-long", total.textContent.length >= 13);
+        ${muted ? 'opacity=".24"' : ""}><title>${hint}</title></circle>`);
+
+      if (full || share < 11) continue;
+      const x = Math.max(17, Math.min(215, 116 + Math.cos(radians) * 108));
+      const y = Math.max(12, Math.min(220, 116 + Math.sin(radians) * 108));
+      const symbol = iconNames[index] || "ellipsis";
+      labels.push(`<g ${muted ? 'opacity=".32"' : ""}>
+        <text x="${x}" y="${y}" text-anchor="middle">${Math.round(share)}%</text>
+        <image href="/icons/${symbol}.svg" x="${108 + Math.cos(radians) * 86}" y="${108 + Math.sin(radians) * 86}" width="16" height="16" />
+      </g>`);
+    }
+    const marker = current
+      ? ""
+      : `aria-hidden="true" data-history-preview="${slot === "previous" ? -1 : 1}"`;
+    return `<div class="history-slide ${current ? "is-current" : "is-preview"}" ${marker}>
+      <svg ${current ? 'id="historyChart"' : ""} viewBox="0 0 232 232" aria-hidden="true">
+        <defs>${gradients.join("")}</defs>
+        <circle class="history-ring-track" cx="116" cy="116" r="86" />
+        ${parts.join("")}<g class="history-ring-labels">${labels.join("")}</g>
+      </svg>
+      <div class="history-ring-center">
+        <span ${current ? 'id="historyChartLabel"' : ""}>${esc(activeCategory || "Траты за период")}</span>
+        <strong ${current ? 'id="historyChartAmount"' : ""} ${amount.length >= 13 ? 'class="is-long"' : ""}>${amount}</strong>
+      </div>
+    </div>`;
+  }
+
+  function trackedExpenses(data, range, merchant) {
+    return A.operations(data, {
+      from: range.from,
+      to: range.to < todayDate() ? range.to : todayDate(),
+    }).filter(
+      (expense) =>
+        !merchant ||
+        (merchant === "__none__"
+          ? !expense.merchantId
+          : expense.merchantId === merchant),
+    );
+  }
+
+  function renderCarousel(data, p, summary, merchant) {
+    animation?.cancel();
+    animation = null;
+    drag = null;
+    const preview = (direction, slot) => {
+      const at = adjacent(p, direction);
+      if (!at) return '<div class="history-slide" aria-hidden="true"></div>';
+      const range = period(at);
+      return chartMarkup(
+        A.summarize(
+          { expenses: trackedExpenses(data, range, merchant) },
+          range,
+        ),
+        slot,
+      );
+    };
+    const track = $("historyTrack");
+    track.style.removeProperty("--history-drag");
+    track.innerHTML =
+      preview(-1, "previous") +
+      chartMarkup(summary, "current") +
+      preview(1, "next");
   }
 
   function renderCategories(summary) {
@@ -181,18 +261,9 @@ const ExpenseHistoryView = (() => {
           to: month + "-" + String(budgetWeek.end).padStart(2, "0"),
         }
       : p;
-    const expenses = A.operations(state, {
-      from: range.from,
-      to: range.to < todayDate() ? range.to : todayDate(),
-    });
-    const merchant = updateMerchant(expenses);
-    const matched = expenses.filter(
-      (expense) =>
-        !merchant ||
-        (merchant === "__none__"
-          ? !expense.merchantId
-          : expense.merchantId === merchant),
-    );
+    const data = A.index(state);
+    const merchant = updateMerchant(trackedExpenses(data, range, ""));
+    const matched = trackedExpenses(data, range, merchant);
     const summary = A.summarize({ expenses: matched }, range);
     const visible = activeCategory
       ? matched.filter((expense) => expense.category === activeCategory)
@@ -213,7 +284,7 @@ const ExpenseHistoryView = (() => {
         String(button.dataset.historyScale === scale),
       );
 
-    renderChart(summary);
+    renderCarousel(data, p, summary, merchant);
     renderCategories(summary);
     $("historyTotalLabel").textContent =
       budgetWeek || merchant || activeCategory
@@ -223,18 +294,45 @@ const ExpenseHistoryView = (() => {
     $("history").innerHTML = entries(visible);
   }
 
-  function step(direction) {
-    const p = period();
+  function slideOffset() {
+    const track = $("historyTrack");
+    const gap = parseFloat(getComputedStyle(track).columnGap);
+    return track.children[1].getBoundingClientRect().width + gap;
+  }
+
+  function settle(direction, offset = 0) {
+    if (animation) return;
+    const at = direction ? adjacent(period(), direction) : "";
+    const finish = () => {
+      animation?.cancel();
+      animation = null;
+      $("historyTrack").style.removeProperty("--history-drag");
+      if (at) {
+        anchor = at;
+        $("filter").value = "";
+        render();
+      }
+    };
     if (
-      direction < 0
-        ? p.from === firstDate
-        : p.to >= todayDate() || p.to === lastDate
-    )
-      return false;
-    anchor = A.shift(direction < 0 ? p.from : p.to, direction);
-    $("filter").value = "";
-    render();
-    return true;
+      (!at && !offset) ||
+      matchMedia("(prefers-reduced-motion: reduce)").matches
+    ) {
+      finish();
+      return;
+    }
+    const target = at ? -direction * slideOffset() : 0;
+    animation = $("historyTrack").animate(
+      [
+        { transform: `translateX(calc(-50% + ${offset}px))` },
+        { transform: `translateX(calc(-50% + ${target}px))` },
+      ],
+      {
+        duration: at ? 270 : 200,
+        easing: "cubic-bezier(.2,.75,.25,1)",
+        fill: "forwards",
+      },
+    );
+    animation.onfinish = finish;
   }
 
   function toggleCategory(category, returnFocus = false) {
@@ -250,38 +348,53 @@ const ExpenseHistoryView = (() => {
 
   function init() {
     const ring = $("historyRing");
-    let touchStart = null;
     let swiped = false;
     ring.addEventListener("pointerdown", (event) => {
+      if (!event.isPrimary || event.button !== 0 || animation) return;
       swiped = false;
-      if (event.isPrimary && event.pointerType !== "mouse")
-        touchStart = {
-          id: event.pointerId,
-          x: event.clientX,
-          y: event.clientY,
-        };
+      drag = {
+        id: event.pointerId,
+        x: event.clientX,
+        y: event.clientY,
+        offset: 0,
+      };
     });
-    ring.addEventListener("pointercancel", () => {
-      touchStart = null;
+    ring.addEventListener("pointermove", (event) => {
+      if (drag?.id !== event.pointerId) return;
+      const dx = event.clientX - drag.x;
+      const dy = event.clientY - drag.y;
+      if (!swiped) {
+        if (Math.abs(dx) < 8 || Math.abs(dx) < Math.abs(dy) * 1.2) return;
+        ring.setPointerCapture(event.pointerId);
+        swiped = true;
+        drag.limit = slideOffset();
+        const p = period();
+        drag.canPrevious = Boolean(adjacent(p, -1));
+        drag.canNext = Boolean(adjacent(p, 1));
+      }
+      const available = dx > 0 ? drag.canPrevious : drag.canNext;
+      drag.offset = available
+        ? Math.max(-drag.limit, Math.min(drag.limit, dx))
+        : dx * 0.2;
+      $("historyTrack").style.setProperty("--history-drag", `${drag.offset}px`);
     });
-    ring.addEventListener("pointerup", (event) => {
-      if (touchStart?.id !== event.pointerId) return;
-      const dx = event.clientX - touchStart.x;
-      const dy = event.clientY - touchStart.y;
-      touchStart = null;
-      if (Math.abs(dx) < 44 || Math.abs(dx) < Math.abs(dy) * 1.4) return;
-      swiped = true;
-      if (
-        step(dx > 0 ? -1 : 1) &&
-        !matchMedia("(prefers-reduced-motion: reduce)").matches
-      )
-        ring.animate(
-          [
-            { transform: `translateX(${dx > 0 ? -12 : 12}px)`, opacity: 0.7 },
-            { transform: "translateX(0)", opacity: 1 },
-          ],
-          { duration: 180, easing: "ease-out" },
-        );
+    const endDrag = (event) => {
+      if (drag?.id !== event.pointerId) return;
+      const { offset } = drag;
+      drag = null;
+      if (!offset) return;
+      const direction =
+        event.type === "pointerup" && Math.abs(offset) >= 44
+          ? offset > 0
+            ? -1
+            : 1
+          : 0;
+      settle(direction, offset);
+    };
+    ring.addEventListener("pointerup", endDrag);
+    ring.addEventListener("pointercancel", endDrag);
+    ring.addEventListener("lostpointercapture", (event) => {
+      if (event.target === ring) endDrag(event);
     });
 
     $("panel-history").addEventListener("click", (event) => {
@@ -291,15 +404,18 @@ const ExpenseHistoryView = (() => {
         $("filter").value = "";
         render();
       }
+      if (ring.contains(event.target) && (swiped || animation)) return;
+      const preview = event.target.closest("[data-history-preview]");
+      if (preview) settle(Number(preview.dataset.historyPreview));
       const categoryButton = event.target.closest("[data-history-category]");
-      if (categoryButton && (!ring.contains(categoryButton) || !swiped))
+      if (categoryButton)
         toggleCategory(
           categoryButton.dataset.historyCategory,
           categoryButton instanceof HTMLButtonElement,
         );
     });
-    $("historyPrevious").onclick = () => step(-1);
-    $("historyNext").onclick = () => step(1);
+    $("historyPrevious").onclick = () => settle(-1);
+    $("historyNext").onclick = () => settle(1);
     $("historyExpandCategories").onclick = () => {
       expanded = !expanded;
       render();
