@@ -3,9 +3,7 @@
   const D = MerchantDictionary;
   let editing = "",
     draftId = "",
-    onSaved = null,
-    weekManual = false,
-    weekUpdating = false;
+    onSaved = null;
 
   function options(selectedId = "") {
     const items = D.all(state.merchants || []);
@@ -18,28 +16,6 @@
         )
         .join("")
     );
-  }
-
-  function updateWeek(guess = false) {
-    const select = $("weekMerchant"),
-      previous = select.value;
-    const match = D.resolve(
-      $("expenseform").elements.note.value,
-      D.all(state.merchants || []),
-    );
-    const value =
-      guess && !weekManual
-        ? match.status === "matched"
-          ? match.matches[0].id
-          : ""
-        : previous;
-    select.innerHTML = options(value);
-    if (select.value !== previous) {
-      weekUpdating = true;
-      select.dispatchEvent(new Event("change", { bubbles: true }));
-      weekUpdating = false;
-    }
-    $("weekMerchantHint").textContent = guess && !weekManual ? hint(match) : "";
   }
 
   function refreshCategoryOptions(selected = $("merchantCategory").value) {
@@ -170,7 +146,6 @@
     }
     if (await mutate({ type: "merchant_save", merchant: item })) {
       renderList();
-      updateWeek();
       if (onSaved && !item.hidden) {
         const callback = onSaved;
         onSaved = null;
@@ -185,33 +160,10 @@
         "Не удалось сохранить. Проверьте сообщение и повторите.";
   };
 
-  $("weeks").addEventListener("click", (e) => {
-    if (e.target.closest("[data-week]")) {
-      weekManual = false;
-      updateWeek(true);
-    }
-  });
-  $("expenseform").elements.note.addEventListener("input", () =>
-    updateWeek(true),
-  );
-  $("weekMerchant").addEventListener("change", () => {
-    if (!weekUpdating) weekManual = true;
-    $("weekMerchantHint").textContent = "";
-  });
-  $("weekMerchantNew").onclick = () =>
-    open((id) => {
-      weekManual = true;
-      $("weekMerchant").innerHTML = options(id);
-      $("weekMerchant").dispatchEvent(new Event("change", { bubbles: true }));
-    }, $("expenseform").elements.note.value.trim());
   globalThis.MerchantUI = {
     options,
     open,
     hint,
-    resetWeek() {
-      weekManual = false;
-      updateWeek(true);
-    },
     refreshCategoryOptions,
   };
 })();

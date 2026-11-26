@@ -158,35 +158,28 @@ const assert = require("node:assert/strict");
     await secondPage.locator("[name=password]").fill("browser-password-123");
     await secondPage.locator("#authform button[type=submit]").click();
     await secondPage.locator("#dashboard").waitFor({ state: "visible" });
-    await secondPage.locator('[data-week="0"]').click();
-    await secondPage.locator('#expenseform [name="note"]').fill("Магазин Тест");
+    await secondPage.locator("#quickopen").click();
+    await secondPage.locator("#quicktext").fill("Магазин Тест 10");
+    await secondPage.locator("#quickparse button").click();
+    const row = secondPage.locator("#quickrows .quick-row");
+    const merchant = row.locator("[data-field=merchantId]");
+    assert.equal(await merchant.inputValue(), merchantId);
     assert.equal(
-      await secondPage.locator("#weekMerchant").inputValue(),
-      merchantId,
+      await row.locator("[data-field=category]").inputValue(),
+      "Тестовая категория",
     );
+    await row.locator("[data-field=note]").fill("Магни");
+    assert.equal(await merchant.inputValue(), "");
     assert.match(
-      await secondPage.locator("#categoryMerchantNote").textContent(),
-      /Тестовая категория/,
-    );
-    await secondPage.locator('#expenseform [name="note"]').fill("Магни");
-    assert.equal(await secondPage.locator("#weekMerchant").inputValue(), "");
-    assert.match(
-      await secondPage.locator("#weekMerchantHint").textContent(),
+      await row.locator("[data-merchant-hint]").textContent(),
       /Магнит/,
     );
-    await secondPage.locator("#weekMerchant + button").click();
-    await secondPage
-      .locator('.picker input[aria-label="Поиск магазина"]')
-      .fill("Магнит");
-    await secondPage
-      .locator(".picker [data-option]")
-      .filter({ hasText: "Магнит" })
-      .click();
-    await secondPage.locator('#expenseform [name="amount"]').fill("10");
-    await secondPage.locator("#expenseform button.primary").click();
-    await secondPage.waitForFunction(
-      () => !document.querySelector('#expenseform [name="amount"]').value,
-    );
+    await row.locator("[data-field=note]").fill("Магнит");
+    assert.equal(await merchant.inputValue(), "b-magnit");
+    await row.locator("[data-field=note]").fill("Магни");
+    await merchant.selectOption("b-magnit");
+    await secondPage.locator("#quicksubmit").click();
+    await secondPage.locator("#quickdialog").waitFor({ state: "hidden" });
     const regularExpense = await secondPage.evaluate(async () => {
       const response = await fetch("/api/state").then((result) =>
         result.json(),
@@ -196,23 +189,6 @@ const assert = require("node:assert/strict");
         .find((expense) => expense.note === "Магни");
     });
     assert.equal(regularExpense.category, "Супермаркеты");
-    await secondPage.locator('#expenseform [name="note"]').fill("Магнит");
-    assert.equal(
-      await secondPage.locator("#weekMerchant").inputValue(),
-      "b-magnit",
-    );
-    await secondPage.locator("#weekMerchant + button").click();
-    await secondPage
-      .locator('.picker input[aria-label="Поиск магазина"]')
-      .fill("Магни");
-    await secondPage
-      .locator(".picker [data-option]")
-      .filter({ hasText: "Магнит" })
-      .click();
-    assert.equal(
-      await secondPage.locator("#weekMerchant").inputValue(),
-      "b-magnit",
-    );
     await secondContext.close();
     await page.reload();
     await page.locator("#dashboard").waitFor({ state: "visible" });

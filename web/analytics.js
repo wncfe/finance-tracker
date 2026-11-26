@@ -8,19 +8,24 @@
   const syncMerchant = attachSelect($("editExpenseMerchant"));
   let editing = null;
   function syncLinkedCategory() {
-    const merchant = MerchantDictionary.all(state.merchants || [], true).find(
-        (item) => item.id === $("editExpenseMerchant").value,
-      ),
-      category = $("expenseCategory");
-    if (merchant?.category) {
-      if (
-        !Array.from(category.options).some((o) => o.value === merchant.category)
-      )
-        category.add(new Option(merchant.category, merchant.category));
-      category.value = merchant.category;
+    const merchantId = $("editExpenseMerchant").value,
+      merchant = merchantDetails(merchantId),
+      category = $("expenseCategory"),
+      linked = $("editMerchantCategory");
+    $("editManualCategory").hidden = !!merchantId;
+    $("editLinkedCategory").hidden = !merchantId;
+    category.disabled = !!merchantId;
+    if (!merchantId) return;
+    if (!categoryOptions().includes(merchant?.category)) {
+      linked.textContent = "Сначала задайте категорию этому магазину.";
+      return;
     }
-    category.disabled = !!merchant;
-    syncCategory();
+    category.value = merchant.category;
+    linked.innerHTML = `<span class="merchant-category-icon">${icon(categoryIcon(merchant.category))}</span><span>${esc(merchant.category)}</span>`;
+    linked.firstElementChild.style.setProperty(
+      "--category-color",
+      categoryColor(merchant.category),
+    );
   }
   root.openCategoryEditor = (button) => {
     const month = button.dataset.month,
@@ -35,9 +40,6 @@
       .map((c) => `<option value="${esc(c)}">${esc(c)}</option>`)
       .join("");
     $("expenseCategory").value = expense.category;
-    $("editCategoryChoices").innerHTML = categoryOptions()
-      .map((c) => categoryChoice(c, expense.category))
-      .join("");
     const closed = state.months[month].weeks[expense.week].closed;
     $("editExpenseAmount").value = (expense.amount / 100).toFixed(2);
     $("editExpenseDate").value = expense.date;
@@ -60,22 +62,13 @@
     syncMerchant();
     syncLinkedCategory();
     $("expenseEditorHint").textContent = closed
-      ? "Неделя закрыта: можно изменить магазин; категория связанного расхода берётся из магазина. Сумма и дата зафиксированы."
-      : "Категория связанного расхода берётся из магазина. Сумма и дата изменят остатки бюджета; перенос в закрытую неделю недоступен.";
+      ? "Неделя закрыта. Сумма и дата зафиксированы."
+      : "При изменении суммы или даты остатки бюджета пересчитаются. Перенос в закрытую неделю недоступен.";
     $("categoryEditor").showModal();
   };
   $("editExpenseMerchant").addEventListener("change", syncLinkedCategory);
   $("categoryEditorClose").onclick = () => {
     if (!busy) $("categoryEditor").close();
-  };
-  $("editCategoryChoices").onclick = (event) => {
-    const button = event.target.closest("[data-category]");
-    if (!button) return;
-    const value = cats[Number(button.dataset.category)];
-    if (!value) return;
-    $("expenseCategory").value = value;
-    for (const choice of $("editCategoryChoices").children)
-      choice.setAttribute("aria-pressed", String(choice === button));
   };
   $("categoryEditor").addEventListener("cancel", (e) => {
     if (busy) e.preventDefault();
@@ -83,12 +76,18 @@
   $("categoryEditorForm").onsubmit = async (e) => {
     e.preventDefault();
     if (!editing || busy) return;
+    const merchantId = $("editExpenseMerchant").value;
+    const merchant = merchantDetails(merchantId);
+    if (merchantId && !categoryOptions().includes(merchant?.category)) {
+      toast("Сначала задайте категорию этому магазину.");
+      return;
+    }
     if (
       await mutate({
         type: "expense_update",
         ...editing,
-        category: $("expenseCategory").value,
-        merchantId: $("editExpenseMerchant").value,
+        category: merchant?.category || $("expenseCategory").value,
+        merchantId,
         ...(!$("editExpenseAmount").disabled
           ? {
               amount: cents($("editExpenseAmount").value),

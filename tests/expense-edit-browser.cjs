@@ -115,7 +115,30 @@ const assert = require("node:assert/strict");
         .getByRole("button", { name, exact: true })
         .click();
     };
+    await page.evaluate(() => {
+      state.merchants = [
+        ...(state.merchants || []),
+        {
+          id: "c-" + "0".repeat(32),
+          name: "Магазин без категории",
+          aliases: [],
+        },
+      ];
+    });
     await open(expense.id);
+    const manualCategory = page.locator("#expenseCategory");
+    const linkedCategory = page.locator("#editMerchantCategory");
+    assert.equal(await manualCategory.inputValue(), expense.category);
+    await choose("Магазин операции", "Магазин без категории");
+    assert.match(
+      await linkedCategory.textContent(),
+      /Сначала задайте категорию/,
+    );
+    const beforeInvalidSave = await state();
+    await page.locator("#categoryEditorForm button.primary").click();
+    assert.equal(await page.locator("#categoryEditor").isVisible(), true);
+    assert.equal((await state()).revision, beforeInvalidSave.revision);
+    await choose("Магазин операции", "Не указан");
     await page.locator("#editExpenseAmount").fill("125.50");
     await page.locator("#editExpenseDate").fill("2026-11-10");
     await page.getByRole("button", { name: "Магазин операции" }).click();
@@ -135,7 +158,25 @@ const assert = require("node:assert/strict");
         .category,
       "Супермаркеты",
     );
-    assert.equal(await page.locator("#expenseCategory").inputValue(), "Супермаркеты");
+    assert.equal(await manualCategory.isVisible(), false);
+    assert.equal(await linkedCategory.textContent(), "Супермаркеты");
+    assert.equal(await linkedCategory.locator("img").count(), 1);
+    await linkedCategory.locator("img").hover();
+    assert.notEqual(
+      await linkedCategory
+        .locator("img")
+        .evaluate((img) => getComputedStyle(img).cursor),
+      "wait",
+    );
+    await choose("Магазин операции", "Яндекс Такси");
+    assert.equal(await linkedCategory.textContent(), "Такси");
+    await choose("Магазин операции", "Не указан");
+    assert.equal(await manualCategory.isVisible(), true);
+    assert.equal(await manualCategory.inputValue(), "Такси");
+    await manualCategory.selectOption("Кофейни");
+    await choose("Магазин операции", "Новый из редактора");
+    assert.equal(await manualCategory.isVisible(), false);
+    assert.equal(await linkedCategory.textContent(), "Супермаркеты");
     for (const width of [320, 390, 1440]) {
       await page.setViewportSize({ width, height: 844 });
       const box = await page.locator("#categoryEditor").boundingBox();
@@ -199,7 +240,8 @@ const assert = require("node:assert/strict");
     assert.equal(await page.locator("#editExpenseAmount").isDisabled(), true);
     assert.equal(await page.locator("#editExpenseDate").isDisabled(), true);
     await choose("Магазин операции", "Магнит");
-    await choose("Новая категория", "Супермаркеты");
+    assert.equal(await manualCategory.isVisible(), false);
+    assert.equal(await linkedCategory.textContent(), "Супермаркеты");
     await page.locator("#categoryEditorForm button.primary").click();
     await page.locator("#categoryEditor").waitFor({ state: "hidden" });
     current = await state();

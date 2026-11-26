@@ -112,13 +112,6 @@ const assert = require("node:assert/strict");
       await page.locator('[data-week="1"]').textContent(),
       /Ожидаемый остаток/,
     );
-    await page.locator('[data-week="1"]').click();
-    assert.match(await page.locator("#weekforecast").textContent(), /История/);
-    assert.equal(
-      await page.locator("#expenseform [name=date]").getAttribute("max"),
-      "2026-11-13",
-    );
-    await page.locator("#dismiss").click();
     assert.equal(
       await page.locator("#mobileTabs").isVisible(),
       true,

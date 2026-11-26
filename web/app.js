@@ -79,13 +79,8 @@ const categoryColor = (category) => {
     ? categoryColors[index]
     : categoryColors[customCategoryIndex(category) % categoryColors.length];
 };
-const categoryChoice = (category, selected) => {
-  const index = categoryIndex(category), name = categoryIcon(category);
-  return `<button type="button" class="category-choice" data-category="${index}" style="--category-color:${categoryColor(category)}" aria-pressed="${String(category === selected)}">${icon(name)}<span>${esc(category)}</span></button>`;
-};
 const icon = (name) =>
-    `<img class="svgicon" src="/icons/${name}.svg" alt="" aria-hidden="true">`,
-  icons = iconNames.map(icon);
+  `<img class="svgicon" src="/icons/${name}.svg" alt="" aria-hidden="true">`;
 const money = (n) =>
   new Intl.NumberFormat("ru-RU", {
     style: "currency",
@@ -106,7 +101,6 @@ let selected = serverToday.slice(0, 7),
   state = { months: {} },
   revision = 0,
   week = 0,
-  category = cats[0],
   busy = false,
   accountLogin = "";
 function categoryOptions() {
@@ -225,8 +219,11 @@ function expenseTitle(expense, merchant) {
 function sumExpenses(expenses) {
   return expenses.reduce((total, expense) => total + expense.amount, 0);
 }
-function entries(expenses) {
-  if (!expenses.length) return '<p class="muted">Пока нет трат</p>';
+function renderEntries(container, expenses, heading = "") {
+  if (!expenses.length) {
+    container.innerHTML = heading + '<p class="muted">Пока нет трат</p>';
+    return;
+  }
   const today = todayDate(),
     yesterday = ExpenseAnalytics.shift(today, -1);
   const merchants = new Map(
@@ -237,7 +234,7 @@ function entries(expenses) {
     if (!groups.has(expense.date)) groups.set(expense.date, []);
     groups.get(expense.date).push(expense);
   }
-  return [...groups.keys()]
+  const rowsByDay = [...groups.keys()]
     .sort((a, b) => b.localeCompare(a))
     .map((day) => {
       const items = groups.get(day),
@@ -246,7 +243,7 @@ function entries(expenses) {
         const iconName = categoryIcon(expense.category);
         const title = expenseTitle(expense, merchants.get(expense.merchantId));
         return `<button type="button" class="entry" data-expense-id="${esc(expense.id)}" data-month="${esc(day.slice(0, 7))}" aria-haspopup="dialog" aria-controls="expenseDetails">
-          <span class="icon" data-icon="${iconName}" style="--category-color:${categoryColor(expense.category)}" aria-hidden="true">${icon(iconName)}</span>
+          <span class="icon" data-icon="${iconName}" data-entry-color="${categoryColor(expense.category)}" aria-hidden="true">${icon(iconName)}</span>
           <span class="description"><span class="expense-title">${esc(title)}</span><small>${esc(expense.category)}</small></span>
           <strong>${money(expense.amount)}</strong>
         </button>`;
@@ -257,6 +254,9 @@ function entries(expenses) {
       </section>`;
     })
     .join("");
+  container.innerHTML = heading + rowsByDay;
+  for (const entryIcon of container.querySelectorAll("[data-entry-color]"))
+    entryIcon.style.setProperty("--category-color", entryIcon.dataset.entryColor);
 }
 function render() {
   refreshCategories();
@@ -280,62 +280,34 @@ function render() {
     .map((w, i) => {
       let s = spent(m, i),
         left = w.limit - s;
-      return `<button class="week ${w.closed ? "closed" : ""}" data-week="${i}"><div class="weekhead"><div><strong>Неделя ${i + 1}</strong><span class="weekdate">${w.start}–${w.end} · ${w.days} дн.</span></div><span class="badge">${w.closed ? "Закрыта ✓" : "Посмотреть ↗"}</span></div><div class="weeknumbers"><div>Лимит<strong>${money(w.limit)}</strong></div><div>Остаток<strong class="${left < 0 ? "negative" : ""}">${money(left)}</strong></div></div><div class="progress"><progress max="100" value="${w.limit ? Math.min(100, (s / w.limit) * 100) : s ? 100 : 0}"></progress></div><span class="muted">Потрачено ${money(s)}</span>${forecastMarkup(i)}</button>`;
+      return `<button class="week ${w.closed ? "closed" : ""}" data-week="${i}"><div class="weekhead"><div><strong>Неделя ${i + 1}</strong><span class="weekdate">${w.start}–${w.end} · ${w.days} дн.</span></div><span class="badge">${w.closed ? "Закрыта ✓" : "Управление ↗"}</span></div><div class="weeknumbers"><div>Лимит<strong>${money(w.limit)}</strong></div><div>Остаток<strong class="${left < 0 ? "negative" : ""}">${money(left)}</strong></div></div><div class="progress"><progress max="100" value="${w.limit ? Math.min(100, (s / w.limit) * 100) : s ? 100 : 0}"></progress></div><span class="muted">Потрачено ${money(s)}</span>${forecastMarkup(i)}</button>`;
     })
     .join("");
   ExpenseHistoryView.render();
 }
-function forecastMarkup(i, detailed = false) {
+function forecastMarkup(i) {
   const f = ExpenseAnalytics.forecast(state, selected, i, todayDate());
   if (!f || f.status === "actual") return "";
   if (f.status === "insufficient")
     return '<span class="forecast muted">Прогноз: недостаточно данных</span>';
-  return `<span class="forecast ${f.left < 0 ? "negative" : ""}">Ожидаемый остаток: ${money(f.left)}${f.left < 0 ? " · ожидается превышение лимита" : ""}${detailed ? `<small>Прогноз расходов — ${money(f.total)}. ${esc(f.method)}. История — ${f.observations} из 6 сопоставимых недель. Завершённых дней — ${f.completedDays}. Вес текущего темпа — ${Math.round(f.adaptability * 100)}%.</small>` : ""}</span>`;
+  return `<span class="forecast ${f.left < 0 ? "negative" : ""}">Ожидаемый остаток: ${money(f.left)}${f.left < 0 ? " · ожидается превышение лимита" : ""}</span>`;
 }
 function renderWeek() {
   const m = current(),
-    w = m.weeks[week];
+    w = m.weeks[week],
+    firstOpen = m.weeks.findIndex((item) => !item.closed),
+    blocked = !w.closed && week > firstOpen;
   $("weektitle").textContent =
     `Неделя ${week + 1}${w.closed ? " · закрыта" : ""}`;
   $("weekdates").textContent = `${w.start}–${w.end} / ${selected}`;
-  $("weeksummary").innerHTML =
-    `<div>Лимит<strong>${money(w.limit)}</strong></div><div>Потрачено<strong>${money(spent(m, week))}</strong></div><div>Остаток<strong>${money(w.limit - spent(m, week))}</strong></div>`;
-  $("weekforecast").innerHTML = forecastMarkup(week, true);
   $("weekeditable").hidden = w.closed;
   $("limit").value = w.limit / 100;
-  $("weekexpenses").innerHTML = entries(
-    m.expenses.filter((expense) => expense.week === week),
-  );
-  const date = $("expenseform").elements.date,
-    min = `${selected}-${String(w.start).padStart(2, "0")}`,
-    max = `${selected}-${String(w.end).padStart(2, "0")}`;
-  date.min = min;
-  date.max = max < todayDate() ? max : todayDate();
-  date.disabled = min > todayDate();
-  $("expenseform").querySelector("button.primary").disabled = min > todayDate();
-  const today = todayDate();
-  if (!date.value || date.value < min || date.value > max)
-    date.value = today >= min && today <= max ? today : min > today ? "" : min;
-  const selectedMerchant = merchantDetails($("weekMerchant").value);
-  $("categorybuttons").hidden = !!selectedMerchant;
-  $("categoryMerchantNote").hidden = !selectedMerchant;
-  $("categoryMerchantNote").textContent = selectedMerchant?.category
-    ? `Категория магазина: ${selectedMerchant.category}`
-    : "Сначала задайте категорию этому магазину";
-  $("expenseform").querySelector("button.primary").disabled =
-    min > todayDate() || (!!selectedMerchant && !selectedMerchant.category);
-  $("categorybuttons").innerHTML = categoryOptions()
-    .map((c) => categoryChoice(c, category))
-    .join("");
-}
-function updateCloseAvailability() {
-  const m = current(),
-    first = m.weeks.findIndex((w) => !w.closed),
-    blocked = m.weeks.slice(0, week).some((w) => !w.closed);
   $("closeform").hidden = blocked;
+  $("weekCloseAction").setAttribute("aria-disabled", String(blocked));
+  if (blocked) $("weekCloseSection").open = false;
   $("closenote").hidden = !blocked;
   $("closenote").textContent = blocked
-    ? `Сначала закройте неделю ${first + 1}. Недели закрываются по порядку.`
+    ? `Сначала закройте неделю ${firstOpen + 1}.`
     : "";
 }
 async function mutate(action) {
@@ -483,53 +455,16 @@ $("weeks").onclick = (e) => {
   const b = e.target.closest("[data-week]");
   if (!b) return;
   week = Number(b.dataset.week);
-  $("expenseform").reset();
-  category = categoryOptions()[0];
+  for (const section of $("weekeditable").querySelectorAll("details"))
+    section.open = false;
   renderWeek();
   $("weekdialog").showModal();
 };
 $("dismiss").onclick = () => $("weekdialog").close();
-$("categorybuttons").onclick = (e) => {
-  const b = e.target.closest("[data-category]");
-  if (b) {
-    category = b.dataset.category;
-    renderWeek();
-  }
+$("weekCloseAction").onclick = (event) => {
+  if ($("closeform").hidden) event.preventDefault();
 };
 const cents = (v) => Math.round(Number(v) * 100);
-$("expenseform").onsubmit = async (e) => {
-  e.preventDefault();
-  const f = e.target;
-  const selectedMerchant = merchantDetails(f.elements.merchantId.value);
-  if (selectedMerchant) {
-    if (!selectedMerchant.category) {
-      toast("Сначала задайте категорию магазину");
-      return;
-    }
-    category = selectedMerchant.category;
-  }
-  if (
-    await mutate({
-      type: "expense",
-      amount: cents(f.elements.amount.value),
-      date: f.elements.date.value,
-      category,
-      note: f.elements.note.value,
-      merchantId: f.elements.merchantId.value,
-    })
-  ) {
-    f.elements.amount.value = "";
-    f.elements.note.value = "";
-    f.elements.merchantId.value = "";
-    MerchantUI.resetWeek();
-    f.elements.amount.focus();
-  }
-};
-$("weekMerchant").addEventListener("change", () => {
-  const selectedMerchant = merchantDetails($("weekMerchant").value);
-  category = selectedMerchant?.category || categoryOptions()[0];
-  if ($("weekdialog").open) renderWeek();
-});
 for (const [form, type, input] of [
   ["budgetform", "budget", "budget"],
   ["limitform", "limit", "limit"],
@@ -562,7 +497,6 @@ async function refreshToday() {
     await api("config");
     if (before !== todayDate()) {
       render();
-      if ($("weekdialog").open) renderWeek();
       document.dispatchEvent(new Event("finance-date-change"));
     }
   } catch {

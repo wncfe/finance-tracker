@@ -12,11 +12,7 @@
     (row || list).focus({ preventScroll: true });
   }
 
-  for (const list of [
-    $("history"),
-    $("weekexpenses"),
-    $("analysisDetailsBody"),
-  ]) {
+  for (const list of [$("history"), $("analysisDetailsBody")]) {
     list.addEventListener("click", (event) => {
       const row = event.target.closest("[data-expense-id]");
       if (!row || busy) return;

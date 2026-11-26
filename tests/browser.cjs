@@ -41,23 +41,23 @@ const assert = require("node:assert/strict");
     await page.waitForFunction(() =>
       document.querySelector("#total").textContent.includes("30"),
     );
-    await page.locator('[data-week="1"]').click();
-    await page.locator("[name=amount]").fill("459.90");
-    await page.locator("[name=note]").fill("Супермаркеты <тест>");
-    await page.locator('[data-category="0"]').click();
-    await page
-      .locator("#expenseform label")
-      .filter({ has: page.locator("[name=date]") })
-      .locator(".picker-trigger")
-      .click();
-    await page.locator('.picker[open] [data-value="2026-11-03"]').click();
-    await page.locator("#expenseform button.primary").click();
-    await page.locator("#weekexpenses .entry").waitFor();
+    const prepareExpense = async (date, amount, note) => {
+      await page.locator("#quickopen").click();
+      await page.locator("#quicktext").fill(`${date} продукты ${amount}`);
+      await page.locator("#quickparse button").click();
+      await page.locator("#quickrows [data-field=note]").fill(note);
+      assert.equal(await page.locator("#quicksubmit").isEnabled(), true);
+    };
+    const saveExpense = async () => {
+      await page.locator("#quicksubmit").click();
+      await page.locator("#quickdialog").waitFor({ state: "hidden" });
+    };
+    await prepareExpense("2026-11-09", "459,90", "Супермаркеты <тест>");
+    await saveExpense();
     assert.match(
-      await page.locator("#weekexpenses").textContent(),
+      await page.locator("#history").textContent(),
       /Супермаркеты <тест>/,
     );
-    await page.locator("#dismiss").click();
     let releaseSession;
     const sessionGate = new Promise((resolve) => (releaseSession = resolve));
     let sessionRequested;
@@ -105,30 +105,20 @@ const assert = require("node:assert/strict");
         true,
         "dialog overflow " + width,
       );
-      await page
-        .locator("#expenseform label")
-        .filter({ has: page.locator("[name=date]") })
-        .locator(".picker-trigger")
-        .click();
-      assert.equal(
-        await page
-          .locator(".picker[open]")
-          .evaluate((el) => el.scrollWidth <= el.clientWidth),
-        true,
-        "calendar overflow " + width,
+      const weekDialog = page.locator("#weekdialog");
+      assert.equal(await weekDialog.locator("form").count(), 2);
+      assert.deepEqual(await weekDialog.locator("summary").allTextContents(), [
+        "Изменить лимит недели",
+        "Закрыть неделю",
+      ]);
+      assert.equal(await weekDialog.locator("details[open]").count(), 0);
+      assert.match(
+        await weekDialog.locator("#closenote").textContent(),
+        /Сначала закройте неделю 1/,
       );
-      await page.keyboard.press("Escape");
-      assert.equal(
-        await page.locator("#weekdialog").evaluate((el) => el.open),
-        true,
-        "Escape should close only date picker",
-      );
-      assert.equal(
-        await page
-          .locator("#weekdialog")
-          .evaluate((el) => getComputedStyle(el).scrollbarWidth),
-        "none",
-      );
+      assert.equal(await weekDialog.locator("#closenote").isVisible(), true);
+      await weekDialog.getByText("Изменить лимит недели").click();
+      assert.equal(await weekDialog.locator("#limit").isVisible(), true);
       await page.screenshot({
         path: dir + "/mobile-" + width + ".png",
         fullPage: true,
@@ -136,8 +126,17 @@ const assert = require("node:assert/strict");
       await page.locator("#dismiss").click();
     }
     await page.locator("#tab-history").click();
-    await page.locator('.history button[aria-label="Фильтр недели"]').click();
-    await page.locator('.picker[open] [data-option="2"]').click();
+    await page.locator('[data-history-scale="week"]').click();
+    const historyPeriod = page.locator("#historyPeriod");
+    for (let i = 0; i < 2; i++) {
+      const previousPeriod = await historyPeriod.textContent();
+      await page.locator("#historyNext").click();
+      await page.waitForFunction(
+        (text) => document.querySelector("#historyPeriod").textContent !== text,
+        previousPeriod,
+      );
+    }
+    await page.locator("#history .entry").first().waitFor();
     assert.equal(await page.locator("#history .entry").count(), 1);
     const filteredAmount = await page
       .locator("#history .entry strong")
@@ -146,13 +145,13 @@ const assert = require("node:assert/strict");
       await page.locator(".entry-day-total:visible").textContent(),
       filteredAmount,
     );
-    assert.equal(
-      await page.locator("#historyTotal").textContent(),
-      filteredAmount,
-    );
+    await page.locator('[data-history-scale="month"]').click();
     await page.locator("#tab-overview").click();
     await page.locator('[data-week="1"]').click();
-    await page.locator("#closeform").locator("..").locator("summary").click();
+    assert.equal(
+      await page.locator("#weekCloseAction").getAttribute("aria-disabled"),
+      "true",
+    );
     assert.equal(await page.locator("#closeform").isVisible(), false);
     assert.equal(await page.locator("#closenote").isVisible(), true);
     const blocked = await page.evaluate(async () => {
@@ -179,32 +178,42 @@ const assert = require("node:assert/strict");
     });
     assert.deepEqual(blocked, { status: 400, unchanged: true });
     await page.locator("#dismiss").click();
+    await prepareExpense("2026-11-01", "8500", "Продукты");
+    await saveExpense();
     await page.locator('[data-week="0"]').click();
-    await page.locator("[name=amount]").fill("1500");
-    await page.locator("#expenseform button.primary").click();
-    await page.locator("#weekexpenses .entry").waitFor();
-    assert.match(await page.locator("#weeksummary").textContent(), /-500/);
+    assert.equal(await page.locator("#weekdialog details[open]").count(), 0);
+    await page.getByText("Изменить лимит недели", { exact: true }).click();
+    assert.equal(await page.locator("#limit").inputValue(), "8000");
+    await page.locator("#limit").fill("8100");
+    await page.locator("#limitform button").click();
+    await page.waitForFunction(() =>
+      document
+        .querySelector('[data-week="0"]')
+        .textContent.includes(money(810000)),
+    );
+    await page.getByText("Закрыть неделю", { exact: true }).click();
     await page.locator("#closeform .picker-trigger").click();
     await page.locator('.picker[open] [data-option="1"]').click();
     await page.locator("#closeform>button").click();
     await page.waitForFunction(
       () => document.querySelector("#weekeditable").hidden,
     );
-    assert.match(await page.locator("#weeksummary").textContent(), /-500/);
+    assert.match(await page.locator("#weektitle").textContent(), /закрыта/);
     const overspent = (
       await page.evaluate(() => fetch("/api/state").then((r) => r.json()))
     ).state.months["2026-11"];
-    assert.equal(overspent.weeks[0].limit, 100000);
-    assert.equal(overspent.weeks[0].settled, 150000);
+    assert.equal(overspent.weeks[0].limit, 810000);
+    assert.equal(overspent.weeks[0].settled, 850000);
     assert.equal(
       overspent.weeks.slice(1).reduce((s, w) => s + w.limit, 0),
-      2850000,
+      3000000 - 850000,
     );
     await page.locator("#dismiss").click();
     const before = (
       await page.evaluate(() => fetch("/api/state").then((r) => r.json()))
     ).state.months["2026-11"];
     await page.locator('[data-week="1"]').click();
+    await page.getByText("Закрыть неделю", { exact: true }).click();
     await page.locator("#closeform .picker-trigger").click();
     assert.equal(await page.locator(".picker[open] [data-option]").count(), 2);
     await page.locator('.picker[open] [data-option="0"]').click();
@@ -222,32 +231,36 @@ const assert = require("node:assert/strict");
     assert.deepEqual(after.weeks.slice(3), before.weeks.slice(3));
     // Closed weeks allow only category corrections, without reopening.
     assert.equal(await page.locator("#reopen").count(), 0);
-    const historical = after.expenses[0];
-    await page.locator("#weekexpenses [data-expense-id]").click();
+    const historical = after.expenses.find((expense) => expense.week === 1);
+    await page.locator("#dismiss").click();
+    await page.locator("#tab-history").click();
+    await page.locator(`#history [data-expense-id="${historical.id}"]`).click();
     assert.equal(
       await page.locator("#expenseDetailsDelete").isDisabled(),
       true,
     );
     await page.locator("#expenseDetailsEdit").click();
-    await page.locator("#categoryEditor .select-trigger").click();
-    await page
-      .locator(".picker[open] [data-option]")
-      .filter({ hasText: "Кофейни" })
-      .click();
+    assert.equal(
+      await page.locator("#expenseCategory").inputValue(),
+      historical.category,
+    );
+    await page.locator("#expenseCategory").selectOption("Кофейни");
     await page.locator("#categoryEditorForm > button").click();
     await page.locator("#categoryEditor").waitFor({ state: "hidden" });
     const corrected = (
       await page.evaluate(() => fetch("/api/state").then((r) => r.json()))
     ).state.months["2026-11"];
     assert.deepEqual(corrected.weeks, after.weeks);
-    assert.deepEqual(corrected.expenses[0], {
-      ...historical,
-      category: "Кофейни",
-    });
-    await page.locator("#dismiss").click();
+    assert.deepEqual(
+      corrected.expenses.find((expense) => expense.id === historical.id),
+      {
+        ...historical,
+        category: "Кофейни",
+      },
+    );
+    await page.locator("#tab-overview").click();
     // Lost response in a still-open week must not duplicate the expense.
-    await page.locator('[data-week="2"]').click();
-    await page.locator("[name=amount]").fill("123.45");
+    await prepareExpense("2026-11-16", "123,45", "Проверка повтора");
     let lost = false;
     await page.route("**/api/action", async (route) => {
       if (!lost) {
@@ -256,11 +269,15 @@ const assert = require("node:assert/strict");
         await route.abort("failed");
       } else await route.continue();
     });
-    await page.locator("#expenseform button.primary").click();
-    await page.locator("#weekexpenses .entry").waitFor();
-    assert.equal(await page.locator("#weekexpenses .entry").count(), 1);
+    await saveExpense();
+    assert.equal(
+      await page
+        .locator("#history .entry")
+        .filter({ hasText: "Проверка повтора" })
+        .count(),
+      1,
+    );
     await page.unroute("**/api/action");
-    await page.locator("#dismiss").click();
     // Global add ignores the month currently on screen; batch spans months.
     await page.locator("#quickopen").click();
     await page.locator("#quicktext").fill("2026-11-01 кофе 250");
@@ -272,7 +289,7 @@ const assert = require("node:assert/strict");
     );
     await page
       .locator("#quicktext")
-      .fill("2026-11-09 кофе 250; 2026-12-01 продукты 850,50");
+      .fill("2026-11-16 кофе 250; 2026-12-01 продукты 850,50");
     await page.locator("#quickparse button").click();
     assert.equal(await page.locator(".quick-row").count(), 2);
     const firstRow = page.locator(".quick-row").first();
@@ -287,10 +304,10 @@ const assert = require("node:assert/strict");
       /Декабрь 2026/,
     );
     await page.locator('.picker[open] [data-month-move="-1"]').click();
-    await page.locator('.picker[open] [data-value="2026-11-10"]').click();
+    await page.locator('.picker[open] [data-value="2026-11-17"]').click();
     assert.equal(
       await firstRow.locator("[data-field=date]").inputValue(),
-      "2026-11-10",
+      "2026-11-17",
     );
     await firstRow.locator(".select-trigger").click();
     await page
@@ -471,7 +488,7 @@ const assert = require("node:assert/strict");
     await page.locator(".quick-row [data-field=remember]").last().uncheck();
     assert.equal(await page.locator("#quicksubmit").isEnabled(), true);
     // Unparsed fragments stay visible and block the complete batch.
-    await page.locator("#quicktext").fill("2026-11-09 кофе 250, без суммы");
+    await page.locator("#quicktext").fill("2026-11-16 кофе 250, без суммы");
     await page.locator("#quickparse button").click();
     assert.equal(await page.locator(".quick-row").count(), 2);
     assert.equal(await page.locator("#quicksubmit").isDisabled(), true);
@@ -510,21 +527,8 @@ const assert = require("node:assert/strict");
     await page.locator('.picker[open] [data-month-move="1"]').click();
     await page.locator('.picker[open] [data-value="2026-12-31"]').click();
     assert.ok((await page.locator(".category-row").count()) > 0);
-    const chartTotal = await page.evaluate(() => {
-      const summary = ExpenseAnalytics.summarize(
-        state,
-        ExpenseAnalytics.range("custom", null, "2026-11-01", "2026-12-31"),
-      );
-      return new Intl.NumberFormat("ru-RU", {
-        style: "currency",
-        currency: "RUB",
-        maximumFractionDigits: summary.total % 100 ? 2 : 0,
-      }).format(summary.total / 100);
-    });
-    assert.equal(
-      await page.locator("#categoryChart strong").textContent(),
-      chartTotal,
-    );
+    const categoryAmounts = page.locator(".category-row-title strong");
+    const amountsBeforeFiltering = await categoryAmounts.allTextContents();
     await page.locator(".chart-legend").first().click();
     assert.equal(
       await page.locator('.chart-legend[aria-pressed="true"]').count(),
@@ -546,9 +550,9 @@ const assert = require("node:assert/strict");
       category,
       "category filtering preserves keyboard focus",
     );
-    assert.equal(
-      await page.locator("#categoryChart strong").textContent(),
-      chartTotal,
+    assert.deepEqual(
+      await categoryAmounts.allTextContents(),
+      amountsBeforeFiltering,
       "category structure retains full-period context",
     );
     for (const width of [320, 390, 1440]) {
@@ -573,19 +577,17 @@ const assert = require("node:assert/strict");
         await page.locator("[data-nav-panel]:not([hidden])").count(),
         section === "budget" ? 2 : 1,
       );
-      assert.equal(await page.locator("#quickopen").isVisible(), true);
-      await page.locator("#quickopen").click();
+      if (section === "analytics") continue;
+      const launcher = page.locator(
+        section === "history" ? "#historyQuickopen" : "#quickopen",
+      );
+      await launcher.click();
       await page.locator("#quickdialog").waitFor({ state: "visible" });
       await page.locator("#quickclose").click();
     }
     await page.locator("#tab-history").click();
     assert.equal(await page.locator("#history .entry button").count(), 0);
-    assert.equal(
-      await page
-        .locator("#quickopen")
-        .evaluate((el) => getComputedStyle(el).position),
-      "static",
-    );
+    assert.equal(await page.locator("#historyQuickopen").isVisible(), true);
     assert.match(
       await page.locator("#history time").first().textContent(),
       /ноября/,
@@ -619,15 +621,15 @@ const assert = require("node:assert/strict");
       path: dir + "/mobile-history-compact.png",
       fullPage: true,
     });
-    assert.match(await page.evaluate(() => expenseDate("2025-11-07")), /2025/);
+    assert.match(
+      await page.evaluate(() => expenseDate("2025-11-07", todayDate())),
+      /2025/,
+    );
     // Deletion from the details dialog remains available for an open week.
-    await page
-      .locator('#panel-history button[aria-label="Фильтр недели"]')
-      .click();
-    await page.locator('.picker[open] [data-option="0"]').click();
+    await page.locator('[data-history-scale="month"]').click();
     const removable = await page.evaluate(
       () =>
-        state.months["2026-11"].expenses.find((e) => e.date === "2026-11-10")
+        state.months["2026-11"].expenses.find((e) => e.date === "2026-11-17")
           .id,
     );
     await page.locator(`#history [data-expense-id="${removable}"]`).click();

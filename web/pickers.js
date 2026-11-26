@@ -156,9 +156,7 @@ function attachSelect(select) {
   select.after(trigger);
   select.hidden = true;
   const dialog = pickerDialog(trigger.getAttribute("aria-label"));
-  const isMerchant = ["weekMerchant", "editExpenseMerchant"].includes(
-    select.id,
-  );
+  const isMerchant = select.id === "editExpenseMerchant";
   const recentKey = "finance.recentMerchants";
   const readRecent = () => {
     if (!isMerchant) return [];
@@ -294,24 +292,11 @@ function attachSelect(select) {
   sync();
   return sync;
 }
-const syncMonth = attachPicker($("month"), "month"),
-  syncDate = attachPicker($("expenseform").elements.date, "date"),
-  syncClose = attachSelect($("closemode"));
-const syncWeekMerchant = attachSelect($("weekMerchant"));
-const originalRender = render,
-  originalRenderWeek = renderWeek;
+const syncMonth = attachPicker($("month"), "month");
+attachSelect($("closemode"));
+const originalRender = render;
 render = function () {
   originalRender();
   syncMonth();
-  syncClose();
-  syncWeekMerchant();
-};
-renderWeek = function () {
-  originalRenderWeek();
-  syncDate();
-  updateCloseAvailability();
 };
 syncMonth();
-syncDate();
-syncClose();
-syncWeekMerchant();
