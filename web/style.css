@@ -633,8 +633,14 @@ h3 {
 .history-ring-segment:hover {
   filter: brightness(0.93);
 }
+.history-ring-head {
+  filter: brightness(1.1) drop-shadow(-0.8px 0.9px 1.2px #183a3240);
+}
+.history-ring-head:hover {
+  filter: brightness(1.17) drop-shadow(-0.8px 0.9px 1.2px #183a3240);
+}
 .history-ring-labels,
-.history-ring-symbols {
+.history-ring-symbol {
   pointer-events: none;
 }
 .history-ring-labels text {
@@ -644,10 +650,7 @@ h3 {
   font-variant-numeric: tabular-nums;
   dominant-baseline: central;
 }
-.history-ring-symbols circle {
-  fill: #fff3;
-}
-.history-ring-symbols image {
+.history-ring-symbol {
   filter: brightness(0) invert(1);
 }
 .history-ring-center {
