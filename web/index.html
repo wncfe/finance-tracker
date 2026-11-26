@@ -498,7 +498,7 @@
       </div>
       <div id="historyRemainderCategories" class="history-categories"></div>
     </dialog>
-    <dialog id="weekdialog" aria-labelledby="weektitle">
+    <dialog id="weekdialog" class="operations-dialog" aria-labelledby="weektitle">
       <div class="dialoghead">
         <div>
           <span class="eyebrow" id="weekdates"></span>
@@ -650,7 +650,7 @@
         <div id="rulelist"></div>
       </details>
     </dialog>
-    <dialog id="analysisDetails" aria-labelledby="analysisDetailsTitle">
+    <dialog id="analysisDetails" class="operations-dialog" aria-labelledby="analysisDetailsTitle">
       <div class="dialoghead">
         <h2 id="analysisDetailsTitle">Расходы</h2>
         <button type="button" data-close="analysisDetails" aria-label="Закрыть">
@@ -701,13 +701,9 @@
             aria-label="Магазин операции"
           ></select
         ></label>
-        <label
-          >Категория<select
-            id="expenseCategory"
-            aria-label="Новая категория"
-            required
-          ></select
-        ></label>
+        <label>Категория</label>
+        <div id="editCategoryChoices" class="category-choices" role="group" aria-label="Новая категория"></div>
+        <select id="expenseCategory" aria-label="Новая категория" required hidden></select>
         <p class="muted">
           <span id="expenseEditorHint"
             >При изменении суммы или даты остатки бюджета пересчитаются.</span

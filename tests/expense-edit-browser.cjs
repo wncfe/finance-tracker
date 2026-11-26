@@ -119,7 +119,11 @@ const assert = require("node:assert/strict");
     await page.locator("#editExpenseAmount").fill("125.50");
     await page.locator("#editExpenseDate").fill("2026-11-10");
     await choose("Магазин операции", "Магнит");
-    await choose("Новая категория", "Супермаркеты");
+    await page
+      .locator("#editCategoryChoices")
+      .getByRole("button", { name: "Супермаркеты", exact: true })
+      .click();
+    assert.equal(await page.locator("#expenseCategory").inputValue(), "Супермаркеты");
     for (const width of [320, 390, 1440]) {
       await page.setViewportSize({ width, height: 844 });
       const box = await page.locator("#categoryEditor").boundingBox();
