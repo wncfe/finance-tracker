@@ -19,13 +19,29 @@
   const operationCount = (n) =>
     `${n} ${plural(n, ["операция", "операции", "операций"])}`;
   const weekdaysNames = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
+  const dateLabel = new Intl.DateTimeFormat("ru-RU", {
+    day: "numeric",
+    month: "long",
+    timeZone: "UTC",
+  });
+  const monthLabel = (day) =>
+    `${months[Number(day.slice(5, 7)) - 1]} ${day.slice(0, 4)}`;
+  const shortRange = (p) => {
+    if (p.from.slice(0, 4) !== p.to.slice(0, 4)) return span(p);
+    return dateLabel.formatRange(A.date(p.from), A.date(p.to));
+  };
+  const signedMoney = (n) =>
+    `${n > 0 ? "+" : n < 0 ? "−" : ""}${money(Math.abs(n))}`;
+  const compactMoney = (n) =>
+    new Intl.NumberFormat("ru-RU", {
+      notation: "compact",
+      maximumFractionDigits: 1,
+    }).format(n / 100) + " ₽";
   let cachedState,
     data,
     lastMonth = "",
     activeCategory = "",
     detail = null,
-    scenarios = [],
-    groups = [],
     found = [],
     repeated = [],
     trendDays = [],
@@ -33,33 +49,109 @@
     selectedBucket = 0,
     selectedDay = "",
     allCategories = false,
-    trendComparison = null,
-    compareTrend = false,
-    trendMode = "daily",
-    historicalDays = [],
     paceData = null,
     pacePoint = null;
+  const quickLaunch = $("quickopen").parentElement;
+  const analyticsPanel = $("panel-analytics");
+  const helpPopup = $("analyticsHelp");
+  let helpTrigger = null,
+    helpPinned = false,
+    helpTimer;
+  function closeHelp() {
+    clearTimeout(helpTimer);
+    if (helpPopup.matches(":popover-open")) helpPopup.hidePopover();
+    helpTrigger = null;
+    helpPinned = false;
+  }
+  function showHelp(button) {
+    clearTimeout(helpTimer);
+    if (helpTrigger === button && helpPopup.matches(":popover-open")) return;
+    helpTrigger = button;
+    helpPopup.textContent = button.dataset.analyticsHelp;
+    if (!helpPopup.matches(":popover-open")) helpPopup.showPopover();
+    positionHelp();
+  }
+  function positionHelp() {
+    if (!helpTrigger || !helpPopup.matches(":popover-open")) return;
+    const rect = helpTrigger.getBoundingClientRect();
+    const { clientWidth, clientHeight } = document.documentElement;
+    if (
+      !helpTrigger.isConnected ||
+      rect.bottom < 0 ||
+      rect.top > clientHeight
+    ) {
+      closeHelp();
+      return;
+    }
+    const margin = 10,
+      gap = 6,
+      width = helpPopup.offsetWidth,
+      height = helpPopup.offsetHeight;
+    const left = Math.max(
+      margin,
+      Math.min(
+        rect.left + (rect.width - width) / 2,
+        clientWidth - width - margin,
+      ),
+    );
+    const top =
+      rect.bottom + gap + height > clientHeight - margin
+        ? Math.max(margin, rect.top - height - gap)
+        : rect.bottom + gap;
+    Object.assign(helpPopup.style, { left: `${left}px`, top: `${top}px` });
+  }
+  function leaveHelp() {
+    if (helpPinned || helpTrigger?.matches(":focus-visible")) return;
+    clearTimeout(helpTimer);
+    helpTimer = setTimeout(closeHelp, 120);
+  }
+  analyticsPanel.addEventListener("pointerover", (e) => {
+    const button = e.target.closest("[data-analytics-help]");
+    if (button && e.pointerType === "mouse" && !helpPinned) showHelp(button);
+  });
+  analyticsPanel.addEventListener("pointerout", (e) => {
+    if (e.target === helpTrigger) leaveHelp();
+  });
+  analyticsPanel.addEventListener("focusin", (e) => {
+    if (e.target.matches("[data-analytics-help]:focus-visible"))
+      showHelp(e.target);
+  });
+  analyticsPanel.addEventListener("focusout", (e) => {
+    if (e.target === helpTrigger) closeHelp();
+  });
+  analyticsPanel.addEventListener("click", (e) => {
+    const button = e.target.closest("[data-analytics-help]");
+    if (!button) return;
+    if (
+      helpPinned &&
+      helpTrigger === button &&
+      helpPopup.matches(":popover-open")
+    )
+      closeHelp();
+    else {
+      showHelp(button);
+      helpPinned = true;
+    }
+  });
+  helpPopup.addEventListener("pointerenter", () => clearTimeout(helpTimer));
+  helpPopup.addEventListener("pointerleave", leaveHelp);
+  helpPopup.addEventListener("toggle", () => {
+    if (!helpPopup.matches(":popover-open")) closeHelp();
+  });
+  window.addEventListener("resize", positionHelp);
+  window.addEventListener("scroll", positionHelp, true);
   const syncs = {};
   for (const id of [
     "analysisMode",
-    "trendReference",
     "paceWindow",
     "analysisCategory",
     "heatmapMode",
-    "simulationGroup",
-    "simulationMode",
   ])
     syncs[id] = attachSelect($(id));
   for (const id of ["analysisDate", "analysisFrom", "analysisTo"])
     syncs[id] = attachPicker($(id), "date", { navigate: true });
-  for (const id of ["reportMonth", "simulationMonth"])
+  for (const id of ["analysisMonth", "reportMonth"])
     syncs[id] = attachPicker($(id), "month", { navigate: true });
-  const compactAnalytics = matchMedia("(max-width: 680px)");
-  function syncFilterDisclosure() {
-    $("analysisFilters").open = !compactAnalytics.matches;
-  }
-  compactAnalytics.addEventListener("change", syncFilterDisclosure);
-  syncFilterDisclosure();
   document.addEventListener("finance-saving", (e) => {
     $("analysisUpdateStatus").hidden = !e.detail;
     $("analysisContent").setAttribute("aria-busy", String(e.detail));
@@ -77,6 +169,12 @@
   function change(c) {
     return `${c.delta > 0 ? "+" : ""}${money(c.delta)}${c.percent === null ? " · ранее расходов не было" : ` (${c.percent > 0 ? "+" : ""}${new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 1 }).format(c.percent)}%)`}`;
   }
+  function helpButton(label, text) {
+    return `<button type="button" class="analytics-help" data-analytics-help="${esc(text)}" aria-label="${esc(label)}" aria-description="${esc(text)}">?</button>`;
+  }
+  function periodMetric(label, value, explanation = "") {
+    return `<div><div class="kpi-label"><span>${label}</span>${explanation ? helpButton(`О показателе «${label}»`, explanation) : ""}</div><strong>${money(value)}</strong></div>`;
+  }
   function currentPeriod() {
     return A.range(
       $("analysisMode").value,
@@ -86,14 +184,14 @@
     );
   }
   function draw() {
+    closeHelp();
     if ($("panel-analytics").hidden || $("dashboard").hidden) return;
     const d = source(),
       today = todayDate(),
       mode = $("analysisMode").value;
     if (lastMonth !== selected) {
-      if (mode !== "custom")
-        $("analysisDate").value =
-          selected === today.slice(0, 7) ? today : selected + "-01";
+      $("analysisDate").value =
+        selected === today.slice(0, 7) ? today : selected + "-01";
       $("analysisFrom").value = selected + "-01";
       $("analysisTo").value = A.range("month", selected + "-01").to;
       lastMonth = selected;
@@ -107,10 +205,10 @@
     $("analysisCategory").value = selectedCat;
     activeCategory = $("analysisCategory").value;
     $("clearAnalysisCategory").hidden = !activeCategory;
-    $("analysisFilterSummary").textContent =
-      `${$("analysisMode").selectedOptions[0].textContent} · ${activeCategory || "Все категории"}`;
+    $("analysisMonth").value = $("analysisDate").value.slice(0, 7);
     for (const id of [
       "analysisMode",
+      "analysisMonth",
       "analysisDate",
       "analysisFrom",
       "analysisTo",
@@ -119,67 +217,71 @@
     ])
       syncs[id]();
     $("analysisCustom").hidden = mode !== "custom";
-    $("analysisAnchor").hidden = mode === "custom";
+    $("analysisAnchor").hidden = mode === "custom" || mode === "month";
+    $("analysisMonthControl").hidden = mode !== "month";
+    $("analysisFilterSummary").textContent =
+      mode === "month"
+        ? monthLabel($("analysisDate").value)
+        : $("analysisMode").selectedOptions[0].textContent;
     let p;
     try {
       p = currentPeriod();
     } catch (e) {
-      $("analysisRange").textContent = e.message;
+      $("analysisError").textContent = e.message;
+      $("analysisError").hidden = false;
       $("analysisContent").hidden = true;
       return;
     }
-    $("analysisContent").hidden = false;
+    if (mode !== "month")
+      $("analysisFilterSummary").textContent =
+        mode === "day" ? fmt(p.from) : shortRange(p);
     if (p.from > today) {
+      $("analysisError").textContent = `${span(p)} · период ещё не начался`;
+      $("analysisError").hidden = false;
       $("analysisContent").hidden = true;
-      $("analysisRange").textContent = `${span(p)} · период ещё не начался`;
       return;
     }
+    $("analysisError").hidden = true;
+    $("analysisContent").hidden = false;
     const effective = { from: p.from, to: p.to > today ? today : p.to },
       summary = A.summarize(d, effective),
-      c = A.compare(d, p, mode, today, activeCategory);
-    $("analysisRange").textContent =
-      `${span(effective)} · ${operationCount(A.summarize(d, effective, activeCategory).count)}${p.from > today ? " · будущий период" : ""}`;
-    $("analysisComparison").textContent =
-      p.from > today
-        ? "Будущие дни не участвуют в расчётах."
-        : `Сравниваем ${span(c.current)} (${A.length(c.current)} дн.) с ${span(c.previous)} (${A.length(c.previous)} дн.).${c.partial ? " Сегодняшний день ещё не завершён." : ""}${A.length(c.current) !== A.length(c.previous) ? " Длительность периодов различается — учитывайте среднедневные расходы." : ""}`;
-    const days = A.daily(d, effective, today, activeCategory);
-    const actual = A.summarize(d, effective, activeCategory);
-    $("clearAnalysisCategory").hidden = !activeCategory;
-    const average = days.length ? Math.round(actual.total / days.length) : 0;
-    const delta = `${c.delta > 0 ? "+" : ""}${money(c.delta)}`;
-    const badge =
-      c.percent === null
-        ? "Ранее расходов не было"
-        : `${c.percent > 0 ? "+" : ""}${percent(c.percent)}`;
-    $("analysisMetrics").innerHTML =
-      `<div class="kpi-main"><span>Расходы за период</span><strong>${money(actual.total)}</strong><div class="kpi-context"><span class="delta-badge ${c.percent !== null && c.delta > 0 ? "delta-up" : ""}">${esc(badge)}</span><span>${c.percent === null ? "Без процентного сравнения" : esc(delta) + " к прошлому периоду"}</span></div></div>` +
-      `<div><span>В среднем за день</span><strong>${money(average)}</strong><small>Включая дни без расходов</small></div>` +
-      `<div><span>Медиана дня</span><strong>${money(
-        Math.round(
-          A.quantile(
-            days.map((x) => x.amount || 0),
-            0.5,
-          ),
+      actual = activeCategory
+        ? A.summarize(d, effective, activeCategory)
+        : summary,
+      days = A.daily(d, effective, today, activeCategory),
+      average = Math.round(actual.total / days.length),
+      median = Math.round(
+        A.quantile(
+          days.map((day) => day.amount),
+          0.5,
         ),
-      )}</strong><small>Половина дней — не выше этой суммы</small></div>`;
+      ),
+      c = A.compare(d, p, mode, today, activeCategory),
+      hasPrevious = d.first && d.first <= c.previous.from;
+    const comparable =
+      hasPrevious && A.length(c.current) === A.length(c.previous);
+    const previousHelp = comparable
+      ? `За прошлый сопоставимый период (${shortRange(c.previous)}) — ${money(c.prior.total)}.${c.percent !== null && c.current.to === effective.to ? ` Изменение ${c.percent > 0 ? "+" : ""}${percent(c.percent)}.` : ""}`
+      : "";
+    $("analysisMetrics").innerHTML =
+      periodMetric("За период", actual.total, previousHelp) +
+      periodMetric(
+        "Среднее",
+        average,
+        "Средний расход за день. Дни без покупок тоже учитываются.",
+      ) +
+      periodMetric(
+        "Медиана",
+        median,
+        "В половине дней расходы были не выше этой суммы. Дни без покупок тоже учитываются.",
+      );
     trendDays = days;
-    historicalDays = A.historicalDaily(
-      state,
-      effective,
-      today,
-      Number($("paceWindow").value),
-      activeCategory,
-    );
-    trendComparison = c;
     selectedBucket = -1;
     drawTrend(days);
     drawCategories(summary);
     drawHeatmap(p);
     drawPace(effective.to);
     repeated = A.habits(d, effective, today, activeCategory);
-    $("habitCount").textContent = repeated.length;
-    $("habits").classList.toggle("is-single", repeated.length === 1);
     const weekdays = Array(7).fill(0);
     for (const e of A.operations(d, effective, activeCategory))
       weekdays[A.weekday(e.date)] += e.amount;
@@ -191,16 +293,42 @@
       )
       .join("");
     applyFillWidths($("weekdaySpending"));
+    const openHabits = new Set(
+      [...$("habits").querySelectorAll("details[open]")].map(
+        (el) => el.dataset.habitKey,
+      ),
+    );
     $("habits").innerHTML = repeated.length
       ? repeated
           .map((h, i) => {
             const frequency = new Intl.NumberFormat("ru-RU", {
               maximumFractionDigits: 1,
-            }).format((h.count / Math.max(1, h.span)) * 7);
-            return `<article class="habit-card"><div class="habit-heading"><span class="habit-icon" aria-hidden="true">↻</span><div><h4>${esc(h.label)}</h4><span>${esc(h.category)}</span></div></div><strong class="habit-total">${money(h.total)}</strong><div class="habit-stats"><div><strong>${h.count}</strong><span>операций</span></div><div><strong>${money(h.average)}</strong><span>средний чек</span></div><div><strong>≈ ${frequency}</strong><span>раз в неделю</span></div></div><p class="habit-observation">${h.dates === h.span ? "Покупки каждый день в этом периоде." : `Покупки в ${h.dates} из ${h.span} дней с историей.`}</p><details><summary>Сравнение и частота</summary><p>Предыдущий равный период: ${operationCount(h.previousCount)} · ${money(h.previousTotal)}.</p><p>${h.weekdays.map((n, j) => `${weekdaysNames[j]}: ${n}`).join(" · ")}</p><p>${h.monthly === null ? "Прогноз на месяц появится после 28 дней истории." : `При той же частоте: ≈ ${money(h.monthly)}/мес. и ${money(h.yearly)}/год.`}</p></details><div class="habit-actions"><button type="button" data-habit="${i}">Операции <span aria-hidden="true">↗</span></button><button type="button" data-sim-habit="${i}">Оценить экономию</button></div></article>`;
+            }).format((h.count / h.span) * 7);
+            const maximum = Math.max(...h.weekdays);
+            const byWeekday = h.weekdays
+              .map(
+                (n, j) =>
+                  `<li aria-label="${weekdaysNames[j]}: ${n}"><span class="habit-weekday-track"><i data-fill="${(100 * n) / maximum}"></i></span><span>${weekdaysNames[j]}</span></li>`,
+              )
+              .join("");
+            return `<details class="habit-card" data-habit-key="${esc(h.key)}"${openHabits.has(h.key) ? " open" : ""}>
+            <summary><span class="habit-name"><strong>${esc(h.label)}</strong><span>${h.count} ${plural(h.count, ["покупка", "покупки", "покупок"])} · ≈ ${frequency} раза в неделю</span></span><strong class="habit-total">${money(h.total)}</strong></summary>
+            <div class="habit-details">
+              <p>${esc(h.category)} · средний чек <strong>${money(h.average)}</strong></p>
+              ${h.previousCount ? `<p>За предыдущий равный период — ${money(h.previousTotal)} · ${operationCount(h.previousCount)}</p>` : ""}
+              <ul class="habit-weekdays" aria-label="Покупки по дням недели">${byWeekday}</ul>
+              ${h.monthly === null ? "" : `<p>При той же частоте — около ${money(h.monthly)} в месяц</p>`}
+              <div class="habit-actions"><button class="analytics-link" type="button" data-habit="${i}">Операции</button></div>
+            </div>
+          </details>`;
           })
           .join("")
-      : '<div class="analytics-empty"><strong>Повторяющиеся покупки пока не найдены</strong><p>Нужно минимум три покупки на разных датах с одним магазином или одинаковым описанием и категорией.</p></div>';
+      : '<div class="analytics-empty"><strong>Повторяющиеся покупки пока не найдены</strong><p>Здесь появятся магазины и покупки, которые повторились хотя бы в три разных дня.</p></div>';
+    $("habits")
+      .querySelectorAll(".habit-weekday-track i")
+      .forEach((el) => {
+        el.style.height = `${Number(el.dataset.fill)}%`;
+      });
     const coverage = {};
     found = A.anomalies(d, effective, today, activeCategory, coverage);
     $("observationCount").textContent = found.length;
@@ -217,7 +345,11 @@
                 : a.type === "category"
                   ? `${a.category} · ${span(a.period)}`
                   : span(a.period);
-            return `<article class="observation"><div class="observation-marker" aria-hidden="true">${a.kind === "new" ? "+" : "↗"}</div><div><span class="insight-type">${a.kind === "new" ? "Раньше таких расходов почти не было" : "Расходы выше привычных"}${a.period.to === today ? " · итог ещё может измениться" : ""}</span><button type="button" class="insight-title" data-anomaly="${i}">${esc(label)} <span aria-hidden="true">↗</span></button><strong class="insight-amount">${money(a.amount)}</strong><p>${a.kind === "new" ? "В большинстве похожих периодов расходов не было." : `Обычно в ${a.type === "day" ? "этот день недели" : "такую неделю"} — около ${money(a.median)}.`}</p><details><summary>Почему мы это заметили</summary><p>Сравнили с ${a.samples} ${a.type === "day" ? "такими же днями недели" : "завершёнными неделями"}. ${a.kind === "new" ? "Это новая трата на фоне истории, а не обязательно необычный расход." : "Сумма заметно выше привычного диапазона. Покупки могут объяснить разницу."} Обычная сумма — медиана: половина прошлых значений не выше неё.</p></details></div></article>`;
+            const comparisonHelp =
+              a.type === "day"
+                ? `Сравнили с тем же днём недели за предыдущие недели (${a.samples} наблюдений).`
+                : `Сравнили с завершёнными неделями (${a.samples} наблюдений).`;
+            return `<article class="observation"><div class="observation-marker" aria-hidden="true">${a.kind === "new" ? "+" : "↗"}</div><div><span class="insight-type">${a.kind === "new" ? "Раньше таких расходов почти не было" : "Расходы выше привычных"}${a.period.to === today ? " · итог ещё может измениться" : ""}</span><button type="button" class="insight-title" data-anomaly="${i}">${esc(label)} <span aria-hidden="true">↗</span></button><div class="observation-value"><strong class="insight-amount">${money(a.amount)}</strong>${helpButton("Как рассчитано отклонение", comparisonHelp)}</div><p>${a.kind === "new" ? "В большинстве похожих периодов расходов не было." : `Обычно в ${a.type === "day" ? "этот день недели" : "такую неделю"} — около ${money(a.median)}.`}</p></div></article>`;
           })
           .join("") +
         (coverage.checked < coverage.total
@@ -226,209 +358,72 @@
       : `<div class="analytics-empty"><span class="empty-symbol" aria-hidden="true">${coverage.checked ? "✓" : "⋯"}</span><strong>${coverage.checked ? "Заметных отклонений не нашли" : "Пока мало истории для выводов"}</strong><p>${coverage.checked === coverage.total && coverage.checked ? "В днях и неделях, которые удалось сравнить, расходы в привычном диапазоне." : coverageText}</p></div>`;
   }
   function drawTrend(days) {
-    if (!days.length) {
-      $("trendChart").innerHTML =
-        '<p class="analytics-empty">За этот период нет данных</p>';
-      $("trendSelection").innerHTML = "";
-      $("trendTable").innerHTML = "";
-      return;
-    }
     const focusIndex = document.activeElement?.dataset.bucket;
-    const tooltipWasVisible = $("trendTooltip") && !$("trendTooltip").hidden;
-    const size = Math.max(1, Math.ceil(days.length / 90));
-    const priorDays = trendComparison
-      ? A.daily(source(), trendComparison.previous, todayDate(), activeCategory)
-      : [];
-    const previousAvailable = Boolean(
-      source().first &&
-      trendComparison &&
-      source().first <= trendComparison.previous.to,
-    );
-    const usingHistory = $("trendReference").value === "historical";
-    const cumulativeMode = trendMode === "cumulative";
-    const canCompare = usingHistory
-      ? cumulativeMode
-        ? historicalDays.length > 0 &&
-          historicalDays.every((d) => d.amount !== null)
-        : historicalDays.some((d) => d.amount !== null)
-      : previousAvailable;
-    $("toggleTrendComparison").disabled = !canCompare;
-    $("toggleTrendComparison").textContent =
-      compareTrend && canCompare ? "Скрыть ориентир" : "Показать ориентир";
-    $("toggleTrendComparison").setAttribute(
-      "aria-pressed",
-      String(compareTrend && canCompare),
-    );
-    const comparing = compareTrend && canCompare;
-    $("priorChartKey").hidden = !comparing;
-    const empty = !days.some((d) => d.amount) && !comparing;
+    const empty = !days.some((d) => d.amount);
     $("trendChart").hidden = empty;
     $("trendSelection").hidden = empty;
+    $("trendDailyDetails").hidden = empty;
     $("trendEmpty").hidden = !empty;
-    const matchedDays = trendComparison
-      ? Math.min(A.length(trendComparison.current), priorDays.length)
-      : 0;
-    const countByDate = (p) => {
-      const counts = new Map();
-      for (const e of A.operations(source(), p, activeCategory))
-        counts.set(e.date, (counts.get(e.date) || 0) + 1);
-      return counts;
-    };
-    const currentCounts = countByDate({
-      from: days[0].date,
-      to: days.at(-1).date,
-    });
-    const priorCounts =
-      comparing && !usingHistory
-        ? countByDate(trendComparison.previous)
-        : new Map();
-    const expenses = A.operations(
+    const size = Math.max(1, Math.ceil(days.length / 90));
+    $("trendTitle").textContent =
+      size > 1 ? "Расходы по отрезкам" : "Расходы по дням";
+    if (empty) return;
+    const expensesByDay = new Map();
+    for (const e of A.operations(
       source(),
       { from: days[0].date, to: days.at(-1).date },
       activeCategory,
-    );
+    )) {
+      if (!expensesByDay.has(e.date)) expensesByDay.set(e.date, []);
+      expensesByDay.get(e.date).push(e);
+    }
     trendBuckets = [];
     for (let i = 0; i < days.length; i += size) {
       const group = days.slice(i, i + size);
-      const from = group[0].date,
-        to = group.at(-1).date;
-      const categorySums = new Map();
-      for (const e of expenses)
-        if (e.date >= from && e.date <= to)
-          categorySums.set(
-            e.category,
-            (categorySums.get(e.category) || 0) + e.amount,
-          );
-      const topCategory = [...categorySums].sort((a, b) => b[1] - a[1])[0];
-      const historical = historicalDays.slice(i, i + group.length);
+      const expenses = group.flatMap((d) => expensesByDay.get(d.date) || []);
       trendBuckets.push({
-        from,
-        to,
-        topCategory,
-        reference:
-          comparing &&
-          usingHistory &&
-          historical.every((d) => d.amount !== null)
-            ? {
-                rawAmount: historical.reduce((n, d) => n + d.amount, 0),
-                amount: Math.round(
-                  historical.reduce((n, d) => n + d.amount, 0),
-                ),
-                count: Math.min(...historical.map((d) => d.count)),
-              }
-            : null,
-        amount: group.reduce((sum, d) => sum + (d.amount || 0), 0),
-        count: group.reduce((n, d) => n + (currentCounts.get(d.date) || 0), 0),
-        prior:
-          comparing && !usingHistory && i + group.length <= matchedDays
-            ? {
-                from: priorDays[i].date,
-                to: priorDays[i + group.length - 1].date,
-                amount: priorDays
-                  .slice(i, i + group.length)
-                  .reduce((n, d) => n + (d.amount || 0), 0),
-                count: priorDays
-                  .slice(i, i + group.length)
-                  .reduce((n, d) => n + (priorCounts.get(d.date) || 0), 0),
-              }
-            : null,
+        from: group[0].date,
+        to: group.at(-1).date,
+        amount: group.reduce((sum, d) => sum + d.amount, 0),
+        expenses,
       });
     }
-    let actualRunning = 0,
-      priorRunning = 0,
-      referenceRunning = 0,
-      referenceValid = true,
-      priorValid = true;
-    for (const b of trendBuckets) {
-      actualRunning += b.amount;
-      b.plotAmount = cumulativeMode ? actualRunning : b.amount;
-      priorValid = priorValid && !!b.prior;
-      if (b.prior) {
-        priorRunning += b.prior.amount;
-        b.prior.plotAmount =
-          cumulativeMode && priorValid
-            ? priorRunning
-            : cumulativeMode
-              ? null
-              : b.prior.amount;
-      }
-      referenceValid = referenceValid && !!b.reference;
-      if (b.reference) {
-        referenceRunning += b.reference.rawAmount;
-        b.reference.plotAmount =
-          cumulativeMode && referenceValid
-            ? Math.round(referenceRunning)
-            : cumulativeMode
-              ? null
-              : b.reference.amount;
-      }
-    }
-    const baseMessage = usingHistory
-      ? "Пунктир — среднее по закрытым месяцам для тех же дней месяца"
-      : `Линия — предыдущий период: ${span(trendComparison.previous)}`;
-    const counts = historicalDays.filter((d) => d.count).map((d) => d.count),
-      minCount = counts.length ? Math.min(...counts) : 0;
-    $("trendComparisonNote").textContent = !canCompare
-      ? usingHistory
-        ? cumulativeMode
-          ? "Для накопленного ориентира нужна история для всего выбранного периода. Факт доступен без сравнения."
-          : "Для исторического ориентира нужны подходящие закрытые месяцы. Факт доступен без сравнения."
-        : "За прошлый период ещё нет истории для сравнения."
-      : comparing
-        ? `${baseMessage}.${usingHistory ? ` База: ${minCount}–${Math.max(...counts)} мес.${minCount < 3 ? " Предварительно." : ""}` : " По порядку дней; дни без пары не сравниваем."}${cumulativeMode ? " Значения накоплены с начала выбранного периода." : size > 1 ? ` Один столбец — до ${size} дней.` : ""}`
-        : "";
-    const max = Math.max(
-      100,
-      ...trendBuckets.flatMap((d) => [
-        d.plotAmount,
-        d.prior?.plotAmount || 0,
-        d.reference?.plotAmount || 0,
-      ]),
-    );
-    const ceiling =
-      Math.ceil(max / 10 ** Math.floor(Math.log10(max))) *
-      10 ** Math.floor(Math.log10(max));
+    const max = Math.max(100, ...trendBuckets.map((d) => d.amount));
+    const unit = 10 ** Math.floor(Math.log10(max));
+    const ceiling = Math.ceil(max / unit) * unit;
     const width = Math.max(220, $("trendChart").clientWidth),
-      left = width < 400 ? 46 : 58,
-      right = 8,
-      height = 188,
+      left = width < 400 ? 48 : 58,
+      right = 6,
+      height = width < 400 ? 136 : 166,
       top = 12,
-      bottom = top + height;
-    const plotWidth = width - left - right,
-      step = plotWidth / trendBuckets.length;
-    const compactMoney = (n) =>
-      new Intl.NumberFormat("ru-RU", {
-        notation: "compact",
-        maximumFractionDigits: 1,
-      }).format(n / 100) + " ₽";
-    const priorPath = trendBuckets
-      .map((d, i) =>
-        (d.prior?.plotAmount ?? d.reference?.plotAmount) != null
-          ? `${i === 0 || (trendBuckets[i - 1].prior?.plotAmount ?? trendBuckets[i - 1].reference?.plotAmount) == null ? "M" : "L"}${left + (i + 0.5) * step},${bottom - (height * (d.prior?.plotAmount ?? d.reference.plotAmount)) / ceiling}`
-          : "",
-      )
-      .join(" ");
-    const actualPath =
-      `M${left},${bottom} ` +
-      trendBuckets
-        .map(
-          (d, i) =>
-            `L${left + (i + 0.5) * step},${bottom - (height * d.plotAmount) / ceiling}`,
-        )
-        .join(" ");
+      bottom = top + height,
+      plotWidth = width - left - right,
+      step = plotWidth / trendBuckets.length,
+      axisY = bottom + 22,
+      svgHeight = axisY + 5;
+    const tick = (index) => fmt(days[index].date).slice(0, 5);
     $("trendChart").innerHTML =
-      `<div class="trend-plot"><svg width="${width}" height="232" viewBox="0 0 ${width} 232" role="img" aria-label="${cumulativeMode ? "Накопленные расходы" : "Ежедневные расходы"}; сравнительный слой в тех же единицах.">${[
+      `<div class="trend-plot"><svg width="${width}" height="${svgHeight}" viewBox="0 0 ${width} ${svgHeight}" role="img" aria-label="${size > 1 ? `Расходы, до ${size} дней на столбец` : "Расходы по дням"}">${[
         0, 1, 2, 3,
       ]
         .map((i) => {
           const y = top + (height * i) / 3;
-          return `<line x1="${left}" x2="${width - right}" y1="${y}" y2="${y}" class="chart-gridline"/><text x="${left - 8}" y="${y + 4}" text-anchor="end">${compactMoney((ceiling * (3 - i)) / 3)}</text>`;
+          return `<line x1="${left}" x2="${width - right}" y1="${y}" y2="${y}" class="chart-gridline"/><text x="${left - 7}" y="${y + 4}" text-anchor="end">${compactMoney((ceiling * (3 - i)) / 3)}</text>`;
+        })
+        .join("")}${trendBuckets
+        .map((d, i) => {
+          const bar = d.amount ? Math.max(2, (height * d.amount) / ceiling) : 0;
+          return `<rect class="trend-bar" data-bar="${i}" x="${left + i * step + step * 0.13}" y="${bottom - bar}" width="${Math.max(1, step * 0.74)}" height="${bar}" rx="${Math.min(4, step * 0.15)}"/>`;
         })
         .join(
           "",
-        )}${cumulativeMode ? `<path class="trend-cumulative" d="${actualPath}"/>` : trendBuckets.map((d, i) => `<rect class="trend-bar" data-bar="${i}" x="${left + i * step + step * 0.13}" y="${bottom - Math.max(2, (height * d.amount) / ceiling)}" width="${Math.max(1, step * 0.74)}" height="${d.amount ? Math.max(2, (height * d.amount) / ceiling) : 0}" rx="${Math.min(4, step * 0.15)}"/>`).join("")}${comparing ? `<path d="${cumulativeMode ? `M${left},${bottom} ` : ""}${priorPath}" class="chart-prior ${usingHistory ? "historical-reference" : ""}"/>` : ""}<text x="${left}" y="225">${fmt(days[0].date).slice(0, 5)}</text>${days.length > 5 ? `<text x="${left + plotWidth / 2}" y="225" text-anchor="middle">${fmt(days[Math.floor(days.length / 2)].date).slice(0, 5)}</text>` : ""}<text x="${width - right}" y="225" text-anchor="end">${fmt(days.at(-1).date).slice(0, 5)}</text></svg><div class="trend-hitareas">${trendBuckets.map((d, i) => `<button type="button" data-bucket="${i}" aria-label="${span(d)}: ${money(d.amount)}, ${operationCount(d.count)}${d.reference ? `; обычно ${money(d.reference.amount)}` : ""}" aria-pressed="false"></button>`).join("")}</div><div id="trendTooltip" class="trend-tooltip" role="tooltip" hidden></div></div>`;
-    const hitareas = $("trendChart").querySelector(".trend-hitareas");
-    Object.assign(hitareas.style, {
+        )}<text x="${left}" y="${axisY}">${tick(0)}</text>${days.length > 5 ? `<text x="${left + plotWidth / 2}" y="${axisY}" text-anchor="middle">${tick(Math.floor(days.length / 2))}</text>` : ""}${days.length > 1 ? `<text x="${width - right}" y="${axisY}" text-anchor="end">${tick(days.length - 1)}</text>` : ""}</svg><div class="trend-hitareas">${trendBuckets
+        .map(
+          (d, i) =>
+            `<button type="button" data-bucket="${i}" aria-label="${shortRange(d)}, ${money(d.amount)}, ${operationCount(d.expenses.length)}" aria-pressed="false"></button>`,
+        )
+        .join("")}</div></div>`;
+    Object.assign($("trendChart").querySelector(".trend-hitareas").style, {
       left: `${left}px`,
       right: `${right}px`,
       top: `${top}px`,
@@ -437,23 +432,21 @@
     if (selectedBucket < 0 || selectedBucket >= trendBuckets.length)
       selectedBucket = trendBuckets.length - 1;
     selectBucket(selectedBucket);
-    if (focusIndex !== undefined) {
+    if (focusIndex !== undefined)
       $("trendChart")
         .querySelector(`[data-bucket="${focusIndex}"]`)
         ?.focus({ preventScroll: true });
-      if (!tooltipWasVisible) $("trendTooltip").hidden = true;
-    }
     $("trendTable").innerHTML =
       '<div class="daily-table">' +
       days
         .map(
           (d) =>
-            `<button type="button" data-day="${d.date}"><span>${fmt(d.date)}${d.partial ? " · сегодня" : ""}</span><strong>${money(d.amount || 0)}</strong></button>`,
+            `<button type="button" data-day="${d.date}"><span>${fmt(d.date)}${d.partial ? " · сегодня" : ""}</span><strong>${money(d.amount)}</strong></button>`,
         )
         .join("") +
       "</div>";
   }
-  function selectBucket(index, tooltip = false, commit = true) {
+  function selectBucket(index, commit = true) {
     const d = trendBuckets[index];
     if (!d) return;
     if (commit) selectedBucket = index;
@@ -463,89 +456,27 @@
         const active = Number(b.dataset.bucket) === selectedBucket;
         b.setAttribute("aria-pressed", String(active));
         b.tabIndex = active ? 0 : -1;
-        if (Number(b.dataset.bucket) === index && tooltip)
-          b.setAttribute("aria-describedby", "trendTooltip");
-        else b.removeAttribute("aria-describedby");
       });
     $("trendChart")
       .querySelectorAll("[data-bar]")
       .forEach((b) =>
         b.classList.toggle("is-active", Number(b.dataset.bar) === index),
       );
+    const single = d.expenses.length === 1;
     $("trendSelection").innerHTML =
-      `<div><span>${d.from === d.to ? fmt(d.from) : span(d)}${d.to === todayDate() ? " · сегодня" : ""}</span><strong>${money(d.amount)} <small>· ${operationCount(d.count)}</small></strong></div><button type="button" id="openTrendOperations">Операции <span aria-hidden="true">↗</span></button>`;
-    if (
-      compareTrend &&
-      $("trendReference").value === "previous" &&
-      $("toggleTrendComparison").getAttribute("aria-pressed") === "true"
-    ) {
-      const comparison = document.createElement("div");
-      comparison.className = "selected-comparison";
-      comparison.innerHTML = d.prior
-        ? `<span>Ранее: ${d.prior.from === d.prior.to ? fmt(d.prior.from) : span(d.prior)}</span><strong>${money(d.prior.amount)}</strong><button type="button" id="openPriorOperations">Прошлые операции ↗</button>`
-        : "<span>Для этих дней нет пары в прошлом периоде.</span>";
-      $("trendSelection").append(comparison);
-    }
-    if (d.reference && d.reference.plotAmount !== null)
-      $("trendSelection").insertAdjacentHTML(
-        "beforeend",
-        `<div class="historical-selection"><span>${cumulativeModeLabel()} ориентир: ${money(d.reference.plotAmount)} · ${d.reference.count} мес.${d.reference.count < 3 ? " · предварительно" : ""}</span><strong>${signedMoney(d.plotAmount - d.reference.plotAmount)} к ориентиру</strong></div>`,
-      );
-    if (trendMode === "cumulative")
-      $("trendSelection")
-        .querySelector("div")
-        .insertAdjacentHTML(
-          "beforeend",
-          `<span class="trend-top-category">С начала периода: ${money(d.plotAmount)}</span>`,
-        );
-    if (d.topCategory)
-      $("trendSelection")
-        .querySelector("div")
-        .insertAdjacentHTML(
-          "beforeend",
-          `<span class="trend-top-category">Больше всего: ${esc(d.topCategory[0])} · ${money(d.topCategory[1])}</span>`,
-        );
-    const tip = $("trendTooltip");
-    tip.hidden = !tooltip;
-    if (tooltip) {
-      tip.textContent = `${d.from === d.to ? fmt(d.from) : span(d)} · ${money(d.amount)} · ${operationCount(d.count)}${trendMode === "cumulative" ? `; накоплено ${money(d.plotAmount)}` : ""}${d.reference && d.reference.plotAmount !== null ? `; ориентир ${money(d.reference.plotAmount)}, разница ${signedMoney(d.plotAmount - d.reference.plotAmount)}` : ""}${d.topCategory ? `; больше всего: ${d.topCategory[0]}` : ""}${d.prior ? `; ранее ${d.prior.from === d.prior.to ? fmt(d.prior.from) : span(d.prior)}: ${money(d.prior.amount)}` : ""}`;
-      const chartWidth = $("trendChart").clientWidth;
-      const tipWidth = Math.min(180, chartWidth * 0.75);
-      tip.style.left = `${Math.max(0, Math.min(chartWidth - tipWidth, (chartWidth * (index + 0.5)) / trendBuckets.length - tipWidth / 2))}px`;
-    }
+      `<div><span>${shortRange(d)}${d.to === todayDate() && d.from === d.to ? " · сегодня" : ""}</span><strong>${money(d.amount)}</strong>${d.expenses.length ? `<small>${single ? esc(d.expenses[0].category) : operationCount(d.expenses.length)}</small>` : ""}</div>${d.expenses.length ? `<button type="button" id="openTrendOperations" data-trend-operations="${index}">${single ? "Открыть операцию" : "Операции"}</button>` : ""}`;
   }
-  const signedMoney = (n) =>
-    `${n > 0 ? "+" : n < 0 ? "−" : ""}${money(Math.abs(n))}`;
-  const cumulativeModeLabel = () =>
-    trendMode === "cumulative" ? "Накопленный" : "Исторический";
-  $("trendReference").addEventListener("change", () => {
-    compareTrend = false;
-    drawTrend(trendDays);
-  });
-  document.querySelectorAll("[data-trend-mode]").forEach(
-    (button) =>
-      (button.onclick = () => {
-        trendMode = button.dataset.trendMode;
-        document
-          .querySelectorAll("[data-trend-mode]")
-          .forEach((b) => b.setAttribute("aria-pressed", String(b === button)));
-        drawTrend(trendDays);
-      }),
-  );
   function applyFillWidths(container) {
     container.querySelectorAll("[data-fill]").forEach((el) => {
       el.style.width = `${Number(el.dataset.fill)}%`;
     });
   }
   function drawCategories(summary) {
-    $("categoryCount").textContent = summary.categories.length;
-    $("categoryChart").innerHTML =
-      `<p class="category-context">Все категории · <strong>${money(summary.total)}</strong></p>`;
     $("showAllCategories").hidden = summary.categories.length <= 5;
     $("showAllCategories").setAttribute("aria-expanded", String(allCategories));
     $("showAllCategories").textContent = allCategories
-      ? "Свернуть список ↑"
-      : `Все категории (${summary.categories.length}) ↓`;
+      ? "Свернуть список"
+      : `Все категории (${summary.categories.length})`;
     $("analysisLegend").innerHTML = summary.total
       ? summary.categories
           .filter(
@@ -553,7 +484,7 @@
           )
           .map(
             (c) =>
-              `<button type="button" class="chart-legend category-row" data-chart-category="${esc(c.category)}" aria-pressed="${activeCategory === c.category}"><span class="category-row-title"><span>${esc(c.category)}</span><strong>${money(c.amount)}</strong></span><span class="category-bar-track"><span data-fill="${(c.amount / summary.total) * 100}"></span></span><small>${percent((c.amount / summary.total) * 100)} от всех расходов</small></button>`,
+              `<button type="button" class="chart-legend category-row" data-chart-category="${esc(c.category)}" aria-pressed="${activeCategory === c.category}"><span class="category-row-title"><span>${esc(c.category)}</span><strong>${money(c.amount)}</strong></span><span class="category-bar-track"><span data-fill="${(c.amount / summary.total) * 100}"></span></span><small>${percent((c.amount / summary.total) * 100)}</small></button>`,
           )
           .join("")
       : '<div class="analytics-empty"><strong>Расходов пока нет</strong><p>Здесь появится распределение ваших покупок.</p></div>';
@@ -570,33 +501,45 @@
     );
     const r = paceData,
       n = r.count;
-    $("paceContext").textContent =
-      `${new Intl.DateTimeFormat("ru-RU", { month: "long", year: "numeric", timeZone: "UTC" }).format(A.date(r.period.from))} · с 1-го по ${fmt(asOf)} · ${activeCategory || "все категории"}. По внесённым расходам; это сравнение с историей, не прогноз.${asOf === todayDate() ? " Сегодняшний день ещё не завершён." : ""}`;
     $("paceHeadline").innerHTML = n
-      ? `<span class="pace-status ${n < 3 ? "is-preliminary" : ""}">${n < 3 ? "Предварительно" : "Исторический ориентир"} · ${n} ${plural(n, ["месяц", "месяца", "месяцев"])}</span><p>${r.delta < 0 ? "Тратишь меньше обычного" : r.delta > 0 ? "Тратишь больше обычного" : "Расходы совпадают с ориентиром"}</p><strong class="pace-amount ${r.delta > 0 ? "pace-above" : ""}">${r.delta ? "на " + money(Math.abs(r.delta)) : money(0)}</strong>`
-      : `<span class="pace-status">Без исторического сравнения</span><p>Твои расходы с начала месяца</p><strong class="pace-amount">${money(r.actualTotal)}</strong><p class="panel-caption">Пока нет подходящих закрытых месяцев. Показываем реальные расходы; историческая линия появится, когда будет база для сравнения.</p>`;
-    $("paceTotals").innerHTML =
-      `<div><strong>${money(r.actualTotal)}</strong><span>Сейчас · по ${fmt(asOf)}</span></div><div><strong>${n ? money(r.expectedTotal) : "—"}</strong><span>${n ? `Обычно к ${r.day}-му числу · ${n} мес.` : "Истории для среднего пока нет"}</span></div>`;
-    const paceRows = r.categories.map(
-      (c, i) =>
-        `<button type="button" class="pace-category" data-pace-category="${i}"><span><strong>${esc(c.category)}</strong><small>Обычно ${money(c.expected)} · за те же ${r.day} дн.</small></span><span><strong>${money(c.actual)}</strong><small class="pace-difference ${c.delta > 0 ? "is-above" : c.delta === 0 ? "is-flat" : ""}">${signedMoney(c.delta || 0)}</small></span></button>`,
+      ? `<strong class="pace-amount ${r.delta > 0 ? "pace-above" : ""}">${r.delta ? money(Math.abs(r.delta)) : ""}</strong><p>${r.delta > 0 ? "больше обычного" : r.delta < 0 ? "меньше обычного" : "Расходы на привычном уровне"}${n < 3 ? " · предварительно" : ""}</p>`
+      : '<p class="pace-empty">Сравнение появится, когда накопится история за закрытые месяцы.</p>';
+    $("paceChart").hidden = !n;
+    $("paceSelection").hidden = !n;
+    $("paceWindow").parentElement.hidden =
+      !n &&
+      (r.history.window === 12 ||
+        !A.historicalMonths(state, r.month, 12, r.day, source()).accepted
+          .length);
+    const paceRows = r.categories.flatMap((c, i) =>
+      c.delta
+        ? [
+            `<button type="button" class="pace-category" data-pace-category="${i}"><span><strong>${esc(c.category)}</strong><small>Обычно ${money(c.expected)}</small></span><span><strong>${money(c.actual)}</strong><small class="pace-difference ${c.delta > 0 ? "is-above" : ""}">${signedMoney(c.delta)}</small></span></button>`,
+          ]
+        : [],
     );
-    $("paceCategories").innerHTML = n
-      ? paceRows.length
-        ? paceRows.slice(0, 3).join("") +
-          (paceRows.length > 3
-            ? `<details class="pace-more"><summary>Ещё ${paceRows.length - 3} ${plural(paceRows.length - 3, ["категория", "категории", "категорий"])}</summary>${paceRows.slice(3).join("")}</details>`
-            : "")
-        : '<p class="analytics-empty">В обеих частях месяца расходов нет.</p>'
-      : '<div class="analytics-empty"><strong>Расшифровка появится вместе с историей</strong><p>Сравним категории за одинаковую часть месяца и покажем, что изменилось сильнее всего.</p></div>';
-    $("paceMethod").innerHTML =
-      `<p>Берём ${r.history.window} предыдущих календарных месяцев. В базу входят только месяцы со всеми закрытыми неделями и историей с первого дня. Это признак подведённых итогов, но приложение не может проверить, все ли покупки были записаны. Месяц начала учёта с первой записью после 1-го числа исключаем.</p><p>Один–два подходящих месяца — предварительный ориентир; от трёх — обычное сравнение. Для ${r.day}-го числа используются только месяцы, где есть такой день. Одна и та же база используется для всей линии и категорий. Линия заканчивается на самом коротком месяце этой базы: несуществующие дни не заменяем нулями.</p><p>${n ? `В базе: ${r.history.accepted.map((m) => m.month).join(", ")}.` : "Подходящих месяцев пока нет."} ${r.history.excluded.length ? `Исключены: ${r.history.excluded.map((m) => `${m.month} — ${m.reason.toLowerCase()}`).join("; ")}.` : ""}</p><p>Среднее считаем по фактически внесённым операциям. Расшифровка относится к тем же ${r.day} дням; округление категорий до копейки согласовано с общей суммой. Снижение относительно истории не означает гарантированную экономию.</p>`;
+    $("paceBreakdown").hidden = !paceRows.length;
+    $("paceCategories").innerHTML =
+      paceRows.slice(0, 3).join("") +
+      (paceRows.length > 3
+        ? `<details class="pace-more"><summary>Ещё ${paceRows.length - 3} ${plural(paceRows.length - 3, ["категория", "категории", "категорий"])}</summary>${paceRows.slice(3).join("")}</details>`
+        : "");
+    const paceHelp = n
+      ? `Сравниваем накопленные расходы к тому же числу. Из последних ${r.history.window} мес. подошло ${n}.`
+      : "Для сравнения берём месяцы с учётом с первого дня и всеми закрытыми неделями.";
+    const paceHelpButton = $("paceHelp");
+    paceHelpButton.dataset.analyticsHelp = paceHelp;
+    paceHelpButton.setAttribute("aria-description", paceHelp);
     pacePoint = r.day;
-    drawPaceChart();
+    if (n) drawPaceChart();
+    else {
+      $("paceChart").replaceChildren();
+      $("paceSelection").replaceChildren();
+    }
   }
   function drawPaceChart() {
     const r = paceData;
-    if (!r) return;
+    if (!r?.count) return;
     const width = Math.max(220, $("paceChart").clientWidth),
       left = 12,
       right = 12,
@@ -619,7 +562,16 @@
     const actualPath = line(r.actual),
       actualEnd = r.actual.at(-1);
     $("paceChart").innerHTML =
-      `<div class="pace-chart-key"><span><i></i>Факт</span>${r.count ? '<span><i class="pace-key-reference"></i>Историческое среднее</span>' : ""}</div><div class="pace-plot"><svg width="${width}" height="213" viewBox="0 0 ${width} 213" role="img" aria-label="Накопленные расходы с нуля: ${money(r.actualTotal)}${r.count ? `; историческое среднее к той же дате ${money(r.expectedTotal)}` : "; исторических данных пока нет"}. Обе линии на одной шкале."><defs><linearGradient id="paceFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#79b5a2" stop-opacity=".2"/><stop offset="100%" stop-color="#79b5a2" stop-opacity="0"/></linearGradient></defs><line x1="${left}" x2="${width - right}" y1="${bottom}" y2="${bottom}" class="chart-gridline"/>${r.count ? `<path d="${line(r.expected)}" class="pace-reference"/>` : ""}<path d="${actualPath} L${x(r.day)},${bottom} L${left},${bottom} Z" fill="url(#paceFill)"/><path d="${actualPath}" class="pace-actual"/><circle class="pace-endpoint" cx="${x(r.day)}" cy="${y(actualEnd.amount)}" r="5"/><line id="paceCrosshair" x1="${x(r.day)}" x2="${x(r.day)}" y1="${top}" y2="${bottom}"/><text x="${left}" y="204">Начало</text>${r.day < totalDays && r.day > 3 ? `<text x="${x(r.day)}" y="204" text-anchor="middle">${r.day}</text>` : ""}<text x="${width - right}" y="204" text-anchor="end">${totalDays}</text></svg><div class="pace-hitareas">${r.actual
+      `<div class="pace-chart-key"><span><i></i>Факт</span><span><i class="pace-key-reference"></i>Историческое среднее</span></div><div class="pace-plot"><svg width="${width}" height="213" viewBox="0 0 ${width} 213" role="img" aria-label="Накопленные расходы и историческое среднее на одной шкале"><defs><linearGradient id="paceFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#79b5a2" stop-opacity=".2"/><stop offset="100%" stop-color="#79b5a2" stop-opacity="0"/></linearGradient></defs>${[
+        0, 1, 2, 3,
+      ]
+        .map((i) => {
+          const gridY = top + (height * i) / 3;
+          return `<line x1="${left}" x2="${width - right}" y1="${gridY}" y2="${gridY}" class="chart-gridline"/>`;
+        })
+        .join(
+          "",
+        )}<path d="${line(r.expected)}" class="pace-reference"/><path d="${actualPath} L${x(r.day)},${bottom} L${left},${bottom} Z" fill="url(#paceFill)"/><path d="${actualPath}" class="pace-actual"/><circle class="pace-endpoint" cx="${x(r.day)}" cy="${y(actualEnd.amount)}" r="5"/><line id="paceCrosshair" x1="${x(r.day)}" x2="${x(r.day)}" y1="${top}" y2="${bottom}"/><text x="${left}" y="204">Начало</text>${r.day < totalDays && r.day > 3 ? `<text x="${x(r.day)}" y="204" text-anchor="middle">${r.day}</text>` : ""}<text x="${width - right}" y="204" text-anchor="end">${totalDays}</text></svg><div class="pace-hitareas">${r.actual
         .slice(1)
         .map(
           (p) =>
@@ -640,8 +592,10 @@
       p = r.actual[day];
     if (!p) return;
     pacePoint = day;
+    const usual = r.expected[day].amount;
+    const hasOperations = day > 0 && p.amount > r.actual[day - 1].amount;
     $("paceSelection").innerHTML =
-      `<span>${fmt(p.date)} · накоплено <strong>${money(p.amount)}</strong>${r.expected[day] ? ` · обычно ${money(r.expected[day].amount)} · разница ${signedMoney(p.amount - r.expected[day].amount)}` : ""}</span><button id="openPaceDay" type="button">Операции дня ↗</button>`;
+      `<div><span>${dateLabel.format(A.date(p.date))}</span><div class="pace-point-values"><span>Факт <strong>${money(p.amount)}</strong></span><span>Обычно <strong>${money(usual)}</strong></span></div></div>${hasOperations ? '<button id="openPaceDay" class="analytics-link" type="button">Операции дня</button>' : ""}`;
     $("paceChart")
       .querySelectorAll("[data-pace-day]")
       .forEach((b) => {
@@ -659,7 +613,8 @@
   }
   $("paceChart").addEventListener("pointerover", (e) => {
     const b = e.target.closest("[data-pace-day]");
-    if (b) selectPacePoint(Number(b.dataset.paceDay));
+    if (b && e.pointerType === "mouse")
+      selectPacePoint(Number(b.dataset.paceDay));
   });
   $("paceChart").addEventListener("focusin", (e) => {
     const b = e.target.closest("[data-pace-day]");
@@ -880,63 +835,6 @@
         '<p class="muted">Отклонений не найдено или недостаточно истории</p>'
       }`;
   }
-  function simulationGroups() {
-    scenarios = [];
-    const month = $("simulationMonth").value;
-    if (!month) return;
-    const p = A.range("month", month + "-01"),
-      summary = A.summarize(source(), p);
-    groups = summary.categories
-      .map((c) => ({ kind: "category", key: c.category, label: c.category }))
-      .concat(
-        A.habits(source(), p, todayDate()).map((h) => ({
-          kind: "habit",
-          key: h.key,
-          label: `Привычка: ${h.label} · ${h.category}`,
-        })),
-      );
-    $("simulationGroup").innerHTML = groups
-      .map((g, i) => `<option value="${i}">${esc(g.label)}</option>`)
-      .join("");
-    syncs.simulationGroup();
-    simulationResult();
-  }
-  function simulationResult() {
-    $("simulationScenarios").innerHTML = scenarios
-      .map(
-        (s, i) =>
-          `<p>${esc(s.label)}: ${s.mode === "percent" ? s.value + "%" : money(s.value)} <button type="button" data-remove-scenario="${i}" aria-label="Удалить сценарий ${esc(s.label)}">×</button></p>`,
-      )
-      .join("");
-    try {
-      const r = A.simulate(
-        source(),
-        $("simulationMonth").value,
-        scenarios,
-        todayDate(),
-      );
-      $("simulationResult").textContent =
-        `Потенциальная экономия: ${money(r.monthly)}/мес. и ${money(r.yearly)}/год при повторении такого месяца. База: ${money(r.base)}.`;
-    } catch (e) {
-      $("simulationResult").textContent = e.message;
-    }
-  }
-  function openSimulation(habit) {
-    const previous = A.shift(todayDate().slice(0, 7) + "-01", -1).slice(0, 7);
-    $("simulationMonth").max = previous;
-    $("simulationMonth").value =
-      selected < todayDate().slice(0, 7) ? selected : previous;
-    syncs.simulationMonth();
-    simulationGroups();
-    const choice = groups.findIndex((g) =>
-      habit
-        ? g.kind === "habit" && g.key === habit.key
-        : g.kind === "category" && g.key === activeCategory,
-    );
-    if (choice >= 0) $("simulationGroup").value = String(choice);
-    syncs.simulationGroup();
-    $("simulatorDialog").showModal();
-  }
   document.addEventListener("click", (e) => {
     const close = e.target.closest("[data-close]");
     if (close) $(close.dataset.close).close();
@@ -984,13 +882,6 @@
         `Обычно — около ${money(finding.median)}. Сравнили с ${finding.samples} похожими периодами. Здесь можно посмотреть покупки, из которых сложилась сумма.`,
       );
     }
-    const sim = e.target.closest("[data-sim-habit]");
-    if (sim) openSimulation(repeated[Number(sim.dataset.simHabit)]);
-    const remove = e.target.closest("[data-remove-scenario]");
-    if (remove) {
-      scenarios.splice(Number(remove.dataset.removeScenario), 1);
-      simulationResult();
-    }
     const cat = e.target.closest("[data-chart-category]");
     if (cat) {
       $("analysisCategory").value =
@@ -1022,37 +913,20 @@
   };
   $("trendChart").addEventListener("pointerover", (e) => {
     const b = e.target.closest("[data-bucket]");
-    if (b) selectBucket(Number(b.dataset.bucket), true, false);
+    if (b && e.pointerType === "mouse")
+      selectBucket(Number(b.dataset.bucket), false);
   });
-  $("trendChart").addEventListener("focusin", (e) => {
-    const b = e.target.closest("[data-bucket]");
-    if (b) selectBucket(Number(b.dataset.bucket), true);
-  });
-  $("trendChart").addEventListener("pointerleave", () => {
-    selectBucket(selectedBucket);
-  });
-  $("trendChart").addEventListener("focusout", () => {
-    if ($("trendTooltip")) $("trendTooltip").hidden = true;
-  });
-  $("trendChart").addEventListener("click", (e) => {
-    const b = e.target.closest("[data-bucket]");
-    if (b) {
-      selectBucket(Number(b.dataset.bucket), true);
-      const d = trendBuckets[Number(b.dataset.bucket)];
-      showOperations(
-        d.from === d.to ? fmt(d.from) : span(d),
-        A.operations(source(), d, activeCategory),
-        activeCategory || "Все категории",
-      );
-    }
-  });
+  $("trendChart").addEventListener("pointerleave", () =>
+    selectBucket(selectedBucket),
+  );
+  for (const event of ["focusin", "click"])
+    $("trendChart").addEventListener(event, (e) => {
+      const b = e.target.closest("[data-bucket]");
+      if (b) selectBucket(Number(b.dataset.bucket));
+    });
   $("trendChart").addEventListener("keydown", (e) => {
     const b = e.target.closest("[data-bucket]");
     if (!b) return;
-    if (e.key === "Escape") {
-      $("trendTooltip").hidden = true;
-      return;
-    }
     const index = Number(b.dataset.bucket),
       next =
         e.key === "ArrowRight"
@@ -1065,20 +939,15 @@
       $("trendChart").querySelector(`[data-bucket="${next}"]`).focus();
     }
   });
-  $("toggleTrendComparison").onclick = () => {
-    compareTrend = !compareTrend;
-    drawTrend(trendDays);
-  };
   $("trendSelection").onclick = (e) => {
-    if (!e.target.closest("#openTrendOperations, #openPriorOperations")) return;
-    const bucket = trendBuckets[selectedBucket];
-    const d = e.target.closest("#openPriorOperations") ? bucket?.prior : bucket;
-    if (d)
-      showOperations(
-        d.from === d.to ? fmt(d.from) : span(d),
-        A.operations(source(), d, activeCategory),
-        activeCategory || "Все категории",
-      );
+    const button = e.target.closest("[data-trend-operations]");
+    if (!button) return;
+    const d = trendBuckets[Number(button.dataset.trendOperations)];
+    showOperations(
+      shortRange(d),
+      d.expenses,
+      activeCategory || "Все категории",
+    );
   };
   let trendWidth = 0;
   new ResizeObserver((entries) => {
@@ -1098,39 +967,58 @@
     "heatmapMode",
   ])
     $(id).addEventListener("change", draw);
+  const filters = $("analysisFilters");
+  document.addEventListener("pointerdown", (e) => {
+    if (
+      filters.open &&
+      !filters.contains(e.target) &&
+      !e.target.closest("dialog")
+    )
+      filters.open = false;
+  });
+  filters.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape" || !filters.open) return;
+    e.preventDefault();
+    filters.open = false;
+    filters.querySelector("summary").focus();
+  });
+  $("analysisMonth").addEventListener("change", () => {
+    if (!$("analysisMonth").value) return;
+    const month = $("analysisMonth").value;
+    const today = todayDate();
+    $("analysisDate").value =
+      month === today.slice(0, 7) ? today : month + "-01";
+    draw();
+    $("analysisFilters").open = false;
+    queueMicrotask(() => $("analysisFilters").querySelector("summary").focus());
+  });
   $("openReport").onclick = () => {
     $("reportMonth").max = todayDate().slice(0, 7);
-    $("reportMonth").value =
-      selected > todayDate().slice(0, 7) ? todayDate().slice(0, 7) : selected;
+    const day =
+      $("analysisMode").value === "custom"
+        ? $("analysisTo").value
+        : $("analysisDate").value;
+    $("reportMonth").value = (
+      day && day <= todayDate() ? day : todayDate()
+    ).slice(0, 7);
     syncs.reportMonth();
     drawReport();
     $("reportDialog").showModal();
   };
   $("reportMonth").addEventListener("change", drawReport);
-  $("openSimulator").onclick = () => openSimulation();
-  $("simulationMonth").addEventListener("change", simulationGroups);
-  $("simulationForm").onsubmit = (e) => {
-    e.preventDefault();
-    const g = groups[Number($("simulationGroup").value)];
-    if (!g) return;
-    const mode = $("simulationMode").value;
-    scenarios.push({
-      ...g,
-      mode,
-      value:
-        mode === "amount"
-          ? Math.round(Number($("simulationValue").value) * 100)
-          : Number($("simulationValue").value),
-    });
-    simulationResult();
-  };
   const previousRender = render;
   render = function () {
     previousRender();
     draw();
     if ($("reportDialog").open) drawReport();
     if ($("analysisDetails").open) renderDetail();
-    if ($("simulatorDialog").open) simulationResult();
   };
-  document.addEventListener("finance-navigation", draw);
+  document.addEventListener("finance-navigation", () => {
+    const actions = $("panel-analytics").hidden
+      ? quickLaunch
+      : $("openReport").parentElement;
+    if ($("quickopen").parentElement !== actions)
+      actions.append($("quickopen"));
+    draw();
+  });
 })();

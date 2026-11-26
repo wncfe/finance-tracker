@@ -178,27 +178,6 @@ assert.equal(
   )[0].monthly,
   null,
 );
-const sim = A.simulate(
-  history,
-  "2026-10",
-  [
-    { kind: "category", key: "Кофейни", mode: "percent", value: 50 },
-    { kind: "habit", key: groups[0].key, mode: "percent", value: 75 },
-  ],
-  "2026-11-13",
-);
-assert.equal(sim.monthly, 232500);
-assert.equal(sim.yearly, 2790000);
-assert.equal(
-  A.simulate(
-    history,
-    "2026-10",
-    [{ kind: "category", key: "Кофейни", mode: "amount", value: 99999999 }],
-    "2026-11-13",
-  ).monthly,
-  310000,
-);
-assert.throws(() => A.simulate(history, "2026-11", [], "2026-11-13"));
 assert.equal(A.deviation(1000000, Array(7).fill(10000), "day"), null);
 assert.equal(A.deviation(1000000, Array(8).fill(10000), "day").kind, "anomaly");
 assert.equal(A.deviation(1000000, Array(8).fill(0), "day").kind, "new");
@@ -300,15 +279,6 @@ assert.equal(taxiHabit.total, 307700);
 assert.equal(taxiHabit.previousCount, 1);
 assert.equal(taxiHabit.previousTotal, 40000);
 assert.equal(taxiHabit.expenses.filter((e) => !e.merchantId).length, 4);
-assert.equal(
-  A.simulate(
-    A.index(taxi),
-    "2026-11",
-    [{ kind: "habit", key: taxiHabit.key, mode: "percent", value: 50 }],
-    "2026-12-01",
-  ).monthly,
-  153850,
-);
 assert.deepEqual(taxi, taxiBefore);
 
 const otherMerchant = { id: "other-taxi", name: "Такси" };

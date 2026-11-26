@@ -118,7 +118,9 @@
           <h2>Запишите расход своими словами</h2>
           <p class="muted">Кофе 250 · вчера такси 430 · продукты 1 250,50</p>
         </div>
-        <button id="quickopen" class="primary">＋ Добавить расход</button>
+        <button id="quickopen" class="primary" aria-label="Добавить расход">
+          ＋<span> Добавить расход</span>
+        </button>
       </section>
       <div class="layout">
         <section>
@@ -264,23 +266,20 @@
         aria-label="Аналитика расходов"
       >
         <div class="analytics-heading">
-          <div>
-            <span class="eyebrow">ВАШИ ДЕНЬГИ В ДЕТАЛЯХ</span>
-            <h2>Аналитика</h2>
-            <p>Расходы, закономерности и возможности для экономии.</p>
-          </div>
+          <h2>Аналитика</h2>
           <div class="analytics-actions">
-            <button id="openReport" type="button">
-              Итоги месяца <span aria-hidden="true">↗</span></button
-            ><button id="openSimulator" type="button">
-              Рассчитать экономию
+            <button id="openReport" class="analytics-link" type="button">
+              Итоги месяца
             </button>
           </div>
         </div>
-        <details id="analysisFilters" class="analytics-filters" open>
-          <summary>Фильтры <span id="analysisFilterSummary"></span></summary>
-          <div class="analytics-toolbar">
-            <div id="analyticsControls">
+        <div class="analytics-filters-row">
+          <details id="analysisFilters" class="analytics-filters">
+            <summary class="analytics-period">
+              <span class="sr-only">Период</span>
+              <span id="analysisFilterSummary"></span>
+            </summary>
+            <div class="analytics-toolbar" id="analyticsControls">
               <label
                 >Период<select id="analysisMode" aria-label="Период аналитики">
                   <option value="day">День</option>
@@ -289,12 +288,20 @@
                   <option value="custom">Свой период</option>
                 </select></label
               >
-              <div id="analysisAnchor">
+              <label id="analysisMonthControl"
+                >Месяц<input
+                  id="analysisMonth"
+                  type="month"
+                  aria-label="Месяц аналитики"
+                  min="2000-01"
+                  max="2100-12"
+              /></label>
+              <div id="analysisAnchor" hidden>
                 <label
-                  >Дата периода<input
+                  >Дата<input
                     id="analysisDate"
-                    aria-label="Дата периода аналитики"
                     type="date"
+                    aria-label="Дата периода аналитики"
                     min="2000-01-01"
                     max="2100-12-31"
                 /></label>
@@ -303,150 +310,88 @@
                 <label
                   >С<input
                     id="analysisFrom"
-                    aria-label="Начало периода"
                     type="date"
+                    aria-label="Начало периода"
                     min="2000-01-01"
-                    max="2100-12-31" /></label
-                ><label
+                    max="2100-12-31"
+                /></label>
+                <label
                   >По<input
                     id="analysisTo"
-                    aria-label="Конец периода"
                     type="date"
+                    aria-label="Конец периода"
                     min="2000-01-01"
                     max="2100-12-31"
                 /></label>
               </div>
             </div>
-            <label class="analytics-category"
-              >Категория<select
-                id="analysisCategory"
-                aria-label="Категория расходов"
-              >
-                <option value="">Все категории</option>
-              </select></label
-            >
-            <button id="clearAnalysisCategory" type="button" hidden>
-              Сбросить категорию
-            </button>
-          </div>
-        </details>
-        <p id="analysisRange" class="analysis-range" role="status"></p>
+          </details>
+          <label class="analytics-category">
+            <span class="sr-only">Категория</span>
+            <select id="analysisCategory" aria-label="Категория расходов">
+              <option value="">Все категории</option>
+            </select>
+          </label>
+          <button
+            id="clearAnalysisCategory"
+            type="button"
+            hidden
+            aria-label="Сбросить категорию"
+            title="Сбросить категорию"
+          >
+            ×
+          </button>
+        </div>
+        <p id="analysisError" class="analytics-empty" role="status" hidden></p>
         <p id="analysisUpdateStatus" role="status" hidden>Обновляем данные…</p>
         <div id="analysisContent">
-          <div id="analysisMetrics" class="analytics-kpis"></div>
-          <details class="comparison-details">
-            <summary>Как сравниваем периоды</summary>
-            <p id="analysisComparison"></p>
-          </details>
-          <div class="analytics-primary">
-            <section
-              class="analytics-surface trend-panel"
-              aria-labelledby="trendTitle"
-            >
-              <div class="analytics-sectionhead">
-                <div>
-                  <span class="eyebrow">ДЕНЬ ЗА ДНЁМ</span>
-                  <h3 id="trendTitle">Динамика расходов</h3>
-                </div>
-                <span class="chart-key"
-                  ><i></i> Расходы
-                  <span id="priorChartKey" hidden
-                    ><i class="prior-key"></i> Ориентир</span
-                  ></span
-                >
-              </div>
-              <div class="trend-mode" role="group" aria-label="Режим динамики">
-                <button
-                  type="button"
-                  data-trend-mode="daily"
-                  aria-pressed="true"
-                >
-                  По дням</button
-                ><button
-                  type="button"
-                  data-trend-mode="cumulative"
-                  aria-pressed="false"
-                >
-                  Накопительно
-                </button>
-              </div>
-              <div class="trend-controls">
-                <label class="trend-reference-control"
-                  ><span class="sr-only">Ориентир динамики</span
-                  ><select id="trendReference" aria-label="Ориентир динамики">
-                    <option value="historical">Историческое среднее</option>
-                    <option value="previous">Предыдущий период</option>
-                  </select></label
-                >
-                <button
-                  id="toggleTrendComparison"
-                  type="button"
-                  aria-pressed="false"
-                >
-                  Показать ориентир</button
-                ><span id="trendComparisonNote" class="panel-caption"></span>
-              </div>
-              <p id="trendEmpty" class="analytics-empty" hidden>
-                В этом периоде расходов пока нет. Дни без покупок учтены как
-                нулевые.
-              </p>
-              <div id="trendChart"></div>
-              <div
-                id="trendSelection"
-                class="trend-selection"
-                aria-live="polite"
-              ></div>
-              <details class="daily-details">
-                <summary>Все суммы по дням</summary>
-                <div id="trendTable"></div>
-              </details>
-            </section>
-            <section
-              class="analytics-surface category-panel"
-              aria-labelledby="categoriesTitle"
-            >
-              <div class="analytics-sectionhead">
-                <div>
-                  <span class="eyebrow">КУДА УХОДЯТ ДЕНЬГИ</span>
-                  <h3 id="categoriesTitle">Категории</h3>
-                </div>
-                <span id="categoryCount" class="count-badge"></span>
-              </div>
-              <div id="categoryChart"></div>
-              <div id="analysisLegend"></div>
-              <button
-                id="showAllCategories"
-                type="button"
-                aria-expanded="false"
-                hidden
-              >
-                Все категории
-              </button>
-              <div id="categories" hidden></div>
-              <p class="panel-caption">
-                Выберите категорию, чтобы уточнить аналитику.
-              </p>
-            </section>
-          </div>
+          <section
+            class="analytics-surface trend-panel"
+            aria-label="Расходы за период"
+          >
+            <div id="analysisMetrics" class="analytics-kpis"></div>
+            <h3 id="trendTitle">Расходы по дням</h3>
+            <p id="trendEmpty" class="analytics-empty" hidden>
+              За этот период расходов нет.
+            </p>
+            <div id="trendChart"></div>
+            <div
+              id="trendSelection"
+              class="trend-selection"
+              aria-live="polite"
+            ></div>
+            <details id="trendDailyDetails" class="daily-details">
+              <summary>Таблица расходов по дням</summary>
+              <div id="trendTable"></div>
+            </details>
+          </section>
           <section
             id="spendingPace"
             class="analytics-surface pace-panel"
             aria-labelledby="paceTitle"
           >
             <div class="analytics-sectionhead">
-              <div>
-                <span class="eyebrow">ПРИВЫЧНЫЙ УРОВЕНЬ И ФАКТ</span>
+              <div class="pace-title">
                 <h3 id="paceTitle">Мой темп расходов</h3>
+                <button
+                  type="button"
+                  id="paceHelp"
+                  class="analytics-help"
+                  data-analytics-help=""
+                  aria-label="Как устроено сравнение"
+                >
+                  ?
+                </button>
               </div>
               <label class="pace-window"
-                >История<select id="paceWindow" aria-label="Глубина истории">
+                ><span class="sr-only">История</span
+                ><select id="paceWindow" aria-label="Глубина истории">
                   <option value="3">3 месяца</option>
                   <option value="6">6 месяцев</option>
                   <option value="12">12 месяцев</option>
                 </select></label
               >
             </div>
-            <p id="paceContext" class="panel-caption"></p>
             <div class="pace-layout">
               <div class="pace-main">
                 <div id="paceHeadline"></div>
@@ -456,17 +401,31 @@
                   class="pace-selection"
                   role="status"
                 ></div>
-                <div id="paceTotals" class="pace-totals"></div>
               </div>
-              <div class="pace-breakdown">
+              <div class="pace-breakdown" id="paceBreakdown">
                 <h4>Что повлияло на разницу</h4>
                 <div id="paceCategories"></div>
               </div>
             </div>
-            <details class="pace-method">
-              <summary>Как устроено сравнение</summary>
-              <div id="paceMethod"></div>
-            </details>
+          </section>
+          <section
+            class="analytics-surface category-panel"
+            aria-labelledby="categoriesTitle"
+          >
+            <div class="analytics-sectionhead">
+              <div>
+                <h3 id="categoriesTitle">Категории</h3>
+              </div>
+            </div>
+            <div id="analysisLegend"></div>
+            <button
+              id="showAllCategories"
+              type="button"
+              aria-expanded="false"
+              hidden
+            >
+              Все категории
+            </button>
           </section>
           <div class="analytics-secondary">
             <section
@@ -476,7 +435,6 @@
             >
               <div class="analytics-sectionhead">
                 <div>
-                  <span class="eyebrow">РИТМ РАСХОДОВ</span>
                   <h3 id="calendarTitle">Календарь</h3>
                 </div>
                 <label class="heatmap-control"
@@ -498,10 +456,6 @@
                 hidden
               ></div>
               <div id="heatmapScale" class="heatmap-scale"></div>
-              <p class="panel-caption">
-                Выберите день для просмотра операций. Сегодняшний день ещё не
-                завершён.
-              </p>
             </section>
             <section
               class="analytics-surface observations-panel"
@@ -509,7 +463,6 @@
             >
               <div class="analytics-sectionhead">
                 <div>
-                  <span class="eyebrow">ЧТО СТОИТ ЗАМЕТИТЬ</span>
                   <h3 id="observationsTitle">Наблюдения</h3>
                 </div>
                 <span id="observationCount" class="count-badge"></span>
@@ -524,14 +477,18 @@
           <section class="habits-section" aria-labelledby="habitsTitle">
             <div class="analytics-sectionhead">
               <div>
-                <span class="eyebrow">ПОВТОРЯЮЩИЕСЯ ПОКУПКИ</span>
                 <h3 id="habitsTitle">Финансовые привычки</h3>
               </div>
-              <span id="habitCount" class="count-badge"></span>
             </div>
             <div id="habits" class="habit-grid"></div>
           </section>
         </div>
+        <div
+          id="analyticsHelp"
+          class="analytics-help-popover"
+          popover="auto"
+          role="tooltip"
+        ></div>
       </section>
     </main>
     <dialog id="historyRemainderDialog" aria-labelledby="historyRemainderTitle">
@@ -719,49 +676,6 @@
           max="2100-12"
       /></label>
       <div id="reportBody"></div>
-    </dialog>
-    <dialog id="simulatorDialog" aria-labelledby="simulatorTitle">
-      <div class="dialoghead">
-        <h2 id="simulatorTitle">Симулятор экономии</h2>
-        <button type="button" data-close="simulatorDialog" aria-label="Закрыть">
-          ✕
-        </button>
-      </div>
-      <p class="muted">
-        Сценарий не меняет расходы и бюджет. Для пересекающихся групп
-        учитывается наибольшее сокращение каждой операции.
-      </p>
-      <label
-        >Завершённый месяц<input
-          id="simulationMonth"
-          type="month"
-          min="2000-01"
-          max="2100-12"
-      /></label>
-      <form id="simulationForm">
-        <label
-          >Категория или привычка<select id="simulationGroup" required></select
-        ></label>
-        <div class="formgrid">
-          <label
-            >Сокращение<input
-              id="simulationValue"
-              type="number"
-              min="0"
-              step="0.01"
-              value="10"
-              required /></label
-          ><label
-            >Способ<select id="simulationMode">
-              <option value="percent">Процентов</option>
-              <option value="amount">Рублей за месяц</option>
-            </select></label
-          >
-        </div>
-        <button type="submit">Добавить сценарий</button>
-      </form>
-      <div id="simulationScenarios"></div>
-      <p id="simulationResult" role="status"></p>
     </dialog>
     <dialog id="categoryEditor" aria-labelledby="categoryEditorTitle">
       <div class="dialoghead">
