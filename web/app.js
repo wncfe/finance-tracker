@@ -84,7 +84,7 @@ function renderCategoryChoices(target, selected, options = categoryOptions()) {
     options
       .map(
         (name) =>
-          `<button type="button" class="category-choice" data-category="${esc(name)}" data-category-color="${categoryColor(name)}" aria-pressed="${name === selected}">${icon(categoryIcon(name))}<span>${esc(name)}</span></button>`,
+          `<button type="button" class="category-choice" data-category="${esc(name)}" data-category-color="${categoryColor(name)}" aria-pressed="${name === selected}"><span class="category-choice-icon" aria-hidden="true">${icon(categoryIcon(name))}</span><span>${esc(name)}</span></button>`,
       )
       .join(""),
   );

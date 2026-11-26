@@ -168,6 +168,12 @@ const assert = require("node:assert/strict");
     assert.match(customColor, /^#[0-9a-f]{6}$/);
     assert.equal(await colorOf(customChip), customColor);
     assert.notEqual(customColor, "#687776");
+    const backgroundOf = (locator) =>
+      locator.evaluate((el) => getComputedStyle(el).backgroundColor);
+    const chipBackground = await backgroundOf(
+      customChip.locator(".history-category-icon"),
+    );
+    assert.equal(await backgroundOf(customRow.locator(".icon")), chipBackground);
     const secondContext = await browser.newContext({
       viewport: { width: 1440, height: 900 },
     });
@@ -184,6 +190,10 @@ const assert = require("node:assert/strict");
     await weeklyChoice.click();
     assert.equal(await weeklyChoice.getAttribute("aria-pressed"), "true");
     assert.equal(await colorOf(weeklyChoice), customColor);
+    assert.equal(
+      await backgroundOf(weeklyChoice.locator(".category-choice-icon")),
+      chipBackground,
+    );
     await secondPage.locator('#expenseform [name="note"]').fill("Магазин Тест");
     assert.equal(
       await secondPage.locator("#weekMerchant").inputValue(),

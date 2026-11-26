@@ -263,19 +263,24 @@ textarea {
   color: var(--ink);
   text-align: left;
 }
-.category-choice .svgicon {
+.category-choice-icon {
+  display: grid;
+  place-items: center;
   flex: 0 0 auto;
-  width: 19px;
-  height: 19px;
-  filter: brightness(0) saturate(100%) opacity(.78);
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--category-color);
+}
+.category-choice .svgicon {
+  width: 16px;
+  height: 16px;
+  filter: brightness(0) invert(1);
 }
 .category-choice[aria-pressed="true"] {
   border-color: var(--category-color);
   background: color-mix(in srgb, var(--category-color) 18%, white);
   box-shadow: inset 0 0 0 1px var(--category-color);
-}
-.entry .icon {
-  background: color-mix(in srgb, var(--category-color, #687776) 14%, white);
 }
 .operations-dialog {
   width: min(760px, calc(100vw - 24px));
@@ -832,7 +837,10 @@ h3 {
   width: 38px;
   height: 38px;
   border-radius: 12px;
-  background: #edf1eb;
+  background: var(--category-color, #687776);
+}
+.entry .icon .svgicon {
+  filter: brightness(0) invert(1);
 }
 .entry .description {
   min-width: 0;
@@ -1148,15 +1156,9 @@ details form {
   align-items: center;
   gap: 6px;
 }
-.chips button[aria-pressed="true"] .svgicon {
-  filter: invert(1);
-}
 .chips .category-choice[aria-pressed="true"] {
   background: color-mix(in srgb, var(--category-color) 18%, white);
   color: var(--ink);
-}
-.chips .category-choice[aria-pressed="true"] .svgicon {
-  filter: brightness(0) saturate(100%) opacity(.78);
 }
 .categoryrow > div > span {
   display: inline-flex;
