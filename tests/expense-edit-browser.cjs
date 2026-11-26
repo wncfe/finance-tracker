@@ -26,6 +26,7 @@ const assert = require("node:assert/strict");
     browser = await chromium.launch({ headless: true });
     const page = await browser.newPage({
       viewport: { width: 390, height: 844 },
+      hasTouch: true,
     });
     const errors = [];
     page.on("pageerror", (e) => errors.push(e.message));
@@ -231,6 +232,103 @@ const assert = require("node:assert/strict");
       await page.locator("#historyTotal").textContent(),
       await page.evaluate(() => money(0)),
     );
+    await action({
+      type: "expenses",
+      items: [
+        { date: "2026-10-31", amount: 2500, category: "Кофейни", note: "Кофе" },
+        {
+          date: "2026-11-09",
+          amount: 11000,
+          category: "Такси",
+          note: "Поездка",
+        },
+        {
+          date: "2026-11-13",
+          amount: 20000,
+          category: "Супермаркеты",
+          note: "Продукты",
+        },
+      ],
+    });
+    await page.reload();
+    await page.locator("#dashboard").waitFor({ state: "visible" });
+    await page.locator("#tab-history").click();
+    const history = page.locator("#panel-history");
+    const assertAmount = async (amount, count) => {
+      assert.equal(
+        await page.locator("#historyChartAmount").textContent(),
+        await page.evaluate((n) => money(n), amount),
+      );
+      assert.equal(
+        await page.locator("#historyTotal").textContent(),
+        await page.evaluate((n) => money(n), amount),
+      );
+      assert.equal(await page.locator("#history .entry").count(), count);
+    };
+    await assertAmount(36000, 3);
+    const taxiChip = page.locator(
+      '#historyCategories [data-history-category="Такси"]',
+    );
+    await taxiChip.click();
+    await assertAmount(11000, 1);
+    assert.equal(await taxiChip.getAttribute("aria-pressed"), "true");
+    assert.equal(
+      await taxiChip.evaluate((el) => document.activeElement === el),
+      true,
+    );
+    await taxiChip.click();
+    await assertAmount(36000, 3);
+
+    const ring = page.locator("#historyRing");
+    await ring.scrollIntoViewIfNeeded();
+    const arc = await ring.boundingBox();
+    const angle = ((25000 / 36000) * Math.PI * 2) / 2 - Math.PI / 2;
+    await page.mouse.click(
+      arc.x + (arc.width * (116 + 94 * Math.cos(angle))) / 232,
+      arc.y + (arc.height * (116 + 94 * Math.sin(angle))) / 232,
+    );
+    await assertAmount(25000, 2);
+    await page.locator("#historyClearCategory").click();
+    await history.getByRole("button", { name: "Год", exact: true }).click();
+    await assertAmount(38500, 4);
+    assert.equal(await page.locator("#historyPeriod").textContent(), "2026");
+    await history.getByRole("button", { name: "Неделя", exact: true }).click();
+    await assertAmount(31000, 2);
+
+    const cdp = await page.context().newCDPSession(page);
+    async function swipe(direction) {
+      await ring.scrollIntoViewIfNeeded();
+      const box = await ring.boundingBox();
+      const y = Math.round(box.y + box.height / 2);
+      const x = Math.round(box.x + box.width / 2 - 55 * direction);
+      await cdp.send("Input.dispatchTouchEvent", {
+        type: "touchStart",
+        touchPoints: [{ x, y }],
+      });
+      for (const distance of [25, 65, 110])
+        await cdp.send("Input.dispatchTouchEvent", {
+          type: "touchMove",
+          touchPoints: [{ x: x + distance * direction, y }],
+        });
+      await cdp.send("Input.dispatchTouchEvent", {
+        type: "touchEnd",
+        touchPoints: [],
+      });
+    }
+    await swipe(1);
+    await assertAmount(0, 0);
+    await swipe(-1);
+    await assertAmount(31000, 2);
+    await page.setViewportSize({ width: 320, height: 844 });
+    await history.getByRole("button", { name: "Месяц", exact: true }).click();
+    assert.equal(
+      await history.evaluate((el) => el.scrollWidth <= el.clientWidth),
+      true,
+    );
+    await page.screenshot({
+      path: folder + "/history-categories.png",
+      fullPage: true,
+    });
     assert.deepEqual(errors, []);
     console.log(
       "Expense history and editor browser: totals, filters, modal, deletion, editing, retry, closed weeks, reload and mobile widths passed",

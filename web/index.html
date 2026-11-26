@@ -15,6 +15,7 @@
     <script defer src="/category-utils.js"></script>
     <script defer src="/analytics-core.js"></script>
     <script defer src="/merchants.js"></script>
+    <script defer src="/history-view.js"></script>
     <script defer src="/app.js"></script>
     <script defer src="/merchant-ui.js"></script>
     <script defer src="/quick-add.js"></script>
@@ -142,13 +143,105 @@
             class="card history"
           >
             <div class="sectionhead"><h2>История трат</h2></div>
+            <section
+              class="history-breakdown"
+              aria-label="Расходы по категориям"
+            >
+              <div
+                class="history-periods"
+                role="group"
+                aria-label="Длительность периода"
+              >
+                <button
+                  type="button"
+                  data-history-scale="week"
+                  aria-pressed="false"
+                >
+                  Неделя
+                </button>
+                <button
+                  type="button"
+                  data-history-scale="month"
+                  aria-pressed="true"
+                >
+                  Месяц
+                </button>
+                <button
+                  type="button"
+                  data-history-scale="year"
+                  aria-pressed="false"
+                >
+                  Год
+                </button>
+              </div>
+              <div class="history-period-nav">
+                <button
+                  type="button"
+                  id="historyPrevious"
+                  aria-label="Предыдущий период"
+                >
+                  <img
+                    src="/icons/chevron-left.svg"
+                    alt=""
+                    width="18"
+                    height="18"
+                  />
+                </button>
+                <h3 id="historyPeriod" aria-live="polite"></h3>
+                <button
+                  type="button"
+                  id="historyNext"
+                  aria-label="Следующий период"
+                >
+                  <img
+                    src="/icons/chevron-right.svg"
+                    alt=""
+                    width="18"
+                    height="18"
+                  />
+                </button>
+              </div>
+              <div class="history-ring" id="historyRing">
+                <svg
+                  id="historyChart"
+                  viewBox="0 0 232 232"
+                  aria-hidden="true"
+                ></svg>
+                <div class="history-ring-center">
+                  <span id="historyChartLabel">Траты за период</span>
+                  <strong id="historyChartAmount"></strong>
+                </div>
+              </div>
+            </section>
             <div class="history-filters">
-              <select id="filter" aria-label="Фильтр недели"></select>
+              <div id="historyBudgetWeek">
+                <select id="filter" aria-label="Фильтр недели"></select>
+              </div>
               <select id="historyMerchant" aria-label="Фильтр магазина">
                 <option value="">Все магазины</option>
               </select>
             </div>
-            <p class="history-summary">
+            <div
+              class="history-categories"
+              id="historyCategories"
+              role="group"
+              aria-label="Фильтр по категории"
+            ></div>
+            <div class="history-category-actions">
+              <button
+                type="button"
+                id="historyExpandCategories"
+                aria-controls="historyCategories"
+                aria-expanded="false"
+                hidden
+              >
+                Все категории
+              </button>
+              <button type="button" id="historyClearCategory" hidden>
+                Сбросить категорию
+              </button>
+            </div>
+            <p class="history-summary" aria-live="polite" aria-atomic="true">
               <span id="historyTotalLabel">Потрачено за месяц</span>
               <strong id="historyTotal"></strong>
             </p>

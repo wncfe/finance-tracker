@@ -235,58 +235,7 @@ function render() {
       return `<button class="week ${w.closed ? "closed" : ""}" data-week="${i}"><div class="weekhead"><div><strong>Неделя ${i + 1}</strong><span class="weekdate">${w.start}–${w.end} · ${w.days} дн.</span></div><span class="badge">${w.closed ? "Закрыта ✓" : "Посмотреть ↗"}</span></div><div class="weeknumbers"><div>Лимит<strong>${money(w.limit)}</strong></div><div>Остаток<strong class="${left < 0 ? "negative" : ""}">${money(left)}</strong></div></div><div class="progress"><progress max="100" value="${w.limit ? Math.min(100, (s / w.limit) * 100) : s ? 100 : 0}"></progress></div><span class="muted">Потрачено ${money(s)}</span>${forecastMarkup(i)}</button>`;
     })
     .join("");
-  const filter = $("filter").value;
-  const weekRange = new Intl.DateTimeFormat("ru-RU", {
-    day: "numeric",
-    month: "short",
-    timeZone: "UTC",
-  });
-  const dayOfMonth = (day) =>
-    ExpenseAnalytics.date(selected + "-" + String(day).padStart(2, "0"));
-  $("filter").innerHTML =
-    '<option value="">Весь месяц</option>' +
-    m.weeks
-      .map((w, i) => {
-        const label = weekRange.formatRange(
-          dayOfMonth(w.start),
-          dayOfMonth(w.end),
-        );
-        return `<option value="${i}">${esc(label)}</option>`;
-      })
-      .join("");
-  $("filter").value = filter;
-  const merchantFilter = $("historyMerchant").value;
-  const usedMerchants = new Set(
-    m.expenses.map((e) => e.merchantId).filter(Boolean),
-  );
-  $("historyMerchant").innerHTML =
-    '<option value="">Все магазины</option><option value="__none__">Без магазина</option>' +
-    MerchantDictionary.all(state.merchants, true)
-      .filter(
-        (item) => usedMerchants.has(item.id) || item.id === merchantFilter,
-      )
-      .map(
-        (item) => `<option value="${esc(item.id)}">${esc(item.name)}</option>`,
-      )
-      .join("");
-  $("historyMerchant").value = [...$("historyMerchant").options].some(
-    (option) => option.value === merchantFilter,
-  )
-    ? merchantFilter
-    : "";
-  const merchant = $("historyMerchant").value;
-  const visibleExpenses = m.expenses.filter(
-    (expense) =>
-      (filter === "" || expense.week === Number(filter)) &&
-      (!merchant ||
-        (merchant === "__none__"
-          ? !expense.merchantId
-          : expense.merchantId === merchant)),
-  );
-  $("historyTotalLabel").textContent =
-    filter || merchant ? "Потрачено по фильтрам" : "Потрачено за месяц";
-  $("historyTotal").textContent = money(sumExpenses(visibleExpenses));
-  $("history").innerHTML = entries(visibleExpenses);
+  ExpenseHistoryView.render();
   $("categories").innerHTML =
     cats
       .map((c, i) => {
@@ -475,8 +424,7 @@ $("logout").onclick = async () => {
 function select(key) {
   if (!/^20\d{2}-(0[1-9]|1[0-2])$|^2100-(0[1-9]|1[0-2])$/.test(key)) return;
   selected = key;
-  $("filter").value = "";
-  $("historyMerchant").value = "";
+  ExpenseHistoryView.reset();
   render();
 }
 $("month").onchange = (e) => select(e.target.value);
@@ -499,8 +447,6 @@ $("weeks").onclick = (e) => {
   $("weekdialog").showModal();
 };
 $("dismiss").onclick = () => $("weekdialog").close();
-$("filter").onchange = () => render();
-$("historyMerchant").onchange = () => render();
 $("categorybuttons").onclick = (e) => {
   const b = e.target.closest("[data-category]");
   if (b) {
@@ -543,6 +489,7 @@ $("closeform").onsubmit = async (e) => {
     toast("Неделя закрыта");
 };
 
+ExpenseHistoryView.init();
 load();
 
 fetch("/api/config")
