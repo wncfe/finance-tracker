@@ -90,6 +90,34 @@ class StoreTests(unittest.TestCase):
             store.save(db,1,before,after);db.commit()
             self.assertEqual(store.load(db,1)['merchants'][0]['category'],'Кафе')
 
+    def test_account_categories_drive_linked_expenses(self):
+        with self.legacy({'months':{}}) as db:
+            store.migrate(db)
+            db.execute("INSERT INTO users(id,login,salt,password,revision) VALUES(2,'other','salt','hash',0)")
+            before=store.load(db,1)
+            after=budget.apply(before,dict(type='category_save',category=dict(id='uc-'+'a'*32,name='Техника')))
+            store.save(db,1,before,after);db.commit()
+            self.assertEqual(store.load(db,1)['userCategories'],[dict(id='uc-'+'a'*32,name='Техника')])
+            self.assertNotIn('userCategories',store.load(db,2))
+            before=store.load(db,1)
+            after=budget.apply(before,dict(type='merchant_save',merchant=dict(id='c-'+'b'*32,name='Магазин',aliases=[],category='Техника',hidden=False)))
+            after=budget.apply(after,dict(type='expense',month='2026-11',week=0,date='2026-11-02',amount=1234,category='Кафе',note='Покупка',merchantId='c-'+'b'*32))
+            after=budget.apply(after,dict(type='expense',month='2026-11',week=0,date='2026-11-03',amount=321,category='Кафе',note='Без магазина'))
+            self.assertEqual([e['category'] for e in after['months']['2026-11']['expenses']],['Техника','Кафе'])
+            total=sum(e['amount'] for e in after['months']['2026-11']['expenses'])
+            store.save(db,1,before,after);db.commit()
+            before=store.load(db,1)
+            merchant=dict(after['merchants'][0],category='Кофейни')
+            changed=budget.apply(before,dict(type='merchant_save',merchant=merchant))
+            self.assertEqual([e['category'] for e in changed['months']['2026-11']['expenses']],['Кофейни','Кафе'])
+            self.assertEqual(sum(e['amount'] for e in changed['months']['2026-11']['expenses']),total)
+            store.save(db,1,before,changed);db.commit()
+            self.assertEqual(store.load(db,1),changed)
+
+    def test_merchant_category_is_required(self):
+        with self.assertRaisesRegex(ValueError,'категорию'):
+            budget.apply({'months':{}},dict(type='merchant_save',merchant=dict(id='c-'+'1'*32,name='Магазин',aliases=[],hidden=False)))
+
     def test_foreign_keys_and_atomic_rollback(self):
         with self.legacy({'months':{}}) as db:
             store.migrate(db)

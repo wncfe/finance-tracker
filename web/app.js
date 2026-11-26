@@ -1,6 +1,6 @@
 "use strict";
 const $ = (id) => document.getElementById(id),
-  cats = [
+  baseCats = [
     "Фастфуд",
     "Рестораны",
     "Кофейни",
@@ -48,6 +48,7 @@ const $ = (id) => document.getElementById(id),
     "shopping-basket",
     "coffee",
   ];
+let cats = [...baseCats];
 const icon = (name) =>
     `<img class="svgicon" src="/icons/${name}.svg" alt="" aria-hidden="true">`,
   icons = iconNames.map(icon);
@@ -76,6 +77,19 @@ let selected = serverToday.slice(0, 7),
   accountLogin = "";
 function categoryOptions() {
   return CategoryUtils.rank(cats, state);
+}
+function refreshCategories() {
+  cats = [
+    ...baseCats,
+    ...(state.userCategories || []).map((item) => item.name),
+  ];
+}
+function merchantDetails(id) {
+  return id
+    ? MerchantDictionary.all(state.merchants || [], true).find(
+        (merchant) => merchant.id === id,
+      )
+    : null;
 }
 function toast(message) {
   $("toast").textContent = message;
@@ -196,7 +210,7 @@ function entries(expenses) {
         total = money(sumExpenses(items));
       const rows = items.map((expense) => {
         const iconName =
-          iconNames[cats.indexOf(expense.category)] || "ellipsis";
+          iconNames[baseCats.indexOf(expense.category)] || "ellipsis";
         const title = expenseTitle(expense, merchants.get(expense.merchantId));
         return `<button type="button" class="entry" data-expense-id="${esc(expense.id)}" data-month="${esc(day.slice(0, 7))}" aria-haspopup="dialog" aria-controls="expenseDetails">
           <span class="icon" data-icon="${iconName}" aria-hidden="true">${icon(iconName)}</span>
@@ -212,6 +226,7 @@ function entries(expenses) {
     .join("");
 }
 function render() {
+  refreshCategories();
   const m = current(),
     effective = m.budget,
     total = spent(m);
@@ -268,10 +283,18 @@ function renderWeek() {
   const today = todayDate();
   if (!date.value || date.value < min || date.value > max)
     date.value = today >= min && today <= max ? today : min > today ? "" : min;
+  const selectedMerchant = merchantDetails($("weekMerchant").value);
+  $("categorybuttons").hidden = !!selectedMerchant;
+  $("categoryMerchantNote").hidden = !selectedMerchant;
+  $("categoryMerchantNote").textContent = selectedMerchant?.category
+    ? `Категория магазина: ${selectedMerchant.category}`
+    : "Сначала задайте категорию этому магазину";
+  $("expenseform").querySelector("button.primary").disabled =
+    min > todayDate() || (!!selectedMerchant && !selectedMerchant.category);
   $("categorybuttons").innerHTML = categoryOptions()
     .map(
-      (c, i) =>
-        `<button type="button" data-category="${cats.indexOf(c)}" aria-pressed="${c === category}">${icons[cats.indexOf(c)]} ${c}</button>`,
+      (c) =>
+        `<button type="button" data-category="${esc(c)}" aria-pressed="${c === category}">${icons[baseCats.indexOf(c)] || icons[baseCats.indexOf("Другое")]} ${esc(c)}</button>`,
     )
     .join("");
 }
@@ -439,7 +462,7 @@ $("dismiss").onclick = () => $("weekdialog").close();
 $("categorybuttons").onclick = (e) => {
   const b = e.target.closest("[data-category]");
   if (b) {
-    category = cats[Number(b.dataset.category)];
+    category = b.dataset.category;
     renderWeek();
   }
 };
@@ -447,6 +470,14 @@ const cents = (v) => Math.round(Number(v) * 100);
 $("expenseform").onsubmit = async (e) => {
   e.preventDefault();
   const f = e.target;
+  const selectedMerchant = merchantDetails(f.elements.merchantId.value);
+  if (selectedMerchant) {
+    if (!selectedMerchant.category) {
+      toast("Сначала задайте категорию магазину");
+      return;
+    }
+    category = selectedMerchant.category;
+  }
   if (
     await mutate({
       type: "expense",
@@ -464,6 +495,11 @@ $("expenseform").onsubmit = async (e) => {
     f.elements.amount.focus();
   }
 };
+$("weekMerchant").addEventListener("change", () => {
+  const selectedMerchant = merchantDetails($("weekMerchant").value);
+  category = selectedMerchant?.category || categoryOptions()[0];
+  if ($("weekdialog").open) renderWeek();
+});
 for (const [form, type, input] of [
   ["budgetform", "budget", "budget"],
   ["limitform", "limit", "limit"],

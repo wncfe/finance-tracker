@@ -19,6 +19,11 @@ export async function loadFinance(db, userId) {
         "SELECT id,name,aliases,category,hidden FROM user_merchants WHERE user_id=? ORDER BY id",
       )
       .bind(userId),
+    db
+      .prepare(
+        "SELECT c.id,c.name FROM user_categories u JOIN categories c ON c.id=u.category_id WHERE u.user_id=? ORDER BY c.id",
+      )
+      .bind(userId),
   ]);
   const state = { months: {} };
   for (const m of result[1].results)
@@ -58,6 +63,11 @@ export async function loadFinance(db, userId) {
       ...(m.category ? { category: m.category } : {}),
       hidden: !!m.hidden,
     }));
+  if (result[5].results.length)
+    state.userCategories = result[5].results.map((c) => ({
+      id: c.id,
+      name: c.name,
+    }));
   return {
     today: todayAt(),
     timeZone: "Asia/Yekaterinburg",
@@ -93,6 +103,20 @@ export function financeWrites(db, userId, before, after, token) {
           m.hidden ? 1 : 0,
         ],
       );
+  }
+  const priorCategories = new Set(
+    (before.userCategories || []).map((category) => category.id),
+  );
+  for (const category of after.userCategories || []) {
+    if (priorCategories.has(category.id)) continue;
+    add(`INSERT OR IGNORE INTO categories(id,name) SELECT ?,? WHERE ${guard}`, [
+      category.id,
+      category.name,
+    ]);
+    add(
+      `INSERT OR IGNORE INTO user_categories(user_id,category_id) SELECT ?,id FROM categories WHERE name=? AND ${guard}`,
+      [userId, category.name],
+    );
   }
   for (const [key, m] of Object.entries(after.months)) {
     const old = before.months[key];

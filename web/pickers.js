@@ -226,6 +226,7 @@ function attachSelect(select) {
   };
   const sync = () => {
     trigger.textContent = select.selectedOptions[0]?.textContent || "Выбрать";
+    trigger.disabled = select.disabled;
   };
   trigger.onclick = () => {
     if (select.disabled) return;

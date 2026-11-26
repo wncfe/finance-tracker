@@ -38,6 +38,7 @@ actions.push({
     id: "c-" + "3".repeat(32),
     name: "Тест",
     aliases: ["Вариант"],
+    category: "Кафе",
     hidden: false,
   },
 });
@@ -66,6 +67,7 @@ actions.push({
     id: "c-" + "3".repeat(32),
     name: "Тест",
     aliases: ["Вариант"],
+    category: "Кафе",
     hidden: true,
   },
 });

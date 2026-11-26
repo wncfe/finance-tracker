@@ -24,6 +24,20 @@ export const categories = [
   "Супермаркеты",
   "Кафе",
 ];
+const categoryKey = (value) =>
+  String(value || "")
+    .normalize("NFKC")
+    .toLocaleLowerCase("ru-RU")
+    .replace(/ё/g, "е")
+    .replace(/\s+/g, " ")
+    .trim();
+const availableCategories = (state) => [
+  ...categories,
+  ...(state.userCategories || []).map((item) => item.name),
+];
+const merchantFor = (state, id) =>
+  (state.merchants || []).find((item) => item.id === id) ||
+  merchantDefaults.find((item) => item.id === id);
 function check(ok, message = "Некорректные данные") {
   if (!ok) throw Error(message);
 }
@@ -137,6 +151,41 @@ export function todayAt(instant = new Date()) {
 export function apply(original, action, today = todayAt()) {
   if (action.type === "transfer")
     throw Error("Переносы между месяцами больше не поддерживаются");
+  if (action.type === "category_save") {
+    const item = action.category;
+    check(
+      item && typeof item === "object" && !Array.isArray(item),
+      "Некорректная категория",
+    );
+    check(
+      Object.keys(item).every((key) => ["id", "name"].includes(key)),
+      "Некорректная категория",
+    );
+    check(
+      typeof item.id === "string" && /^uc-[0-9a-f]{32}$/.test(item.id),
+      "Некорректный идентификатор категории",
+    );
+    check(
+      typeof item.name === "string" &&
+        item.name.trim().length > 0 &&
+        item.name.trim().length <= 60,
+      "Название категории: от 1 до 60 символов",
+    );
+    const state = structuredClone(original),
+      known = availableCategories(state);
+    check(
+      !known.some((name) => categoryKey(name) === categoryKey(item.name)),
+      "Такая категория уже существует",
+    );
+    state.userCategories = [
+      ...(state.userCategories || []),
+      {
+        id: item.id,
+        name: item.name.trim(),
+      },
+    ].sort((a, b) => a.id.localeCompare(b.id));
+    return state;
+  }
   if (action.type === "merchant_save") {
     const item = action.merchant;
     check(
@@ -173,10 +222,9 @@ export function apply(original, action, today = todayAt()) {
       "Некорректные варианты названия",
     );
     check(
-      item.category == null ||
-        item.category === "" ||
-        categories.includes(item.category),
-      "Неизвестная категория магазина",
+      typeof item.category === "string" &&
+        availableCategories(original).includes(item.category),
+      "Выберите категорию магазина",
     );
     check(typeof item.hidden === "boolean", "Некорректный статус магазина");
     const state = structuredClone(original);
@@ -190,6 +238,9 @@ export function apply(original, action, today = todayAt()) {
     });
     merchants.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
     state.merchants = merchants;
+    for (const month of Object.values(state.months))
+      for (const expense of month.expenses)
+        if (expense.merchantId === item.id) expense.category = item.category;
     return state;
   }
   if (action.category === "Продукты")
@@ -247,7 +298,6 @@ export function apply(original, action, today = todayAt()) {
     for (const field of ["amount", "date", "category", "merchantId"])
       if (Object.hasOwn(action, field)) updated[field] = action[field];
     amount(updated.amount, true);
-    check(categories.includes(updated.category), "Неизвестная категория");
     check(
       typeof updated.date === "string" &&
         /^\d{4}-\d{2}-\d{2}$/.test(updated.date),
@@ -277,12 +327,24 @@ export function apply(original, action, today = todayAt()) {
       merchantId == null || typeof merchantId === "string",
       "Неизвестный магазин",
     );
-    if (merchantId && merchantId !== expense.merchantId) {
-      const merchant =
-        (state.merchants || []).find((m) => m.id === merchantId) ||
-        merchantDefaults.find((m) => m.id === merchantId);
-      check(merchant && !merchant.hidden, "Неизвестный или скрытый магазин");
-    }
+    const merchant = merchantId ? merchantFor(state, merchantId) : null;
+    if (merchantId)
+      check(
+        merchant && (merchantId === expense.merchantId || !merchant.hidden),
+        "Неизвестный или скрытый магазин",
+      );
+    if (merchantId) {
+      check(
+        typeof merchant.category === "string" &&
+          availableCategories(state).includes(merchant.category),
+        "Сначала задайте категорию магазину",
+      );
+      updated.category = merchant.category;
+    } else
+      check(
+        availableCategories(state).includes(updated.category),
+        "Неизвестная категория",
+      );
     if (!merchantId) delete updated.merchantId;
     updated.week = index;
     if (source === target)
@@ -318,19 +380,30 @@ export function apply(original, action, today = todayAt()) {
         ),
         "Можно изменить только категорию",
       );
-      check(categories.includes(action.category), "Неизвестная категория");
       const expense = m.expenses.find(
         (e) => e.id === action.id && e.week === i,
       );
       check(expense, "Расход не найден");
-      expense.category = action.category;
+      if (expense.merchantId) {
+        const merchant = merchantFor(state, expense.merchantId);
+        check(
+          merchant && availableCategories(state).includes(merchant.category),
+          "Сначала задайте категорию магазину",
+        );
+        expense.category = merchant.category;
+      } else {
+        check(
+          availableCategories(state).includes(action.category),
+          "Неизвестная категория",
+        );
+        expense.category = action.category;
+      }
       return state;
     }
     check(!w.closed, "Неделя закрыта");
     if (type === "expense") {
       validDate(action.date, key, w);
       check(action.date <= today, "Расход не может быть в будущем");
-      check(categories.includes(action.category), "Неизвестная категория");
       const note = String(action.note || "").trim();
       check(note.length <= 200, "Описание слишком длинное");
       const merchantId = action.merchantId;
@@ -340,17 +413,27 @@ export function apply(original, action, today = todayAt()) {
         merchantId !== ""
       ) {
         check(typeof merchantId === "string", "Неизвестный магазин");
-        const merchant =
-          (state.merchants || []).find((m) => m.id === merchantId) ||
-          merchantDefaults.find((m) => m.id === merchantId);
+        const merchant = merchantFor(state, merchantId);
         check(merchant && !merchant.hidden, "Неизвестный или скрытый магазин");
+        check(
+          typeof merchant.category === "string" &&
+            availableCategories(state).includes(merchant.category),
+          "Сначала задайте категорию магазину",
+        );
       }
+      const expenseCategory = merchantId
+        ? merchantFor(state, merchantId).category
+        : action.category;
+      check(
+        availableCategories(state).includes(expenseCategory),
+        "Выберите категорию",
+      );
       m.expenses.push({
         id: crypto.randomUUID().replaceAll("-", ""),
         week: i,
         amount: amount(action.amount, true),
         date: action.date,
-        category: action.category,
+        category: expenseCategory,
         note,
         ...(merchantId ? { merchantId } : {}),
       });

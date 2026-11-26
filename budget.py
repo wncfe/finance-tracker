@@ -5,6 +5,7 @@ import datetime as dt
 import uuid
 import re
 import json
+import unicodedata
 from pathlib import Path
 
 MERCHANT_DEFAULTS = json.loads((Path(__file__).resolve().parent/'web/merchants.json').read_text('utf-8'))
@@ -13,6 +14,15 @@ def utf16len(value):
     return len(value.encode('utf-16-le'))//2
 
 CATEGORIES = ['Фастфуд', 'Рестораны', 'Кофейни', 'Транспорт', 'Общественный транспорт', 'Такси', 'Дом', 'Здоровье', 'Покупки', 'Одежда и обувь', 'Красота', 'Спорт', 'Дети', 'Подарки и творчество', 'Книги и образование', 'Связь и интернет', 'Подписки и цифровые сервисы', 'Путешествия', 'Развлечения', 'Другое', 'Супермаркеты', 'Кафе']
+
+def available_categories(state):
+    return CATEGORIES + [item['name'] for item in state.get('userCategories', [])]
+
+def category_key(value):
+    return ' '.join(unicodedata.normalize('NFKC',str(value or '')).casefold().replace('ё','е').split())
+
+def merchant_for(state, identifier):
+    return next((m for m in state.get('merchants',[]) if m['id']==identifier),None) or next((m for m in MERCHANT_DEFAULTS if m['id']==identifier),None)
 
 def weeks(key):
     y, m = map(int, key.split('-'))
@@ -98,6 +108,20 @@ def apply(state, action, today=None):
     today = today or today_at()
     if action.get('type') == 'transfer':
         raise ValueError('Переносы между месяцами больше не поддерживаются')
+    if action.get('type') == 'category_save':
+        item=action.get('category')
+        if not isinstance(item,dict) or set(item)-{'id','name'}:
+            raise ValueError('Некорректная категория')
+        if not isinstance(item.get('id'),str) or not re.fullmatch(r'uc-[0-9a-f]{32}',item['id']):
+            raise ValueError('Некорректный идентификатор категории')
+        name=item.get('name')
+        if not isinstance(name,str) or not 1<=utf16len(name.strip())<=60:
+            raise ValueError('Название категории: от 1 до 60 символов')
+        if any(category_key(x)==category_key(name) for x in available_categories(state)):
+            raise ValueError('Такая категория уже существует')
+        result=copy.deepcopy(state)
+        result['userCategories']=sorted(result.get('userCategories',[])+[dict(id=item['id'],name=name.strip())],key=lambda x:x['id'])
+        return result
     if action.get('type') == 'merchant_save':
         item=action.get('merchant')
         if not isinstance(item,dict) or set(item)-{'id','name','aliases','category','hidden'}:
@@ -112,8 +136,8 @@ def apply(state, action, today=None):
         if not isinstance(aliases,list) or len(aliases)>30 or any(not isinstance(a,str) or not 1<=utf16len(a.strip())<=100 for a in aliases):
             raise ValueError('Некорректные варианты названия')
         category=item.get('category')
-        if category not in (None,'') and category not in CATEGORIES:
-            raise ValueError('Неизвестная категория магазина')
+        if not isinstance(category,str) or category not in available_categories(state):
+            raise ValueError('Выберите категорию магазина')
         if type(item.get('hidden')) is not bool: raise ValueError('Некорректный статус магазина')
         state=copy.deepcopy(state)
         merchants=[m for m in state.get('merchants',[]) if m['id']!=identifier]
@@ -121,6 +145,9 @@ def apply(state, action, today=None):
         if category: merchant['category']=category
         merchants.append(merchant)
         state['merchants']=sorted(merchants,key=lambda m:m['id'])
+        for month in state['months'].values():
+            for expense in month['expenses']:
+                if expense.get('merchantId')==identifier: expense['category']=category
         return state
     if action.get('type') == 'expenses':
         items = action.get('items')
@@ -148,7 +175,6 @@ def apply(state, action, today=None):
         updated=dict(expense)
         updated.update({k:action[k] for k in ('amount','date','category','merchantId') if k in action})
         amount(updated['amount'],True)
-        if updated['category'] not in CATEGORIES: raise ValueError('Неизвестная категория')
         if not isinstance(updated['date'],str) or not re.fullmatch(r'\d{4}-\d{2}-\d{2}',updated['date']): raise ValueError('Некорректная дата')
         date=dt.date.fromisoformat(updated['date'])
         if date.isoformat()>today: raise ValueError('Расход не может быть в будущем')
@@ -160,9 +186,13 @@ def apply(state, action, today=None):
             if target['weeks'][index]['closed']: raise ValueError('Нельзя перенести расход в закрытую неделю')
         merchant_id=updated.get('merchantId')
         if merchant_id is not None and not isinstance(merchant_id,str): raise ValueError('Неизвестный магазин')
-        if merchant_id and merchant_id!=expense.get('merchantId'):
-            merchant=next((m for m in state.get('merchants',[]) if m['id']==merchant_id),None) or next((m for m in MERCHANT_DEFAULTS if m['id']==merchant_id),None)
-            if not merchant or merchant.get('hidden'): raise ValueError('Неизвестный или скрытый магазин')
+        if merchant_id:
+            merchant=merchant_for(state,merchant_id)
+            if not merchant or (merchant_id!=expense.get('merchantId') and merchant.get('hidden')): raise ValueError('Неизвестный или скрытый магазин')
+            if merchant.get('category') not in available_categories(state): raise ValueError('Сначала задайте категорию магазину')
+            updated['category']=merchant['category']
+        elif updated['category'] not in available_categories(state):
+            raise ValueError('Неизвестная категория')
         if not merchant_id: updated.pop('merchantId',None)
         updated['week']=index
         if source is target: source['expenses'][source['expenses'].index(expense)]=updated
@@ -185,11 +215,15 @@ def apply(state, action, today=None):
         if kind == 'recategorize':
             if set(action)-{'type','month','week','id','category'}:
                 raise ValueError('Можно изменить только категорию')
-            if action.get('category') not in CATEGORIES:
-                raise ValueError('Неизвестная категория')
             expense=next((e for e in m['expenses'] if e['id']==action.get('id') and e['week']==i),None)
             if expense is None:raise ValueError('Расход не найден')
-            expense['category']=action['category']
+            if expense.get('merchantId'):
+                merchant=merchant_for(state,expense['merchantId'])
+                if not merchant or merchant.get('category') not in available_categories(state): raise ValueError('Сначала задайте категорию магазину')
+                expense['category']=merchant['category']
+            else:
+                if action.get('category') not in available_categories(state): raise ValueError('Неизвестная категория')
+                expense['category']=action['category']
             return state
         if w['closed']:
             raise ValueError('Неделя закрыта')
@@ -199,16 +233,17 @@ def apply(state, action, today=None):
                 raise ValueError('Расход не может быть в будущем')
             if date.strftime('%Y-%m') != key or not w['start'] <= date.day <= w['end']:
                 raise ValueError('Дата должна попадать в выбранную неделю')
-            category = action['category']
-            if category not in CATEGORIES:
-                raise ValueError('Неизвестная категория')
             note = str(action.get('note','')).strip()
             if len(note.encode('utf-16-le'))//2>200:
                 raise ValueError('Описание слишком длинное')
             merchant_id=action.get('merchantId')
+            merchant=None
             if merchant_id is not None and merchant_id != '':
-                merchant=next((x for x in state.get('merchants',[]) if x['id']==merchant_id),None) or next((x for x in MERCHANT_DEFAULTS if x['id']==merchant_id),None)
+                merchant=merchant_for(state,merchant_id)
                 if not isinstance(merchant_id,str) or not merchant or merchant.get('hidden'):raise ValueError('Неизвестный или скрытый магазин')
+                if merchant.get('category') not in available_categories(state): raise ValueError('Сначала задайте категорию магазину')
+            category=merchant['category'] if merchant else action.get('category')
+            if category not in available_categories(state): raise ValueError('Выберите категорию')
             expense={'id':uuid.uuid4().hex,'week':i,'amount':amount(action['amount'], True),'date':date.isoformat(),'category':category,'note':note}
             if merchant_id: expense['merchantId']=merchant_id
             m['expenses'].append(expense)

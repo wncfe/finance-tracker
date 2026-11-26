@@ -89,7 +89,7 @@ class ApiTests(unittest.TestCase):
         legacy=dict(type='expense',month='2026-11',week=0,date='2026-11-02',amount=100,category='Кафе',note='Исходный текст')
         first=self.request(a,'action',{'revision':0,'action':legacy})[1]
         old=first['state']['months']['2026-11']['expenses'][0]
-        merchant=dict(id='c-'+'1'*32,name='Мой магазин',aliases=['вариант'],hidden=False)
+        merchant=dict(id='c-'+'1'*32,name='Мой магазин',aliases=['вариант'],category='Кафе',hidden=False)
         body={'revision':1,'operationId':uuid.uuid4().hex,'action':dict(type='merchant_save',merchant=merchant)}
         saved=self.request(a,'action',body)
         self.assertEqual(saved[0],200)

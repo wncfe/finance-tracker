@@ -8,6 +8,21 @@
   const syncCategory = attachSelect($("expenseCategory"));
   const syncMerchant = attachSelect($("editExpenseMerchant"));
   let editing = null;
+  function syncLinkedCategory() {
+    const merchant = MerchantDictionary.all(state.merchants || [], true).find(
+        (item) => item.id === $("editExpenseMerchant").value,
+      ),
+      category = $("expenseCategory");
+    if (merchant?.category) {
+      if (
+        !Array.from(category.options).some((o) => o.value === merchant.category)
+      )
+        category.add(new Option(merchant.category, merchant.category));
+      category.value = merchant.category;
+    }
+    category.disabled = !!merchant;
+    syncCategory();
+  }
   root.openCategoryEditor = (button) => {
     const month = button.dataset.month,
       identifier = button.dataset.recategorize;
@@ -42,11 +57,13 @@
         .join("");
     $("editExpenseMerchant").value = expense.merchantId || "";
     syncMerchant();
+    syncLinkedCategory();
     $("expenseEditorHint").textContent = closed
-      ? "Неделя закрыта: можно изменить магазин и категорию. Сумма и дата зафиксированы."
-      : "Сумма и дата изменят остатки бюджета. Перенос в закрытую неделю недоступен.";
+      ? "Неделя закрыта: можно изменить магазин; категория связанного расхода берётся из магазина. Сумма и дата зафиксированы."
+      : "Категория связанного расхода берётся из магазина. Сумма и дата изменят остатки бюджета; перенос в закрытую неделю недоступен.";
     $("categoryEditor").showModal();
   };
+  $("editExpenseMerchant").addEventListener("change", syncLinkedCategory);
   $("categoryEditorClose").onclick = () => {
     if (!busy) $("categoryEditor").close();
   };

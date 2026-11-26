@@ -4,7 +4,8 @@
   let editing = "",
     draftId = "",
     onSaved = null,
-    weekManual = false;
+    weekManual = false,
+    weekUpdating = false;
 
   function options(selectedId = "") {
     const items = D.all(state.merchants || []);
@@ -33,7 +34,24 @@
           : ""
         : previous;
     select.innerHTML = options(value);
+    if (select.value !== previous) {
+      weekUpdating = true;
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+      weekUpdating = false;
+    }
     $("weekMerchantHint").textContent = guess && !weekManual ? hint(match) : "";
+  }
+
+  function refreshCategoryOptions(selected = $("merchantCategory").value) {
+    $("merchantCategory").innerHTML =
+      '<option value="">Выберите категорию</option>' +
+      categoryOptions()
+        .map(
+          (category) =>
+            `<option value="${esc(category)}">${esc(category)}</option>`,
+        )
+        .join("");
+    $("merchantCategory").value = selected || "";
   }
 
   function hint(match) {
@@ -50,11 +68,7 @@
     $("merchantForm").reset();
     $("merchantFormTitle").textContent = "Новый магазин или сервис";
     $("merchantError").textContent = "";
-    $("merchantCategory").innerHTML =
-      '<option value="">Не задана</option>' +
-      categoryOptions()
-        .map((category) => `<option>${esc(category)}</option>`)
-        .join("");
+    refreshCategoryOptions();
   }
 
   function renderList() {
@@ -107,6 +121,10 @@
   $("merchantFormClose").onclick = () => {
     if (!busy) $("merchantFormDialog").close();
   };
+  $("merchantCategoryChoose").onclick = () =>
+    CategoryUI.open((category) => {
+      refreshCategoryOptions(category);
+    });
   $("merchantDialog").addEventListener("cancel", (e) => {
     if (busy) e.preventDefault();
   });
@@ -139,7 +157,7 @@
       id,
       name,
       aliases,
-      category: category || null,
+      category,
       hidden: $("merchantHidden").checked,
     };
     const sameName = D.all(state.merchants || [], true).find(
@@ -177,13 +195,14 @@
     updateWeek(true),
   );
   $("weekMerchant").addEventListener("change", () => {
-    weekManual = true;
+    if (!weekUpdating) weekManual = true;
     $("weekMerchantHint").textContent = "";
   });
   $("weekMerchantNew").onclick = () =>
     open((id) => {
       weekManual = true;
       $("weekMerchant").innerHTML = options(id);
+      $("weekMerchant").dispatchEvent(new Event("change", { bubbles: true }));
     }, $("expenseform").elements.note.value.trim());
   globalThis.MerchantUI = {
     options,
@@ -193,5 +212,6 @@
       weekManual = false;
       updateWeek(true);
     },
+    refreshCategoryOptions,
   };
 })();

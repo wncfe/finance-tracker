@@ -276,3 +276,56 @@ assert.equal(
   400,
 );
 console.log("Worker date/removed-transfer validation passed");
+
+let libraryState = (await api("a", "state"))[1];
+const customCategory = { id: "uc-" + "d".repeat(32), name: "Техника" };
+const categorySaved = await api("a", "action", {
+  revision: libraryState.revision,
+  action: { type: "category_save", category: customCategory },
+});
+assert.equal(categorySaved[0], 200);
+assert.deepEqual(categorySaved[1].state.userCategories, [customCategory]);
+assert.equal((await api("b", "state"))[1].state.userCategories, undefined);
+const customMerchant = {
+  id: "c-" + "d".repeat(32),
+  name: "Магазин техники",
+  aliases: [],
+  category: "Техника",
+  hidden: false,
+};
+const customMerchantSaved = await api("a", "action", {
+  revision: categorySaved[1].revision,
+  action: { type: "merchant_save", merchant: customMerchant },
+});
+assert.equal(customMerchantSaved[0], 200);
+const customExpense = await api("a", "action", {
+  revision: customMerchantSaved[1].revision,
+  action: {
+    type: "expense",
+    month: "2026-11",
+    week: 3,
+    date: "2026-11-24",
+    amount: 2500,
+    category: "Кафе",
+    note: "Наушники",
+    merchantId: customMerchant.id,
+  },
+});
+assert.equal(customExpense[0], 200);
+assert.equal(
+  customExpense[1].state.months["2026-11"].expenses.at(-1).category,
+  "Техника",
+);
+const recategorized = await api("a", "action", {
+  revision: customExpense[1].revision,
+  action: {
+    type: "merchant_save",
+    merchant: { ...customMerchant, category: "Кофейни" },
+  },
+});
+assert.equal(recategorized[0], 200);
+assert.equal(
+  recategorized[1].state.months["2026-11"].expenses.at(-1).category,
+  "Кофейни",
+);
+console.log("Worker category isolation and merchant inheritance passed");

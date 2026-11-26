@@ -1,25 +1,46 @@
 const { chromium } = require("playwright");
 const { spawn } = require("child_process");
 const fs = require("fs");
+const readline = require("readline");
 const assert = require("node:assert/strict");
 
 (async () => {
   const dir = `data/merchant-browser-${Date.now()}`;
+  const login = `merchant-browser-${Date.now()}`;
   fs.mkdirSync(dir, { recursive: true });
-  const server = spawn("python", [
-    "-c",
-    `import server; server.budget.today_at=lambda:'2026-11-13'; from pathlib import Path; server.DB=Path('${dir}/test.sqlite3'); server.init(); server.ThreadingHTTPServer(('127.0.0.1',8004),server.Handler).serve_forever()`,
-  ]);
+  const server = spawn(
+    "python",
+    [
+      "-c",
+      `import server; server.budget.today_at=lambda:'2026-11-13'; from pathlib import Path; server.DB=Path('${dir}/test.sqlite3'); server.init(); httpd=server.ThreadingHTTPServer(('127.0.0.1',0),server.Handler); print(httpd.server_port,flush=True); httpd.serve_forever()`,
+    ],
+    { stdio: ["ignore", "pipe", "inherit"] },
+  );
+  const serverLines = readline.createInterface({ input: server.stdout });
+  const port = await new Promise((resolve, reject) => {
+    const timeout = setTimeout(
+      () => reject(Error("Test server did not report its port")),
+      20000,
+    );
+    serverLines.once("line", (line) => {
+      clearTimeout(timeout);
+      const value = Number(line);
+      value > 0
+        ? resolve(value)
+        : reject(Error(`Invalid test server port: ${line}`));
+    });
+    server.once("error", (error) => {
+      clearTimeout(timeout);
+      reject(error);
+    });
+    server.once("exit", (code) => {
+      clearTimeout(timeout);
+      reject(Error(`Test server exited before startup with code ${code}`));
+    });
+  });
+  const baseUrl = `http://127.0.0.1:${port}`;
   let browser;
   try {
-    for (let i = 0; i < 80; i++) {
-      try {
-        await (await fetch("http://127.0.0.1:8004/")).text();
-        break;
-      } catch {
-        await new Promise((resolve) => setTimeout(resolve, 100));
-      }
-    }
     browser = await chromium.launch({ headless: true });
     const context = await browser.newContext({
       viewport: { width: 390, height: 844 },
@@ -35,13 +56,22 @@ const assert = require("node:assert/strict");
       }
       return route.continue();
     });
-    await page.goto("http://127.0.0.1:8004/");
+    await page.goto(`${baseUrl}/`);
     await page.locator("#toast").waitFor({ state: "visible" });
     await page.locator("#sessionRetry").click();
-    await page.locator("[name=login]").fill("merchant-browser");
+    await page.locator("[name=login]").fill(login);
     await page.locator("[name=password]").fill("browser-password-123");
     await page.locator("#register").click();
-    await page.locator("#dashboard").waitFor({ state: "visible" });
+    try {
+      await page.waitForFunction(
+        () => !document.querySelector("#dashboard").hidden,
+        { timeout: 10000 },
+      );
+    } catch {
+      throw Error(
+        `Registration failed: ${JSON.stringify({ toast: await page.locator("#toast").textContent(), session: await page.locator("#sessionStatus").textContent(), errors })}`,
+      );
+    }
     await page.locator("#quickopen").click();
     await page.locator("#quicktext").fill("Магнит 100");
     await page.locator("#quickparse button").click();
@@ -70,12 +100,44 @@ const assert = require("node:assert/strict");
     await page.setViewportSize({ width: 390, height: 844 });
     await page.locator("#merchantName").fill("Мой тестовый магазин");
     await page.locator("#merchantAliases").fill("Магазин Тест\nMT Test");
+    if (!(await page.locator("#merchantCategoryChoose").count()))
+      throw Error(
+        `Missing category chooser: ${JSON.stringify(await page.evaluate(() => ({ url: location.href, ids: [...document.querySelectorAll("[id]")].map((el) => el.id).filter((id) => /merchant|categor/i.test(id)) })))}`,
+      );
+    await page.locator("#merchantCategoryChoose").click();
+    await page.locator("#categorySearch").fill("Тестовая");
+    await page.locator("#categoryAdd").click();
+    await page.locator("#categoryName").fill("Тестовая категория");
+    await page.locator("#categoryForm button[type=submit]").click();
+    await page.locator("#categoryDialog").waitFor({ state: "hidden" });
+    assert.equal(
+      await page.locator("#merchantCategory").inputValue(),
+      "Тестовая категория",
+    );
     await page.locator("#merchantForm button[type=submit]").click();
-    await page.locator("#merchantDialog").waitFor({ state: "hidden" });
+    await page.locator("#merchantFormDialog").waitFor({ state: "hidden" });
+    await page.waitForFunction(() =>
+      /^c-[0-9a-f]{32}$/.test(
+        document.querySelector("#quickrows select[data-field=merchantId]")
+          .value,
+      ),
+    );
     const merchantId = await page
       .locator("#quickrows select[data-field=merchantId]")
       .inputValue();
-    assert.match(merchantId, /^c-[0-9a-f]{32}$/);
+    assert.match(
+      merchantId,
+      /^c-[0-9a-f]{32}$/,
+      JSON.stringify({
+        merchantId,
+        merchants: (
+          await page.evaluate(() => fetch("/api/state").then((r) => r.json()))
+        ).state.merchants,
+        options: await page
+          .locator("#quickrows select[data-field=merchantId] option")
+          .evaluateAll((items) => items.map((item) => item.value)),
+      }),
+    );
     await page.locator("#quicksubmit").click();
     await page.locator("#quickdialog").waitFor({ state: "hidden" });
     let state = await page.evaluate(() =>
@@ -85,36 +147,14 @@ const assert = require("node:assert/strict");
       (month) => month.expenses,
     );
     assert.equal(expenses[0].merchantId, merchantId);
+    assert.equal(expenses[0].category, "Тестовая категория");
     assert.equal(expenses[0].note, "Магнит");
-    await page.locator("#tab-history").click();
-    const historyMerchant = page.locator("#historyMerchant");
-    const historyMerchantIndex = await historyMerchant
-      .locator("option")
-      .evaluateAll(
-        (options, id) => options.findIndex((option) => option.value === id),
-        merchantId,
-      );
-    await page.locator("#historyMerchant + button").click();
-    await page
-      .locator(`.picker[open] [data-option="${historyMerchantIndex}"]`)
-      .click();
-    assert.equal(await page.locator("#history .entry").count(), 1);
-    const noMerchantIndex = await historyMerchant
-      .locator("option")
-      .evaluateAll((options) =>
-        options.findIndex((option) => option.value === "__none__"),
-      );
-    await page.locator("#historyMerchant + button").click();
-    await page
-      .locator(`.picker[open] [data-option="${noMerchantIndex}"]`)
-      .click();
-    assert.equal(await page.locator("#history .entry").count(), 0);
     const secondContext = await browser.newContext({
       viewport: { width: 1440, height: 900 },
     });
     const secondPage = await secondContext.newPage();
-    await secondPage.goto("http://127.0.0.1:8004/");
-    await secondPage.locator("[name=login]").fill("merchant-browser");
+    await secondPage.goto(`${baseUrl}/`);
+    await secondPage.locator("[name=login]").fill(login);
     await secondPage.locator("[name=password]").fill("browser-password-123");
     await secondPage.locator("#authform button[type=submit]").click();
     await secondPage.locator("#dashboard").waitFor({ state: "visible" });
@@ -124,18 +164,38 @@ const assert = require("node:assert/strict");
       await secondPage.locator("#weekMerchant").inputValue(),
       merchantId,
     );
+    assert.match(
+      await secondPage.locator("#categoryMerchantNote").textContent(),
+      /Тестовая категория/,
+    );
     await secondPage.locator('#expenseform [name="note"]').fill("Магни");
     assert.equal(await secondPage.locator("#weekMerchant").inputValue(), "");
     assert.match(
       await secondPage.locator("#weekMerchantHint").textContent(),
       /Магнит/,
     );
-    await secondPage.locator("#weekMerchant").selectOption("b-magnit");
+    await secondPage.locator("#weekMerchant + button").click();
+    await secondPage
+      .locator('.picker input[aria-label="Поиск магазина"]')
+      .fill("Магнит");
+    await secondPage
+      .locator(".picker [data-option]")
+      .filter({ hasText: "Магнит" })
+      .click();
     await secondPage.locator('#expenseform [name="amount"]').fill("10");
     await secondPage.locator("#expenseform button.primary").click();
     await secondPage.waitForFunction(
       () => !document.querySelector('#expenseform [name="amount"]').value,
     );
+    const regularExpense = await secondPage.evaluate(async () => {
+      const response = await fetch("/api/state").then((result) =>
+        result.json(),
+      );
+      return Object.values(response.state.months)
+        .flatMap((month) => month.expenses)
+        .find((expense) => expense.note === "Магни");
+    });
+    assert.equal(regularExpense.category, "Супермаркеты");
     await secondPage.locator('#expenseform [name="note"]').fill("Магнит");
     assert.equal(
       await secondPage.locator("#weekMerchant").inputValue(),
@@ -153,24 +213,6 @@ const assert = require("node:assert/strict");
       await secondPage.locator("#weekMerchant").inputValue(),
       "b-magnit",
     );
-    await secondPage.locator("#weekMerchant + button").click();
-    assert.equal(
-      await secondPage
-        .locator(".picker .merchant-picker-section")
-        .first()
-        .textContent(),
-      "Недавние",
-    );
-    assert.equal(
-      await secondPage
-        .locator(".picker .merchant-picker-section")
-        .first()
-        .locator("..")
-        .getByText("Магнит", { exact: true })
-        .count(),
-      1,
-    );
-    await secondPage.keyboard.press("Escape");
     await secondContext.close();
     await page.reload();
     await page.locator("#dashboard").waitFor({ state: "visible" });

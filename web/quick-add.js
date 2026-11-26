@@ -9,6 +9,28 @@
   let rowPickers = [],
     rulePickers = [];
   const ruleKey = () => "expense-rules:" + accountLogin;
+  const merchantFor = (id) =>
+    id
+      ? MerchantDictionary.all(state.merchants || [], true).find(
+          (merchant) => merchant.id === id,
+        )
+      : null;
+  function syncCategoryField(article, row) {
+    const select = article.querySelector('[data-field="category"]');
+    if (!select) return;
+    if (row.merchantId && row.category) select.value = row.category;
+    select.disabled = !!row.merchantId;
+    const trigger = select.nextElementSibling;
+    if (trigger?.classList.contains("picker-trigger")) {
+      trigger.disabled = select.disabled;
+      trigger.textContent = select.selectedOptions[0]?.textContent || "Выбрать";
+    }
+    const label = select.closest("label");
+    if (label?.firstChild?.nodeType === Node.TEXT_NODE)
+      label.firstChild.textContent = row.merchantId
+        ? "Категория магазина"
+        : "Категория";
+  }
   function rules() {
     try {
       const value = JSON.parse(localStorage.getItem(ruleKey()) || "{}");
@@ -87,7 +109,9 @@
       row.amount > 1e10
     )
       result.push("Укажите положительную сумму до 100 000 000 ₽");
-    if (!cats.includes(row.category)) result.push("Выберите категорию");
+    if (row.merchantId && !merchantFor(row.merchantId)?.category)
+      result.push("Сначала задайте категорию магазину");
+    else if (!cats.includes(row.category)) result.push("Выберите категорию");
     if (!row.note.trim() || row.note.length > 200)
       result.push("Описание: от 1 до 200 символов");
     const place = location(row);
@@ -171,6 +195,9 @@
         ? attachSelect(el)
         : attachPicker(el, "date", { navigate: true });
     });
+    rows.forEach((row, i) =>
+      syncCategoryField($("quickrows").querySelector(`[data-row="${i}"]`), row),
+    );
     $("quicksave")
       .querySelectorAll("input,select,button")
       .forEach((el) => {
@@ -244,6 +271,10 @@
       return {
         ...row,
         merchantId: match.status === "matched" ? match.matches[0].id : "",
+        category:
+          match.status === "matched"
+            ? merchantFor(match.matches[0].id)?.category || row.category
+            : row.category,
         merchantHint: MerchantUI.hint(match),
         merchantTouched: false,
       };
@@ -271,9 +302,12 @@
     if (field === "merchantId") {
       rows[index].merchantTouched = true;
       rows[index].merchantHint = "";
+      const merchant = merchantFor(rows[index].merchantId);
+      if (merchant?.category) rows[index].category = merchant.category;
       el
         .closest("[data-row]")
         .querySelector("[data-merchant-hint]").textContent = "";
+      syncCategoryField(el.closest("[data-row]"), rows[index]);
     }
     if (field === "note" && !rows[index].merchantTouched) {
       const match = MerchantDictionary.resolve(
@@ -282,6 +316,8 @@
       );
       rows[index].merchantId =
         match.status === "matched" ? match.matches[0].id : "";
+      const merchant = merchantFor(rows[index].merchantId);
+      if (merchant?.category) rows[index].category = merchant.category;
       rows[index].merchantHint = MerchantUI.hint(match);
       el
         .closest("[data-row]")
@@ -291,6 +327,7 @@
         .closest("[data-row]")
         .querySelector("[data-merchant-hint]").textContent =
         rows[index].merchantHint;
+      syncCategoryField(el.closest("[data-row]"), rows[index]);
     }
     status();
   });
@@ -300,6 +337,8 @@
       const index = +add.dataset.merchantNew;
       MerchantUI.open((id) => {
         rows[index].merchantId = id;
+        const merchant = merchantFor(id);
+        if (merchant?.category) rows[index].category = merchant.category;
         rows[index].merchantTouched = true;
         rows[index].merchantHint = "";
         renderRows();
@@ -358,7 +397,8 @@
     if (ok) {
       const value = rules();
       for (const row of rows)
-        if (row.remember) value[P.normalize(row.note)] = row.category;
+        if (row.remember && !row.merchantId)
+          value[P.normalize(row.note)] = row.category;
       if (rows.some((r) => r.remember)) storeRules(value);
       rows = [];
       $("quicktext").value = "";

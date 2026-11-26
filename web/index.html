@@ -18,6 +18,7 @@
     <script defer src="/history-view.js"></script>
     <script defer src="/app.js"></script>
     <script defer src="/merchant-ui.js"></script>
+    <script defer src="/category-ui.js"></script>
     <script defer src="/quick-add.js"></script>
     <script defer src="/pickers.js"></script>
     <script defer src="/analytics.js"></script>
@@ -255,6 +256,7 @@
               Все изменения сохранены на сервере
             </p>
             <button id="merchantOpen" type="button">Магазины и сервисы</button>
+            <button id="categoryOpen" type="button">Категории</button>
           </section>
         </aside>
       </div>
@@ -523,6 +525,7 @@
                 required /></label
             ><label>Дата<input name="date" type="date" required /></label>
           </div>
+          <p id="categoryMerchantNote" class="muted" hidden></p>
           <div
             id="categorybuttons"
             class="chips"
@@ -613,12 +616,49 @@
             placeholder="Каждый вариант с новой строки"
           ></textarea>
         </label>
-        <label>Категория магазина<select id="merchantCategory"></select></label>
+        <label
+          >Категория магазина<select id="merchantCategory" required></select
+        ></label>
+        <button id="merchantCategoryChoose" type="button">
+          Найти или добавить категорию
+        </button>
         <label class="checkline"
           ><input id="merchantHidden" type="checkbox" /> Скрыть из выбора</label
         >
         <p id="merchantError" role="alert"></p>
         <button class="primary" type="submit">Сохранить</button>
+      </form>
+    </dialog>
+    <dialog id="categoryDialog" aria-labelledby="categoryTitle">
+      <div class="dialoghead">
+        <h2 id="categoryTitle">Категории</h2>
+        <button id="categoryClose" type="button" aria-label="Закрыть">✕</button>
+      </div>
+      <p class="muted">Категории доступны этому аккаунту и общему списку.</p>
+      <label
+        >Поиск<input
+          id="categorySearch"
+          type="search"
+          placeholder="Название категории"
+      /></label>
+      <div id="categoryList" class="merchant-list"></div>
+      <button id="categoryAdd" class="primary" type="button">
+        Добавить категорию
+      </button>
+    </dialog>
+    <dialog id="categoryFormDialog" aria-labelledby="categoryFormTitle">
+      <div class="dialoghead">
+        <h2 id="categoryFormTitle">Новая категория</h2>
+        <button id="categoryFormClose" type="button" aria-label="Закрыть">
+          ✕
+        </button>
+      </div>
+      <form id="categoryForm">
+        <label
+          >Название<input id="categoryName" maxlength="60" required
+        /></label>
+        <p id="categoryError" role="alert"></p>
+        <button class="primary" type="submit">Сохранить категорию</button>
       </form>
     </dialog>
     <dialog id="quickdialog" aria-labelledby="quicktitle">

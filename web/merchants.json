@@ -1,40 +1,177 @@
 [
-  { "id": "b-magnit", "name": "Магнит", "aliases": ["Magnit"] },
-  { "id": "b-lenta", "name": "Лента", "aliases": ["Lenta"] },
-  { "id": "b-samokat", "name": "Самокат", "aliases": ["Samokat"] },
-  { "id": "b-yandex-taxi", "name": "Яндекс Такси", "aliases": ["Yandex Taxi"] },
-  { "id": "b-burger-king", "name": "Бургер Кинг", "aliases": ["Burger King"] },
-  { "id": "b-rostics", "name": "Rostic's", "aliases": ["Ростикс"] },
-  { "id": "b-steam", "name": "Steam", "aliases": [] },
-  { "id": "b-troika-perm", "name": "Тройка Пермь", "aliases": [] },
+  {
+    "id": "b-magnit",
+    "name": "Магнит",
+    "aliases": ["Magnit"],
+    "category": "Супермаркеты"
+  },
+  {
+    "id": "b-lenta",
+    "name": "Лента",
+    "aliases": ["Lenta"],
+    "category": "Супермаркеты"
+  },
+  {
+    "id": "b-samokat",
+    "name": "Самокат",
+    "aliases": ["Samokat"],
+    "category": "Супермаркеты"
+  },
+  {
+    "id": "b-yandex-taxi",
+    "name": "Яндекс Такси",
+    "aliases": ["Yandex Taxi"],
+    "category": "Такси"
+  },
+  {
+    "id": "b-burger-king",
+    "name": "Бургер Кинг",
+    "aliases": ["Burger King"],
+    "category": "Фастфуд"
+  },
+  {
+    "id": "b-rostics",
+    "name": "Rostic's",
+    "aliases": ["Ростикс"],
+    "category": "Фастфуд"
+  },
+  {
+    "id": "b-steam",
+    "name": "Steam",
+    "aliases": [],
+    "category": "Развлечения"
+  },
+  {
+    "id": "b-troika-perm",
+    "name": "Тройка Пермь",
+    "aliases": [],
+    "category": "Общественный транспорт"
+  },
   {
     "id": "b-avtovokzaly-prikamya",
     "name": "Автовокзалы Прикамья",
-    "aliases": []
+    "aliases": [],
+    "category": "Общественный транспорт"
   },
-  { "id": "b-yobody", "name": "YoBody Fitness", "aliases": [] },
-  { "id": "b-monkey-grinder", "name": "Monkey Grinder", "aliases": [] },
-  { "id": "b-krasnoe-beloe", "name": "Красное и белое", "aliases": [] },
-  { "id": "b-monetka", "name": "Монетка", "aliases": [] },
-  { "id": "b-fix-price", "name": "Fix Price", "aliases": [] },
-  { "id": "b-dodo", "name": "Додо Пицца", "aliases": ["Dodo Pizza"] },
-  { "id": "b-play-day", "name": "Play Day", "aliases": ["Игротека Play Day"] },
+  {
+    "id": "b-yobody",
+    "name": "YoBody Fitness",
+    "aliases": [],
+    "category": "Спорт"
+  },
+  {
+    "id": "b-monkey-grinder",
+    "name": "Monkey Grinder",
+    "aliases": [],
+    "category": "Кофейни"
+  },
+  {
+    "id": "b-krasnoe-beloe",
+    "name": "Красное и белое",
+    "aliases": [],
+    "category": "Супермаркеты"
+  },
+  {
+    "id": "b-monetka",
+    "name": "Монетка",
+    "aliases": [],
+    "category": "Супермаркеты"
+  },
+  {
+    "id": "b-fix-price",
+    "name": "Fix Price",
+    "aliases": [],
+    "category": "Супермаркеты"
+  },
+  {
+    "id": "b-dodo",
+    "name": "Додо Пицца",
+    "aliases": ["Dodo Pizza"],
+    "category": "Фастфуд"
+  },
+  {
+    "id": "b-play-day",
+    "name": "Play Day",
+    "aliases": ["Игротека Play Day"],
+    "category": "Развлечения"
+  },
   {
     "id": "b-pyaterochka",
     "name": "Пятёрочка",
-    "aliases": ["Пятерочка", "5ка"]
+    "aliases": ["Пятерочка", "5ка"],
+    "category": "Супермаркеты"
   },
-  { "id": "b-rostelecom", "name": "Ростелеком", "aliases": ["Rostelecom"] },
-  { "id": "b-chitai-gorod", "name": "Читай-город", "aliases": [] },
-  { "id": "b-drinkit", "name": "Дринкит", "aliases": ["Drinkit"] },
-  { "id": "b-planeta-zdorovya", "name": "Планета Здоровья", "aliases": [] },
-  { "id": "b-okko", "name": "Okko.tv", "aliases": ["Okko"] },
-  { "id": "b-yandex-plus", "name": "Яндекс Плюс", "aliases": ["Yandex Plus"] },
-  { "id": "b-yandex-lavka", "name": "Яндекс Лавка", "aliases": [] },
-  { "id": "b-befree", "name": "Befree", "aliases": [] },
-  { "id": "b-modi", "name": "MODI", "aliases": [] },
-  { "id": "b-whoosh", "name": "Whoosh", "aliases": [] },
-  { "id": "b-chizhik", "name": "Чижик", "aliases": [] },
-  { "id": "b-detsky-mir", "name": "Детский Мир", "aliases": [] },
-  { "id": "b-vkusno-tochka", "name": "Вкусно — и точка", "aliases": [] }
+  {
+    "id": "b-rostelecom",
+    "name": "Ростелеком",
+    "aliases": ["Rostelecom"],
+    "category": "Связь и интернет"
+  },
+  {
+    "id": "b-chitai-gorod",
+    "name": "Читай-город",
+    "aliases": [],
+    "category": "Книги и образование"
+  },
+  {
+    "id": "b-drinkit",
+    "name": "Дринкит",
+    "aliases": ["Drinkit"],
+    "category": "Кофейни"
+  },
+  {
+    "id": "b-planeta-zdorovya",
+    "name": "Планета Здоровья",
+    "aliases": [],
+    "category": "Здоровье"
+  },
+  {
+    "id": "b-okko",
+    "name": "Okko.tv",
+    "aliases": ["Okko"],
+    "category": "Подписки и цифровые сервисы"
+  },
+  {
+    "id": "b-yandex-plus",
+    "name": "Яндекс Плюс",
+    "aliases": ["Yandex Plus"],
+    "category": "Подписки и цифровые сервисы"
+  },
+  {
+    "id": "b-yandex-lavka",
+    "name": "Яндекс Лавка",
+    "aliases": [],
+    "category": "Супермаркеты"
+  },
+  {
+    "id": "b-befree",
+    "name": "Befree",
+    "aliases": [],
+    "category": "Одежда и обувь"
+  },
+  { "id": "b-modi", "name": "MODI", "aliases": [], "category": "Покупки" },
+  {
+    "id": "b-whoosh",
+    "name": "Whoosh",
+    "aliases": [],
+    "category": "Транспорт"
+  },
+  {
+    "id": "b-chizhik",
+    "name": "Чижик",
+    "aliases": [],
+    "category": "Супермаркеты"
+  },
+  {
+    "id": "b-detsky-mir",
+    "name": "Детский Мир",
+    "aliases": [],
+    "category": "Дети"
+  },
+  {
+    "id": "b-vkusno-tochka",
+    "name": "Вкусно — и точка",
+    "aliases": [],
+    "category": "Фастфуд"
+  }
 ]

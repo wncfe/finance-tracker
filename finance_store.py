@@ -10,6 +10,7 @@ def migrate(db):
         remove_transfers(db)
         migrate_merchants(db)
         migrate_merchant_categories(db)
+        migrate_user_categories(db)
         migrate_transport_categories(db)
         return
     script=(ROOT/'cloudflare/migrations/0003_normalized_finances.sql').read_text('utf-8')
@@ -25,6 +26,7 @@ def migrate(db):
         remove_transfers(db)
         migrate_merchants(db)
         migrate_merchant_categories(db)
+        migrate_user_categories(db)
         migrate_transport_categories(db)
     except Exception:
         db.rollback()
@@ -58,6 +60,13 @@ def migrate_merchant_categories(db):
             db.rollback()
             raise
 
+def migrate_user_categories(db):
+    if not db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='user_categories'").fetchone():
+        try:db.executescript('BEGIN IMMEDIATE;\n'+(ROOT/'cloudflare/migrations'/'0010_user_categories.sql').read_text('utf-8')+'\nCOMMIT;')
+        except Exception:
+            db.rollback()
+            raise
+
 def load(db,user_id):
     state={'months':{}}
     columns=[r[1] for r in db.execute('PRAGMA table_info(months)')]
@@ -80,6 +89,9 @@ def load(db,user_id):
     if has_merchants:
         merchants=[dict(id=i,name=n,aliases=json.loads(a),**({'category':c} if c else {}),hidden=bool(h)) for i,n,a,c,h in db.execute('SELECT id,name,aliases,category,hidden FROM user_merchants WHERE user_id=? ORDER BY id',(user_id,))]
         if merchants:state['merchants']=merchants
+    if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='user_categories'").fetchone():
+        custom=[dict(id=i,name=n) for i,n in db.execute('SELECT c.id,c.name FROM user_categories u JOIN categories c ON c.id=u.category_id WHERE u.user_id=? ORDER BY c.id',(user_id,))]
+        if custom:state['userCategories']=custom
     return state
 
 def save(db,user_id,before,after):
@@ -89,6 +101,13 @@ def save(db,user_id,before,after):
     for m in after.get('merchants',[]):
         if prior_merchants.get(m['id'])!=m:
             db.execute('INSERT INTO user_merchants(user_id,id,name,aliases,category,hidden) VALUES(?,?,?,?,?,?) ON CONFLICT(user_id,id) DO UPDATE SET name=excluded.name,aliases=excluded.aliases,category=excluded.category,hidden=excluded.hidden',(user_id,m['id'],m['name'],json.dumps(m['aliases'],ensure_ascii=False),m.get('category'),int(m['hidden'])))
+    prior_category_ids={c['id'] for c in before.get('userCategories',[])}
+    for category in after.get('userCategories',[]):
+        if category['id'] in prior_category_ids:continue
+        db.execute('INSERT OR IGNORE INTO categories(id,name) VALUES(?,?)',(category['id'],category['name']))
+        row=db.execute('SELECT id FROM categories WHERE name=?',(category['name'],)).fetchone()
+        if row is None:raise ValueError('Не удалось сохранить категорию')
+        db.execute('INSERT OR IGNORE INTO user_categories(user_id,category_id) VALUES(?,?)',(user_id,row[0]))
     for key,m in after['months'].items():
         old=before['months'].get(key)
         if old==m:continue
