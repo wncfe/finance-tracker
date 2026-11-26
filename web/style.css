@@ -1103,6 +1103,11 @@ details form {
   box-shadow: 0 6px 30px #0003;
   font-size: 14px;
 }
+@media (max-width: 680px) {
+  #toast {
+    bottom: calc(64px + max(8px, env(safe-area-inset-bottom)));
+  }
+}
 .auth {
   max-width: 420px;
   margin: 5vh auto;

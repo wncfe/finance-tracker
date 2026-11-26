@@ -44,7 +44,7 @@ const $ = (id) => document.getElementById(id),
     "monitor",
     "plane",
     "clapperboard",
-    "ellipsis",
+    "wallet",
     "shopping-basket",
     "coffee",
   ];
@@ -60,7 +60,8 @@ const customCategoryIcons = [
   "book", "monitor", "shirt", "burger", "car", "plane", "phone",
   "heart-pulse", "dumbbell", "baby", "clapperboard", "utensils",
 ];
-const categoryIndex = (category) => cats.indexOf(category);
+const categoryIndex = (category) =>
+  baseCats.indexOf(CategoryUtils.canonical(category));
 function customCategoryIndex(category) {
   let hash = 0;
   for (const char of category)

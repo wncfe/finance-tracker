@@ -159,6 +159,7 @@ const assert = require("node:assert/strict");
       "Супермаркеты",
     );
     assert.equal(await manualCategory.isVisible(), false);
+    assert.equal(await manualCategory.inputValue(), "Супермаркеты");
     assert.equal(await linkedCategory.textContent(), "Супермаркеты");
     assert.equal(await linkedCategory.locator("img").count(), 1);
     await linkedCategory.locator("img").hover();
@@ -476,6 +477,10 @@ const assert = require("node:assert/strict");
     const remainder = page.locator("#historyRemainderDialog");
     const remainderChip = page.locator(
       "#historyCategories [data-history-remainder]",
+    );
+    assert.equal(
+      await remainderChip.locator("img").getAttribute("src"),
+      "/icons/ellipsis.svg",
     );
     assert.equal(
       await remainderChip.locator("strong").textContent(),

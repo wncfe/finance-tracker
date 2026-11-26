@@ -79,10 +79,8 @@ const ExpenseHistoryView = (() => {
     point(r, a)
       .map((value) => value.toFixed(3))
       .join(" ");
-  const segmentSymbol = (category, grouped) => {
-    if (grouped) return "ellipsis";
-    return category === "Другое" ? "wallet" : categoryIcon(category);
-  };
+  const segmentSymbol = (category, grouped) =>
+    grouped ? "ellipsis" : categoryIcon(category);
 
   function sector(start, end) {
     const largeArc = Number(end - start > Math.PI);
