@@ -107,8 +107,9 @@
   color: white;
 }
 .budget-card.month-budget {
-  background: #e2efcd;
+  background: #fff;
   color: var(--ink);
+  border: 1px solid #d8e3da;
 }
 .budget-card > span,
 .daily-allowance > span {
@@ -118,6 +119,10 @@
 }
 .week-budget > span { color: #c4d6ca; }
 .week-budget .smart-note.negative { color: #ffd0b8 !important; }
+.month-budget > span,
+.month-budget .budget-card-meta,
+.month-budget .smart-note:not(.negative) { color: #53665c; }
+.month-budget .smart-note.negative { color: #923f34 !important; }
 .budget-card > strong {
   display: block;
   margin: 5px 0 16px;
@@ -131,15 +136,9 @@
 .budget-progress { height: 8px; margin-top: 14px; border-radius: 9px; background: #183f3630; overflow: hidden; }
 .week-budget .budget-progress { background: #ffffff35; }
 .budget-progress span { display: block; width: 0; height: 100%; border-radius: inherit; background: #cce998; }
-.month-budget .budget-progress span { background: #6e9e7e; }
+.month-budget .budget-progress { background: #e7eee9; }
+.month-budget .budget-progress span { background: #527c61; }
 .smart-note { min-height: 18px; margin: 12px 0 0; font-size: 13px; }
-.current-week { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 14px; }
-.current-week h2 { margin: 6px 0 0; }
-.daily-allowance strong { display: block; margin: 3px 0; font-size: 25px; }
-.daily-allowance small { color: var(--muted); }
-.week.current { grid-column: 1 / -1; border-color: #96b77f; }
-.week.compact { padding: 14px 18px; }
-.week.compact .weekhead { margin-bottom: 8px; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
@@ -165,16 +164,21 @@
   #dashboard .top h1 { font-size: 21px; }
   .dashboard-actions { justify-content: stretch; margin: 0 0 12px; }
   .dashboard-actions #quickopen { flex: 1; min-height: 48px; }
-  .budget-cards { gap: 8px; }
+  .budget-cards { grid-template-columns: minmax(0, 1fr); gap: 10px; }
   .budget-card { padding: 16px 13px; border-radius: 17px; }
   .budget-card > strong { font-size: clamp(23px, 7vw, 32px); }
-  .budget-card-meta { display: block; font-size: 11px; }
-  .budget-card-meta span + span { margin-top: 6px; }
+  .budget-card-meta { display: flex; font-size: 11px; }
   .budget-card-meta b { display: inline; margin: 0 0 0 3px; font-size: 13px; }
-  .current-week { flex-wrap: wrap; padding: 16px; }
-  .current-week > button { width: 100%; }
-  .week.compact { padding: 14px; }
-  .week.compact .weeknumbers { font-size: 12px; }
+  #dashboard .week-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px 12px;
+    padding: 13px 8px;
+  }
+  #dashboard .week-row-spending { grid-column: 1 / -1; }
+  #dashboard .week-row .badge { grid-column: 2; grid-row: 1; }
+  #dashboard .week-row-left { grid-column: 1; grid-row: 2; }
+  #dashboard .week-row-spending { grid-row: 3; }
+  #dashboard .week-row-left strong { font-size: 14px; }
   .mobile-tabs button {
     padding: 8px 2px;
     font-size: 12px;
@@ -566,9 +570,34 @@ h3 {
 }
 .weeks {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  gap: 0;
+  border-top: 1px solid var(--line);
 }
+.week-row {
+  display: grid;
+  grid-template-columns: minmax(130px, 1fr) minmax(110px, 0.8fr) minmax(170px, 1.3fr) auto;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  min-width: 0;
+  padding: 14px 10px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+}
+.week-row:hover,
+.week-row.is-current { background: #f0f5ed; }
+.week-row.is-closed { color: #627168; }
+.week-row-date strong,
+.week-row-left strong { display: block; font-size: 15px; }
+.week-row-date small,
+.week-row-left small,
+.week-row-spending small { display: block; color: #64746b; font-size: 12px; }
+.week-row-spending progress { display: block; width: 100%; height: 5px; margin: 0 0 6px; accent-color: #789b68; }
+.week-row .badge { white-space: nowrap; }
 .week {
   text-align: left;
   display: block;
@@ -1146,9 +1175,6 @@ details form {
   }
   .herofoot strong {
     font-size: 18px;
-  }
-  .week {
-    padding: 18px;
   }
   .card {
     padding: 18px;

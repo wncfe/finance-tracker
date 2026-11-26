@@ -101,7 +101,6 @@ let selected = serverToday.slice(0, 7),
   state = { months: {} },
   revision = 0,
   week = 0,
-  activeOverviewWeek = 0,
   busy = false,
   accountLogin = "";
 function categoryOptions() {
@@ -286,36 +285,13 @@ function render() {
     monthDays = new Date(Number(selected.slice(0, 4)), Number(selected.slice(5, 7)), 0).getDate(),
     monthPeriod = { from: `${selected}-01`, to: `${selected}-${String(monthDays).padStart(2, "0")}`, limit: effective, spent: total },
     budgetSource = ExpenseAnalytics.index(state),
-    weekPhase = currentPeriod.closed
-      ? "closed"
-      : currentWeekEnd < today
-        ? "past"
-        : currentWeekStart > today
-          ? "future"
-          : "current",
     weekSmart = ExpenseAnalytics.smartBudget(budgetSource, { from: currentWeekStart, to: currentWeekEnd, limit: currentPeriod.limit, spent: weekSpent, closed: currentPeriod.closed }, today),
     monthSmart = ExpenseAnalytics.smartBudget(budgetSource, monthPeriod, today);
-  activeOverviewWeek = safeWeekIndex;
   $("weekBalance").textContent = money(weekLeft);
   $("weekLimit").textContent = money(currentPeriod.limit);
   $("weekSpent").textContent = money(weekSpent);
   $("weekProgress").style.width = `${currentPeriod.limit ? Math.min(100, Math.max(0, weekSpent / currentPeriod.limit * 100)) : 0}%`;
   $("monthProgress").style.width = `${effective ? Math.min(100, Math.max(0, total / effective * 100)) : 0}%`;
-  $("weekPhaseLabel").textContent = {
-    current: "ТЕКУЩАЯ НЕДЕЛЯ",
-    past: "ПРОШЕДШАЯ НЕДЕЛЯ",
-    future: "БУДУЩАЯ НЕДЕЛЯ",
-    closed: "ЗАКРЫТАЯ НЕДЕЛЯ",
-  }[weekPhase];
-  $("currentWeekTitle").textContent = `${currentPeriod.start}–${currentPeriod.end} ${new Date(selected + "-01T12:00:00").toLocaleDateString("ru-RU", { month: "long" })}`;
-  $("dailyAllowance").textContent = weekSmart.status === "closed" ? "Неделя закрыта" : money(weekSmart.perDay);
-  $("daysRemaining").textContent = weekSmart.status === "closed"
-    ? "Неделя закрыта"
-    : weekSmart.over > 0
-    ? `Перерасход ${money(weekSmart.over)}`
-    : weekSmart.status === "actual"
-      ? "Период завершён"
-      : `${weekSmart.remainingDays} ${weekSmart.remainingDays === 1 ? "день" : "дней"} осталось`;
   const setForecast = (id, result) => {
     const el = $(id);
     el.textContent = result.status === "closed" ? "Неделя закрыта — прогноз не рассчитывается" : result.status === "actual" ? "Период завершён" : result.status === "insufficient" ? "Прогноз: недостаточно истории" : `Прогноз остатка: ${money(result.forecast)}`;
@@ -331,14 +307,14 @@ function render() {
       : "");
   $("weeks").innerHTML = m.weeks
     .map((w, i) => ({ w, i }))
-    .filter(({ i }) => i !== safeWeekIndex)
     .map(({ w, i }) => {
       let s = spent(m, i),
         left = w.limit - s;
       const from = `${selected}-${String(w.start).padStart(2, "0")}`,
         to = `${selected}-${String(w.end).padStart(2, "0")}`,
         phase = w.closed ? "Закрыта ✓" : to < today ? "Прошла" : from > today ? "Будущая" : "Текущая";
-      return `<button class="week ${i === safeWeekIndex ? "" : "compact"} ${w.closed ? "closed" : ""}" data-week="${i}"><div class="weekhead"><div><strong>Неделя ${i + 1}</strong><span class="weekdate">${w.start}–${w.end} · ${w.days} дн.</span></div><span class="badge">${phase}</span></div><div class="weeknumbers"><div>Лимит<strong>${money(w.limit)}</strong></div><div>Остаток<strong class="${left < 0 ? "negative" : ""}">${money(left)}</strong></div></div><div class="progress"><progress max="100" value="${w.limit ? Math.min(100, (s / w.limit) * 100) : s ? 100 : 0}"></progress></div><span class="muted">Потрачено ${money(s)}</span>${!w.closed && to >= today && from <= today ? forecastMarkup(i) : ""}</button>`;
+      const progress = w.limit ? Math.min(100, (s / w.limit) * 100) : s ? 100 : 0;
+      return `<button class="week-row ${selected === today.slice(0, 7) && i === safeWeekIndex && !w.closed ? "is-current" : ""} ${w.closed ? "is-closed" : ""}" data-week="${i}"><span class="week-row-date"><strong>Неделя ${i + 1}</strong><small>${w.start}–${w.end} ${new Date(selected + "-01T12:00:00").toLocaleDateString("ru-RU", { month: "short" })} · ${w.days} дн.</small></span><span class="week-row-left"><small>Осталось</small><strong class="${left < 0 ? "negative" : ""}">${money(left)}</strong></span><span class="week-row-spending"><progress max="100" value="${progress}"></progress><small>Потрачено ${money(s)} из ${money(w.limit)}</small></span><span class="badge">${phase}</span></button>`;
     })
     .join("");
   ExpenseHistoryView.render();
@@ -346,20 +322,6 @@ function render() {
 $("settingsOpen").addEventListener("click", () =>
   window.financeNavigate("budget"),
 );
-$("openCurrentWeek").addEventListener("click", () => {
-  week = activeOverviewWeek;
-  for (const section of $("weekeditable").querySelectorAll("details"))
-    section.open = false;
-  $("weekdialog").showModal();
-  renderWeek();
-});
-function forecastMarkup(i) {
-  const f = ExpenseAnalytics.forecast(state, selected, i, todayDate());
-  if (!f || f.status === "actual") return "";
-  if (f.status === "insufficient")
-    return '<span class="forecast muted">Прогноз: недостаточно данных</span>';
-  return `<span class="forecast ${f.left < 0 ? "negative" : ""}">Ожидаемый остаток: ${money(f.left)}${f.left < 0 ? " · ожидается превышение лимита" : ""}</span>`;
-}
 function renderWeek() {
   const m = current(),
     w = m.weeks[week],
