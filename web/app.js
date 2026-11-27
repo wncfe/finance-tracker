@@ -88,6 +88,13 @@ const money = (n) =>
     currency: "RUB",
     maximumFractionDigits: n % 100 ? 2 : 0,
   }).format(n / 100);
+const signedRubles = new Intl.NumberFormat("ru-RU", {
+  style: "currency",
+  currency: "RUB",
+  maximumFractionDigits: 0,
+  signDisplay: "exceptZero",
+});
+const monthWithDay = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long" });
 const esc = (s) =>
   String(s).replace(
     /[&<>"']/g,
@@ -301,21 +308,30 @@ function render() {
   setForecast("weekForecast", weekSmart);
   setForecast("monthForecast", monthSmart);
   $("budget").value = m.budget / 100;
-  $("weekcount").textContent =
-    `${m.weeks.filter((w) => w.closed).length} из ${m.weeks.length} закрыто` +
-    (m.weeks.some((w) => w.days <= 2)
-      ? " · Сохранены исторические периоды"
-      : "");
+  const monthName = monthWithDay
+    .formatToParts(new Date(selected + "-01T12:00:00"))
+    .find(({ type }) => type === "month").value;
+  $("weeksTitle").textContent = `Недели ${monthName}`;
   $("weeks").innerHTML = m.weeks
-    .map((w, i) => ({ w, i }))
-    .map(({ w, i }) => {
-      let s = spent(m, i),
-        left = w.limit - s;
-      const from = `${selected}-${String(w.start).padStart(2, "0")}`,
-        to = `${selected}-${String(w.end).padStart(2, "0")}`,
-        phase = w.closed ? "Закрыта ✓" : to < today ? "Прошла" : from > today ? "Будущая" : "Текущая";
-      const progress = w.limit ? Math.min(100, (s / w.limit) * 100) : s ? 100 : 0;
-      return `<button class="week-row ${selected === today.slice(0, 7) && i === safeWeekIndex && !w.closed ? "is-current" : ""} ${w.closed ? "is-closed" : ""}" data-week="${i}"><span class="week-row-date"><strong>Неделя ${i + 1}</strong><small>${w.start}–${w.end} ${new Date(selected + "-01T12:00:00").toLocaleDateString("ru-RU", { month: "short" })} · ${w.days} дн.</small></span><span class="week-row-left"><small>Осталось</small><strong class="${left < 0 ? "negative" : ""}">${money(left)}</strong></span><span class="week-row-spending"><progress max="100" value="${progress}"></progress><small>Потрачено ${money(s)} из ${money(w.limit)}</small></span><span class="badge">${phase}</span></button>`;
+    .map((w, i) => {
+      const weekTotal = spent(m, i);
+      const left = w.limit - weekTotal;
+      const dates = w.start === w.end ? w.start : `${w.start}–${w.end}`;
+      const isCurrent = selected === today.slice(0, 7) && i === currentWeekIndex;
+      const status = w.closed ? "Закрытая неделя" : isCurrent ? "Текущая неделя" : `Неделя ${i + 1}`;
+      const progress = w.limit > 0
+        ? Math.min(100, Math.max(0, (weekTotal / w.limit) * 100))
+        : Number(weekTotal > 0) * 100;
+      const displayBalance = left !== 0 && Math.abs(left) < 100
+        ? `${left > 0 ? "+" : ""}${money(left)}`
+        : signedRubles.format(left / 100);
+      const label = `${status}, ${dates} ${monthName}. Осталось ${money(left)}. Потрачено ${money(weekTotal)} из ${money(w.limit)}`;
+      return `<button type="button" class="week-row${isCurrent ? " is-current" : ""}${left < 0 ? " is-over-budget" : ""}"
+        data-week="${i}" aria-label="${esc(label)}"${isCurrent ? ' aria-current="date"' : ""}>
+        <span class="week-row-date">${dates}</span>
+        <progress max="100" value="${progress}" aria-hidden="true"></progress>
+        <span class="week-row-balance">${displayBalance}</span>
+      </button>`;
     })
     .join("");
   ExpenseHistoryView.render();
@@ -331,6 +347,12 @@ function renderWeek() {
   $("weektitle").textContent =
     `Неделя ${week + 1}${w.closed ? " · закрыта" : ""}`;
   $("weekdates").textContent = `${w.start}–${w.end} / ${selected}`;
+  const weekTotal = spent(m, week);
+  const left = w.limit - weekTotal;
+  $("weekDetailLimit").textContent = money(w.limit);
+  $("weekDetailSpent").textContent = money(weekTotal);
+  $("weekDetailBalance").textContent = money(left);
+  $("weekDetailBalance").classList.toggle("negative", left < 0);
   $("weekeditable").hidden = w.closed;
   $("limit").value = w.limit / 100;
   $("closeform").hidden = blocked;

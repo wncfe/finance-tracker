@@ -121,22 +121,25 @@
         <section>
           <section id="panel-overview" data-nav-panel="overview">
             <div class="budget-cards">
-              <article class="budget-card week-budget">
-                <span>Осталось на неделю</span><strong id="weekBalance"></strong>
-                <div class="budget-card-meta"><span>Лимит <b id="weekLimit"></b></span><span>Потрачено <b id="weekSpent"></b></span></div>
-                <div class="budget-progress"><span id="weekProgress"></span></div><p id="weekForecast" class="smart-note"></p>
-              </article>
               <article class="budget-card month-budget">
-                <span>Осталось на месяц</span><strong id="balance"></strong>
-                <div class="budget-card-meta"><span>Лимит <b id="total"></b></span><span>Потрачено <b id="spent"></b></span></div>
-                <div class="budget-progress"><span id="monthProgress"></span></div><p id="monthForecast" class="smart-note"></p>
+                <span>Осталось на месяц</span>
+                <strong id="balance"></strong>
+                <div class="budget-progress" aria-hidden="true"><span id="monthProgress"></span></div>
+                <p class="budget-card-meta"><span id="spent"></span> из <span id="total"></span></p>
+                <p id="monthForecast" class="smart-note"></p>
+              </article>
+              <article class="budget-card week-budget">
+                <span>Осталось на неделю</span>
+                <strong id="weekBalance"></strong>
+                <div class="budget-progress" aria-hidden="true"><span id="weekProgress"></span></div>
+                <p class="budget-card-meta"><span id="weekSpent"></span> из <span id="weekLimit"></span></p>
+                <p id="weekForecast" class="smart-note"></p>
               </article>
             </div>
-            <div class="sectionhead">
-              <h2>Недели месяца</h2>
-              <span class="muted" id="weekcount"></span>
-            </div>
-            <div id="weeks" class="weeks"></div>
+            <section class="weeks-card" aria-labelledby="weeksTitle">
+              <h2 id="weeksTitle"></h2>
+              <div id="weeks" class="weeks"></div>
+            </section>
           </section>
           <section
             id="panel-history"
@@ -506,6 +509,11 @@
         </div>
         <button id="dismiss" aria-label="Закрыть окно">✕</button>
       </div>
+      <dl class="week-details">
+        <div><dt>Лимит</dt><dd id="weekDetailLimit"></dd></div>
+        <div><dt>Потрачено</dt><dd id="weekDetailSpent"></dd></div>
+        <div><dt>Осталось</dt><dd id="weekDetailBalance"></dd></div>
+      </dl>
       <div id="weekeditable">
         <details>
           <summary>Изменить лимит недели</summary>

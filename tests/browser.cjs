@@ -29,13 +29,21 @@ const assert = require("node:assert/strict");
       }),
       errors = [];
     page.on("pageerror", (e) => errors.push(e.message));
+    await page.clock.setFixedTime(new Date("2026-11-27T12:00:00+05:00"));
     await page.goto("http://127.0.0.1:8001/");
     await page.locator("[name=login]").fill("browser-test");
     await page.locator("[name=password]").fill("browser-password-123");
     await page.locator("#register").click();
     await page.locator("#dashboard").waitFor({ state: "visible" });
     await page.locator(".monthnav .picker-trigger").click();
+    await page.locator('.picker[open] [data-value="2026-12"]').click();
+    assert.equal(await page.locator('#weeks [aria-current="date"]').count(), 1);
+    await page.locator(".monthnav .picker-trigger").click();
     await page.locator('.picker[open] [data-value="2026-11"]').click();
+    assert.equal(
+      await page.locator("#weeksTitle").textContent(),
+      "Недели ноября",
+    );
     await page.locator("#settingsOpen").click();
     await page.locator("#budget").fill("30000");
     await page.locator("#budgetform button").click();
@@ -188,10 +196,15 @@ const assert = require("node:assert/strict");
     assert.equal(await page.locator("#limit").inputValue(), "8000");
     await page.locator("#limit").fill("8100");
     await page.locator("#limitform button").click();
-    await page.waitForFunction(() =>
-      document
-        .querySelector('[data-week="0"]')
-        .textContent.includes(money(810000)),
+    await page.waitForFunction(
+      () =>
+        document.querySelector("#weekDetailLimit").textContent === money(810000),
+    );
+    assert.equal(
+      await page
+        .locator('[data-week="0"].is-over-budget progress')
+        .getAttribute("value"),
+      "100",
     );
     await page.getByText("Закрыть неделю", { exact: true }).click();
     await page.locator("#closeform .picker-trigger").click();
