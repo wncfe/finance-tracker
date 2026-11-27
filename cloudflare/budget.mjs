@@ -111,6 +111,8 @@ export const spent = (m, i) =>
   m.expenses
     .filter((e) => i === undefined || e.week === i)
     .reduce((s, e) => s + e.amount, 0);
+const OVERSPEND_ERROR =
+  "Перерасход больше, чем осталось на следующие недели. Увеличьте бюджет месяца";
 const accounted = (w) => w.settled ?? w.limit;
 function validDate(value, key, w) {
   check(
@@ -173,6 +175,10 @@ export function apply(original, action, today = todayAt()) {
     );
     const state = structuredClone(original),
       known = availableCategories(state);
+    check(
+      !(state.userCategories || []).some((c) => c.id === item.id),
+      "Некорректный идентификатор категории",
+    );
     check(
       !known.some((name) => categoryKey(name) === categoryKey(item.name)),
       "Такая категория уже существует",
@@ -461,11 +467,26 @@ export function apply(original, action, today = todayAt()) {
       let ids = open().filter((j) => j > i);
       if (action.mode === "next") ids = ids.slice(0, 1);
       if (ids.length) {
-        rebalance(
-          m,
-          ids,
-          ids.reduce((s, j) => s + m.weeks[j].limit, 0) + w.limit - spent(m, i),
-        );
+        const total =
+          ids.reduce((s, j) => s + m.weeks[j].limit, 0) + w.limit - spent(m, i);
+        if (total < 0 && action.mode === "next") {
+          // Overspend larger than the next week's limit drains the following open weeks in order.
+          const later = open().filter((j) => j > ids[0]);
+          let deficit = -total;
+          check(
+            deficit <= later.reduce((s, j) => s + m.weeks[j].limit, 0),
+            OVERSPEND_ERROR,
+          );
+          m.weeks[ids[0]].limit = 0;
+          for (const j of later) {
+            const take = Math.min(m.weeks[j].limit, deficit);
+            m.weeks[j].limit -= take;
+            deficit -= take;
+          }
+        } else {
+          check(total >= 0, OVERSPEND_ERROR);
+          rebalance(m, ids, total);
+        }
         w.settled = spent(m, i);
       }
       w.closed = true;

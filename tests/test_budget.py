@@ -26,6 +26,23 @@ class BudgetTests(unittest.TestCase):
     def act(self,**action):
         self.state=budget.apply(self.state,dict(month='2026-11',**action))
         return self.state['months']['2026-11']
+    def test_close_overspent_week_drains_following_weeks(self):
+        m=self.state['months']['2026-11']
+        limits=[w['limit'] for w in m['weeks']]
+        overspend=limits[0]+limits[1]+1000
+        m=self.act(type='expense',week=0,date='2026-11-02',amount=overspend,category='Кофейни')
+        m=self.act(type='close',week=0,mode='next')
+        self.assertEqual(m['weeks'][0]['settled'],overspend)
+        self.assertEqual(m['weeks'][1]['limit'],0)
+        self.assertEqual(m['weeks'][2]['limit'],limits[2]-1000)
+        self.assertEqual(m['weeks'][3:],[dict(w) for w in self.state['months']['2026-11']['weeks'][3:]])
+        self.assertEqual(sum(budget.accounted(w) for w in m['weeks']),m['budget'])
+        state=budget.apply({'months':{}},{'month':'2026-11','type':'budget','amount':1000})
+        state=budget.apply(state,dict(month='2026-11',type='expense',week=0,date='2026-11-02',amount=5000,category='Кофейни'))
+        for mode in ('next','remaining','month'):
+            with self.assertRaisesRegex(ValueError,'Перерасход больше'):
+                budget.apply(state,dict(month='2026-11',type='close',week=0,mode=mode))
+
     def test_calendar_and_rounding(self):
         for year in range(2024,2028):
             for month in range(1,13):

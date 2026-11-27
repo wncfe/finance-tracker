@@ -31,6 +31,9 @@ const json = (status, value, cookie) =>
       },
     },
   );
+// Unknown logins still pay for one scrypt so response time does not reveal which accounts exist.
+const DUMMY_SALT = "00".repeat(16);
+const CONFLICT = "Данные изменены в другой вкладке. Обновите страницу";
 function equal(a, b) {
   const x = Buffer.from(a),
     y = Buffer.from(b);
@@ -102,6 +105,8 @@ export default {
         return json(413, { error: "Файл слишком большой" });
       const data = JSON.parse(body),
         now = Math.floor(Date.now() / 1000);
+      if (!data || typeof data !== "object" || Array.isArray(data))
+        return json(400, { error: "Некорректный запрос" });
       if (path === "/api/login" || path === "/api/register") {
         const ip = hash(request.headers.get("CF-Connecting-IP") || "local");
         // Count every authentication request before expensive password hashing.
@@ -152,6 +157,7 @@ export default {
           .prepare("SELECT id,salt,password FROM users WHERE login=?")
           .bind(login)
           .first();
+        if (!u) pw(password, DUMMY_SALT);
         if (!u || !equal(pw(password, u.salt), u.password))
           return json(401, { error: "Неверный логин или пароль" });
         const token = randomBytes(32).toString("base64url");
@@ -186,6 +192,12 @@ export default {
         );
       }
       if (path !== "/api/action") return json(404, { error: "Не найдено" });
+      if (
+        !data.action ||
+        typeof data.action !== "object" ||
+        Array.isArray(data.action)
+      )
+        return json(400, { error: "Некорректное действие" });
       const operationId = data.operationId;
       if (
         typeof operationId !== "string" ||
@@ -193,25 +205,39 @@ export default {
       )
         return json(400, { error: "Некорректный идентификатор операции" });
       const payload = hash(JSON.stringify(data.action));
-      const receipt = await db
-        .prepare("SELECT payload FROM operations WHERE user=? AND id=?")
-        .bind(u.id, operationId)
-        .first();
-      if (receipt) {
+      // A stored receipt means the operation already committed: replay it instead of applying again.
+      const replay = async () => {
+        const receipt = await db
+          .prepare("SELECT payload FROM operations WHERE user=? AND id=?")
+          .bind(u.id, operationId)
+          .first();
+        if (!receipt) return null;
         if (receipt.payload !== payload)
           return json(409, { error: "Идентификатор операции уже использован" });
         return json(200, await loadFinance(db, u.id));
-      }
+      };
+      const replayed = await replay();
+      if (replayed) return replayed;
       const snapshot = await loadFinance(db, u.id);
       if (data.revision !== snapshot.revision)
-        return json(409, {
-          error: "Данные изменены в другой вкладке. Обновите страницу",
-        });
+        return json(409, { error: CONFLICT });
       let state;
       try {
         state = apply(snapshot.state, data.action);
       } catch (e) {
         return json(400, { error: e.message });
+      }
+      if (data.action.type === "category_save") {
+        // Categories are shared between accounts: an id already used for another name cannot be linked.
+        const created = state.userCategories.find(
+          (c) => c.id === data.action.category.id,
+        );
+        const taken = await db
+          .prepare("SELECT name FROM categories WHERE id=?")
+          .bind(created.id)
+          .first();
+        if (taken && taken.name !== created.name)
+          return json(400, { error: "Некорректный идентификатор категории" });
       }
       const token = randomBytes(24).toString("hex");
       const results = await db.batch([
@@ -233,9 +259,11 @@ export default {
           .bind(u.id, token),
       ]);
       if (results[0].meta.changes !== 1)
-        return json(409, {
-          error: "Данные изменены в другой вкладке. Обновите страницу",
-        });
+        // A concurrent retry of this same operation may have won the race.
+        return (await replay()) || json(409, { error: CONFLICT });
+      // A custom category name may already exist in the shared table: return what was actually stored.
+      if (data.action.type === "category_save")
+        return json(200, await loadFinance(db, u.id));
       return json(200, { state, revision: snapshot.revision + 1 });
     } catch (e) {
       if (e instanceof SyntaxError)

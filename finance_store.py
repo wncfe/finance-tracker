@@ -104,6 +104,9 @@ def save(db,user_id,before,after):
     prior_category_ids={c['id'] for c in before.get('userCategories',[])}
     for category in after.get('userCategories',[]):
         if category['id'] in prior_category_ids:continue
+        # Categories are shared between accounts: an id already used for another name cannot be linked.
+        taken=db.execute('SELECT name FROM categories WHERE id=?',(category['id'],)).fetchone()
+        if taken and taken[0]!=category['name']:raise ValueError('Некорректный идентификатор категории')
         db.execute('INSERT OR IGNORE INTO categories(id,name) VALUES(?,?)',(category['id'],category['name']))
         row=db.execute('SELECT id FROM categories WHERE name=?',(category['name'],)).fetchone()
         if row is None:raise ValueError('Не удалось сохранить категорию')

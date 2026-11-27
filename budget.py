@@ -77,6 +77,8 @@ def ensure(state, key):
 def spent(m, i=None):
     return sum(e['amount'] for e in m['expenses'] if i is None or e['week'] == i)
 
+OVERSPEND_ERROR = 'Перерасход больше, чем осталось на следующие недели. Увеличьте бюджет месяца'
+
 def accounted(w):
     # Settlement funds future weeks without rewriting the historical limit.
     return w.get('settled', w['limit'])
@@ -117,6 +119,8 @@ def apply(state, action, today=None):
         name=item.get('name')
         if not isinstance(name,str) or not 1<=utf16len(name.strip())<=60:
             raise ValueError('Название категории: от 1 до 60 символов')
+        if any(c['id']==item['id'] for c in state.get('userCategories',[])):
+            raise ValueError('Некорректный идентификатор категории')
         if any(category_key(x)==category_key(name) for x in available_categories(state)):
             raise ValueError('Такая категория уже существует')
         result=copy.deepcopy(state)
@@ -265,7 +269,21 @@ def apply(state, action, today=None):
                 ids = ids[:1]
             if ids:
                 total = sum(m['weeks'][j]['limit'] for j in ids)+w['limit']-spent(m,i)
-                rebalance(m, ids, total)
+                if total < 0 and mode == 'next':
+                    # Overspend larger than the next week's limit drains the following open weeks in order.
+                    later = [j for j,v in enumerate(m['weeks']) if not v['closed'] and j > ids[0]]
+                    deficit = -total
+                    if deficit > sum(m['weeks'][j]['limit'] for j in later):
+                        raise ValueError(OVERSPEND_ERROR)
+                    m['weeks'][ids[0]]['limit'] = 0
+                    for j in later:
+                        take = min(m['weeks'][j]['limit'], deficit)
+                        m['weeks'][j]['limit'] -= take
+                        deficit -= take
+                else:
+                    if total < 0:
+                        raise ValueError(OVERSPEND_ERROR)
+                    rebalance(m, ids, total)
                 w['settled'] = spent(m,i)
             w['closed'] = True
         else:
