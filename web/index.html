@@ -33,6 +33,23 @@
         >≋ <span>По неделям<small>Личный бюджет</small></span></a
       >
       <div class="header-actions">
+        <button id="settingsOpen" type="button" aria-label="Настройки" title="Настройки">⚙</button>
+        <nav
+          id="mobileTabs"
+          class="mobile-tabs"
+          aria-label="Разделы бюджета"
+          hidden
+        >
+          <button type="button" id="tab-overview" data-tab="overview">
+            Обзор
+          </button>
+          <button type="button" id="tab-history" data-tab="history">
+            История
+          </button>
+          <button type="button" id="tab-analytics" data-tab="analytics">
+            Аналитика
+          </button>
+        </nav>
         <button
           id="companionOpen"
           class="companion-settings"
@@ -82,10 +99,7 @@
     </main>
     <main id="dashboard" hidden>
       <div class="top">
-        <div>
-          <span class="eyebrow">ОБЗОР ФИНАНСОВ</span>
-          <h1 id="title"></h1>
-        </div>
+        <h1 id="title" class="sr-only"></h1>
         <div class="monthnav">
           <button id="prev" aria-label="Предыдущий месяц">←</button
           ><input
@@ -96,50 +110,68 @@
             aria-label="Месяц"
           /><button id="next" aria-label="Следующий месяц">→</button>
         </div>
+        <div class="dashboard-actions">
+          <button id="quickopen" class="primary" aria-label="Добавить расход">＋<span> Расход</span></button>
+        </div>
       </div>
-      <div class="dashboard-actions">
-        <button id="quickopen" class="primary" aria-label="Добавить расход">＋<span> Добавить расход</span></button>
-        <button id="settingsOpen" type="button" aria-label="Настройки" title="Настройки">⚙</button>
-      </div>
-      <nav
-        id="mobileTabs"
-        class="mobile-tabs"
-        aria-label="Разделы бюджета"
-        hidden
-      >
-        <button type="button" id="tab-overview" data-tab="overview">
-          Обзор
-        </button>
-        <button type="button" id="tab-history" data-tab="history">
-          История
-        </button>
-        <button type="button" id="tab-analytics" data-tab="analytics">
-          Аналитика
-        </button>
-      </nav>
       <div class="layout">
         <section>
           <section id="panel-overview" data-nav-panel="overview">
             <div class="budget-cards">
               <article class="budget-card month-budget">
-                <span>Осталось на месяц</span>
+                <div class="budget-card-heading">
+                  <span>Осталось на месяц</span>
+                  <img src="/icons/calendar-days.svg" alt="" />
+                </div>
                 <strong id="balance"></strong>
                 <div class="budget-progress" aria-hidden="true"><span id="monthProgress"></span></div>
                 <p class="budget-card-meta"><span id="spent"></span> из <span id="total"></span></p>
-                <p id="monthForecast" class="smart-note"></p>
+                <p id="monthForecast" class="smart-note">
+                  <span>Прогноз остатка</span><strong></strong>
+                </p>
               </article>
               <article class="budget-card week-budget">
-                <span>Осталось на неделю</span>
+                <div class="budget-card-heading">
+                  <span>Осталось на неделю</span>
+                  <img src="/icons/calendar-days.svg" alt="" />
+                </div>
                 <strong id="weekBalance"></strong>
                 <div class="budget-progress" aria-hidden="true"><span id="weekProgress"></span></div>
                 <p class="budget-card-meta"><span id="weekSpent"></span> из <span id="weekLimit"></span></p>
-                <p id="weekForecast" class="smart-note"></p>
+                <p id="weekForecast" class="smart-note">
+                  <span>Прогноз остатка</span><strong></strong>
+                </p>
               </article>
             </div>
-            <section class="weeks-card" aria-labelledby="weeksTitle">
-              <h2 id="weeksTitle"></h2>
-              <div id="weeks" class="weeks"></div>
-            </section>
+            <div class="overview-details">
+              <section class="weeks-card" aria-labelledby="weeksTitle">
+                <div class="weeks-card-heading">
+                  <h2 id="weeksTitle"></h2>
+                  <button id="openOverviewWeek" type="button" aria-label="Открыть детали недели">
+                    <img src="/icons/chevron-right.svg" alt="" />
+                  </button>
+                </div>
+                <div id="weeks" class="weeks"></div>
+                <p class="overview-hint">Выбери неделю, чтобы посмотреть детали</p>
+              </section>
+              <div class="week-insights">
+                <section class="daily-budget-card" aria-labelledby="dailyBudgetHeading">
+                  <div class="insight-heading">
+                    <h2 id="dailyBudgetHeading">Доступно в день</h2>
+                    <img src="/icons/wallet.svg" alt="" />
+                  </div>
+                  <strong id="dailyBudget"></strong>
+                  <p id="dailyBudgetNote"></p>
+                  <div class="daily-budget-coins" aria-hidden="true"><span>₽</span><span>₽</span><span>₽</span></div>
+                </section>
+                <section class="week-calendar-card" aria-labelledby="weekCalendarHeading">
+                  <h2 id="weekCalendarHeading">Текущая неделя</h2>
+                  <strong id="weekCalendarDates"></strong>
+                  <p id="weekCalendarNote"></p>
+                  <ol id="weekCalendarDays" class="week-calendar-days"></ol>
+                </section>
+              </div>
+            </div>
           </section>
           <section
             id="panel-history"

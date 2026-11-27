@@ -85,15 +85,6 @@
   color: white;
   background: var(--green);
 }
-.dashboard-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin: -12px 0 16px;
-}
-.dashboard-actions #settingsOpen {
-  min-width: 44px;
-}
 .budget-cards {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -118,14 +109,26 @@
   --budget-track: #ffffff30;
   --budget-fill: #bae399;
 }
-.budget-card > span {
-  display: block;
-  font-size: 13px;
-}
-.budget-card > span,
+.budget-card-heading,
 .budget-card-meta,
 .smart-note { color: var(--budget-meta); }
-.month-budget .smart-note.negative { color: #ffd0b8 !important; }
+.budget-card-heading,
+.insight-heading,
+.weeks-card-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.budget-card-heading { font-size: 13px; }
+.budget-card-heading img,
+.insight-heading img {
+  width: 18px;
+  height: 18px;
+  opacity: 0.65;
+}
+.month-budget .budget-card-heading img { filter: brightness(0) invert(1); }
+.month-budget .smart-note .negative { color: #ffd0b8 !important; }
 .budget-card > strong {
   display: block;
   margin: 12px 0;
@@ -136,7 +139,19 @@
 .budget-card-meta { margin: 10px 0 0; font-size: 14px; }
 .budget-progress { height: 9px; border-radius: 9px; background: var(--budget-track); overflow: hidden; }
 .budget-progress span { display: block; width: 0; height: 100%; border-radius: inherit; background: var(--budget-fill); }
-.smart-note { margin: 4px 0 0; font-size: 12px; }
+.smart-note {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin: 16px 0 0;
+  padding-top: 13px;
+  border-top: 1px solid var(--budget-track);
+  font-size: 12px;
+}
+.smart-note strong { color: inherit; font-size: 14px; }
+.month-budget .smart-note strong { color: #fff; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
@@ -160,9 +175,6 @@
   #dashboard { padding-bottom: 92px; }
   #dashboard .top { flex-direction: column; align-items: stretch; }
   #dashboard .top h1 { font-size: 21px; }
-  .dashboard-actions { justify-content: stretch; margin: 0 0 12px; }
-  .dashboard-actions #quickopen { flex: 1; min-height: 48px; }
-  .budget-cards { grid-template-columns: minmax(0, 1fr); gap: 10px; }
   .budget-card { padding: 14px 16px; }
   .mobile-tabs button {
     padding: 8px 2px;
@@ -553,23 +565,39 @@ h3 {
   padding: 22px;
   margin-bottom: 18px;
 }
+.overview-details {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: 10px;
+  margin-top: 12px;
+}
 .weeks-card {
-  margin-top: 14px;
   padding: 16px clamp(12px, 2.2vw, 22px);
   border: 1px solid var(--line);
   border-radius: 18px;
   background: #fff;
 }
-.weeks-card h2 {
-  margin: 0 6px 10px;
+.weeks-card h2 { margin: 0; }
+.weeks-card-heading { margin: 0 2px 4px 6px; }
+.weeks-card-heading button {
+  display: grid;
+  place-items: center;
+  min-height: 36px;
+  width: 36px;
+  border: 0;
+  padding: 0;
+  background: transparent;
 }
+.weeks-card-heading button:hover { background: #eef4eb; }
+.weeks-card-heading img { width: 16px; height: 16px; opacity: 0.65; }
+.overview-hint { margin: 10px 6px 0; color: var(--muted); font-size: 13px; }
 .weeks {
   display: grid;
   gap: 3px;
 }
 .week-row {
   display: grid;
-  grid-template-columns: clamp(36px, 9vw, 56px) minmax(0, 1fr) clamp(100px, 16vw, 140px);
+  grid-template-columns: 42px minmax(0, 1fr) minmax(82px, auto);
   align-items: center;
   gap: clamp(6px, 2vw, 14px);
   width: 100%;
@@ -579,7 +607,7 @@ h3 {
   border-radius: 10px;
   background: transparent;
   text-align: left;
-  font-size: 14px;
+  font-size: 13px;
   font-variant-numeric: tabular-nums;
   --week-fill: #8fb59f;
 }
@@ -600,7 +628,7 @@ h3 {
   appearance: none;
   display: block;
   width: 100%;
-  height: 10px;
+  height: 8px;
   border: 0;
   border-radius: 10px;
   overflow: hidden;
@@ -609,6 +637,66 @@ h3 {
 .week-row progress::-webkit-progress-bar { background: #e2eae0; }
 .week-row progress::-webkit-progress-value { background: var(--week-fill); border-radius: 10px; }
 .week-row progress::-moz-progress-bar { background: var(--week-fill); border-radius: 10px; }
+.week-insights { display: grid; gap: 10px; }
+.daily-budget-card,
+.week-calendar-card {
+  min-width: 0;
+  border-radius: 18px;
+  padding: 15px 16px;
+}
+.daily-budget-card { background: #e3ecd0; color: #2e4d30; }
+.week-calendar-card { background: #dce8ee; color: #2a4d63; }
+.week-insights h2 {
+  margin: 0;
+  color: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.week-insights strong { display: block; margin-top: 10px; font-size: 19px; }
+.daily-budget-card strong { font-size: 25px; }
+.week-insights p { margin: 5px 0 0; font-size: 13px; }
+.daily-budget-coins {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 62px;
+  padding: 8px 8px 0;
+}
+.daily-budget-coins span {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 33px;
+  border: 1px solid #a2bd83;
+  border-radius: 8px;
+  background: #afcb91;
+  color: #45673d;
+  box-shadow: 0 6px #7e9b67;
+  font-weight: 700;
+}
+.daily-budget-coins span:first-child { transform: translate(3px, -4px) rotate(-9deg); }
+.daily-budget-coins span:last-child { transform: translate(-3px, 3px) rotate(9deg); }
+.week-calendar-days {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 4px;
+  margin: 7px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.week-calendar-days time {
+  display: grid;
+  min-height: 32px;
+  place-items: center;
+  border-radius: 6px;
+  background: #eff5f8;
+  font-size: 12px;
+}
+.week-calendar-days .is-elapsed time { background: #608498; color: white; }
+.week-calendar-days [aria-current="date"] time { box-shadow: inset 0 0 0 1px #608498; }
 .week-details {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -3072,4 +3160,80 @@ details form {
 
 #dashboard[data-view="history"] .quick-launch {
   display: none;
+}
+
+/* The desktop navigation and the month toolbar frame the budget overview. */
+body:has(#dashboard[hidden]) .header-actions { display: none; }
+header { max-width: 1250px; padding-block: 10px; }
+.brand { gap: 8px; }
+.brand span { font-size: 17px; }
+.brand small { display: none; }
+.header-actions #mobileTabs { margin: 0; }
+.header-actions #settingsOpen { order: 1; }
+.header-actions #logout { order: 2; }
+.header-actions > button {
+  min-height: 36px;
+  height: 36px;
+  padding: 6px 9px;
+  background: transparent;
+}
+#dashboard { padding-top: 20px; }
+#dashboard .top {
+  flex-direction: row;
+  align-items: center;
+  margin-bottom: 12px;
+  gap: 8px;
+}
+#dashboard .monthnav { gap: 4px; }
+#dashboard .monthnav .picker-trigger {
+  width: auto;
+  min-width: 0;
+  padding: 6px 2px;
+  border: 0;
+  background: transparent;
+  font-size: clamp(16px, 2.7vw, 23px);
+  font-weight: 650;
+  white-space: nowrap;
+}
+#dashboard .monthnav .picker-trigger img { display: none; }
+#dashboard .monthnav .picker-trigger::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  margin: 0 4px 4px 3px;
+  border-right: 1px solid;
+  border-bottom: 1px solid;
+  transform: rotate(45deg);
+}
+#dashboard .monthnav > button:not(.picker-trigger) {
+  min-height: 36px;
+  padding: 4px 6px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+}
+.dashboard-actions #quickopen { min-height: 38px; padding: 6px 10px; white-space: nowrap; }
+@media (min-width: 681px) {
+  .header-actions #mobileTabs { border: 0; padding: 0; }
+  .header-actions #mobileTabs button {
+    padding: 5px 7px;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .header-actions #mobileTabs button[aria-selected="true"] {
+    color: var(--ink);
+    font-weight: 650;
+  }
+}
+@media (max-width: 680px) {
+  .overview-details { grid-template-columns: minmax(0, 1fr); }
+  .week-insights { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 420px) {
+  .budget-cards,
+  .week-insights { grid-template-columns: minmax(0, 1fr); }
+  header { padding-inline: 16px; }
+  .header-actions { gap: 4px; }
 }

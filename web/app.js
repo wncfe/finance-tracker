@@ -302,8 +302,10 @@ function render() {
   $("monthProgress").style.width = `${effective ? Math.min(100, Math.max(0, total / effective * 100)) : 0}%`;
   const setForecast = (id, result) => {
     const el = $(id);
-    el.textContent = result.status === "closed" ? "Неделя закрыта — прогноз не рассчитывается" : result.status === "actual" ? "Период завершён" : result.status === "insufficient" ? "Прогноз: недостаточно истории" : `Прогноз остатка: ${money(result.forecast)}`;
-    el.classList.toggle("negative", result.status === "forecast" && result.forecast < 0);
+    el.querySelector("strong").textContent = result.status === "forecast"
+      ? signedRubles.format(result.forecast / 100)
+      : { closed: "Неделя закрыта", actual: "Период завершён", insufficient: "Недостаточно истории" }[result.status];
+    el.querySelector("strong").classList.toggle("negative", result.status === "forecast" && result.forecast < 0);
   };
   setForecast("weekForecast", weekSmart);
   setForecast("monthForecast", monthSmart);
@@ -312,6 +314,8 @@ function render() {
     .formatToParts(new Date(selected + "-01T12:00:00"))
     .find(({ type }) => type === "month").value;
   $("weeksTitle").textContent = `Недели ${monthName}`;
+  $("openOverviewWeek").onclick = () => openWeek(safeWeekIndex);
+  renderWeekInsights(currentPeriod, currentWeekStart, currentWeekEnd, monthName, today, weekSmart);
   $("weeks").innerHTML = m.weeks
     .map((w, i) => {
       const weekTotal = spent(m, i);
@@ -335,6 +339,30 @@ function render() {
     })
     .join("");
   ExpenseHistoryView.render();
+}
+const weekdays = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"];
+function renderWeekInsights(period, from, to, monthName, today, budget) {
+  const isPast = to < today;
+  const isFuture = from > today;
+  const canSpend = !period.closed && !isPast && !isFuture;
+  const remaining = budget.remainingDays;
+  const dates = period.start === period.end ? period.start : `${period.start}–${period.end}`;
+  $("dailyBudget").textContent = canSpend ? money(budget.perDay) : "—";
+  $("dailyBudgetNote").textContent = period.closed
+    ? "Неделя закрыта"
+    : isPast ? "Неделя завершилась"
+    : isFuture ? "Неделя ещё не началась"
+    : "Чтобы уложиться в бюджет недели";
+  $("weekCalendarHeading").textContent = isPast ? "Прошедшая неделя" : isFuture ? "Будущая неделя" : "Текущая неделя";
+  $("weekCalendarDates").textContent = `${dates} ${monthName}`;
+  $("weekCalendarNote").textContent = canSpend
+    ? `Осталось ${remaining} ${remaining === 1 ? "день" : remaining <= 4 ? "дня" : "дней"}`
+    : $("dailyBudgetNote").textContent;
+  $("weekCalendarDays").innerHTML = Array.from({ length: period.end - period.start + 1 }, (_, i) => {
+    const date = ExpenseAnalytics.shift(from, i);
+    const label = weekdays[ExpenseAnalytics.weekday(date)];
+    return `<li${date < today ? ' class="is-elapsed"' : ""}${date === today ? ' aria-current="date"' : ""}><time datetime="${date}" aria-label="${label}, ${period.start + i} ${monthName}">${label[0]}</time></li>`;
+  }).join("");
 }
 $("settingsOpen").addEventListener("click", () =>
   window.financeNavigate("budget"),
@@ -506,13 +534,15 @@ for (const [id, n] of [
   };
 $("weeks").onclick = (e) => {
   const b = e.target.closest("[data-week]");
-  if (!b) return;
-  week = Number(b.dataset.week);
+  if (b) openWeek(Number(b.dataset.week));
+};
+function openWeek(index) {
+  week = index;
   for (const section of $("weekeditable").querySelectorAll("details"))
     section.open = false;
   renderWeek();
   $("weekdialog").showModal();
-};
+}
 $("dismiss").onclick = () => $("weekdialog").close();
 $("weekCloseAction").onclick = (event) => {
   if ($("closeform").hidden) event.preventDefault();

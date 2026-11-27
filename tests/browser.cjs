@@ -38,6 +38,15 @@ const assert = require("node:assert/strict");
     await page.locator(".monthnav .picker-trigger").click();
     await page.locator('.picker[open] [data-value="2026-12"]').click();
     assert.equal(await page.locator('#weeks [aria-current="date"]').count(), 1);
+    assert.equal(
+      await page
+        .locator('#weekCalendarDays [aria-current="date"] time')
+        .getAttribute("datetime"),
+      "2026-12-31",
+    );
+    await page.locator("#openOverviewWeek").click();
+    assert.equal(await page.locator("#weekdialog").isVisible(), true);
+    await page.locator("#dismiss").click();
     await page.locator(".monthnav .picker-trigger").click();
     await page.locator('.picker[open] [data-value="2026-11"]').click();
     assert.equal(
@@ -98,6 +107,16 @@ const assert = require("node:assert/strict");
       true,
     );
     await page.screenshot({ path: dir + "/desktop.png", fullPage: true });
+    for (const width of [780, 390]) {
+      await page.setViewportSize({ width, height: 850 });
+      const list = await page.locator(".weeks-card").boundingBox();
+      const insights = await page.locator(".week-insights").boundingBox();
+      assert.ok(
+        width === 780 ? insights.x >= list.x + list.width : insights.y >= list.y + list.height,
+        "Overview layout at " + width,
+      );
+      await page.locator("#panel-overview").screenshot({ path: dir + `/overview-${width}.png` });
+    }
     for (const width of [390, 360, 320]) {
       await page.setViewportSize({ width, height: 844 });
       assert.equal(
