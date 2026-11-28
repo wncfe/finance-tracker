@@ -83,6 +83,31 @@ def accounted(w):
     # Settlement funds future weeks without rewriting the historical limit.
     return w.get('settled', w['limit'])
 
+def reconcile_budgets(state):
+    for m in state['months'].values():
+        open_weeks = [w for w in m['weeks'] if not w['closed']]
+        if not open_weeks:
+            continue
+        reserved = 0
+        for i, w in enumerate(m['weeks']):
+            if w['closed']:
+                w['settled'] = spent(m, i)
+                reserved += w['settled']
+        allocated = sum(w['limit'] for w in open_weeks)
+        adjustment = max(0, m['budget'] - reserved) - allocated
+        if adjustment > 0:
+            open_weeks[-1]['limit'] += adjustment
+        # Keep earlier limits intact when the later weeks can absorb the correction.
+        deficit = -adjustment
+        for w in reversed(open_weeks):
+            if deficit <= 0:
+                break
+            take = min(w['limit'], deficit)
+            w['limit'] -= take
+            deficit -= take
+    return state
+
+
 def effective_budget(m):
     return m['budget']
 
@@ -94,7 +119,7 @@ def redistribute(m):
     if ids:
         rebalance(m, ids, available - sum(accounted(w) for w in m['weeks'] if w['closed']))
     else:
-        residual = available - sum(accounted(w) for w in m['weeks'][:-1])
+        residual = available - sum(spent(m, i) for i in range(len(m['weeks']) - 1))
         if residual < 0:
             raise ValueError('Бюджета недостаточно для закрытых недель')
         m['weeks'][-1]['limit'] = residual
@@ -107,7 +132,10 @@ def today_at(instant=None):
 
 
 def apply(state, action, today=None):
-    today = today or today_at()
+    return _apply_action(reconcile_budgets(copy.deepcopy(state)), action, today or today_at())
+
+
+def _apply_action(state, action, today):
     if action.get('type') == 'transfer':
         raise ValueError('Переносы между месяцами больше не поддерживаются')
     if action.get('type') == 'category_save':
@@ -123,9 +151,8 @@ def apply(state, action, today=None):
             raise ValueError('Некорректный идентификатор категории')
         if any(category_key(x)==category_key(name) for x in available_categories(state)):
             raise ValueError('Такая категория уже существует')
-        result=copy.deepcopy(state)
-        result['userCategories']=sorted(result.get('userCategories',[])+[dict(id=item['id'],name=name.strip())],key=lambda x:x['id'])
-        return result
+        state['userCategories']=sorted(state.get('userCategories',[])+[dict(id=item['id'],name=name.strip())],key=lambda x:x['id'])
+        return state
     if action.get('type') == 'merchant_save':
         item=action.get('merchant')
         if not isinstance(item,dict) or set(item)-{'id','name','aliases','category','hidden'}:
@@ -143,7 +170,6 @@ def apply(state, action, today=None):
         if not isinstance(category,str) or category not in available_categories(state):
             raise ValueError('Выберите категорию магазина')
         if type(item.get('hidden')) is not bool: raise ValueError('Некорректный статус магазина')
-        state=copy.deepcopy(state)
         merchants=[m for m in state.get('merchants',[]) if m['id']!=identifier]
         merchant=dict(id=identifier,name=name.strip(),aliases=[a.strip() for a in aliases],hidden=item['hidden'])
         if category: merchant['category']=category
@@ -157,22 +183,20 @@ def apply(state, action, today=None):
         items = action.get('items')
         if not isinstance(items, list) or not 1 <= len(items) <= 50:
             raise ValueError('Добавьте от 1 до 50 расходов')
-        result = copy.deepcopy(state)
         for item in items:
             if not isinstance(item, dict) or not isinstance(item.get('date'), str) or not re.fullmatch(r'\d{4}-\d{2}-\d{2}', item['date']):
                 raise ValueError('Некорректная дата')
             date = dt.date.fromisoformat(item['date'])
             key = date.strftime('%Y-%m')
-            index = next(i for i, w in enumerate(ensure(result, key)['weeks']) if w['start'] <= date.day <= w['end'])
-            result = apply(result, dict(item, type='expense', month=key, week=index), today)
-        return result
+            index = next(i for i, w in enumerate(ensure(state, key)['weeks']) if w['start'] <= date.day <= w['end'])
+            _apply_action(state, dict(item, type='expense', month=key, week=index), today)
+        return state
     action = dict(action)
     if action.get('category') == 'Продукты': action['category']='Супермаркеты'
     if action.get('type') == 'expense_update':
         if set(action)-{'type','month','week','id','amount','date','category','merchantId'}:
             raise ValueError('Неизвестные поля изменения расхода')
         if type(action.get('week')) is not int: raise ValueError('Некорректная неделя')
-        state=copy.deepcopy(state)
         source=state['months'].get(action.get('month'))
         expense=next((e for e in source['expenses'] if e['id']==action.get('id') and e['week']==action.get('week')),None) if source else None
         if expense is None: raise ValueError('Расход не найден')
@@ -202,7 +226,6 @@ def apply(state, action, today=None):
         if source is target: source['expenses'][source['expenses'].index(expense)]=updated
         else: source['expenses'].remove(expense);target['expenses'].append(updated)
         return state
-    state = copy.deepcopy(state)
     key = action['month']
     weeks(key)
     m = ensure(state, key)

@@ -62,7 +62,10 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self,*args):
         pass
     def send(self, code, data, cookie=None):
-        if code==200 and isinstance(data,dict):data={**data,'today':budget.today_at(),'timeZone':'Asia/Yekaterinburg'}
+        if code==200 and isinstance(data,dict):
+            if 'state' in data:
+                budget.reconcile_budgets(data['state'])
+            data={**data,'today':budget.today_at(),'timeZone':'Asia/Yekaterinburg'}
         body=json.dumps(data,ensure_ascii=False).encode()
         self.send_response(code)
         self.send_header('Content-Type','application/json; charset=utf-8')
