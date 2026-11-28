@@ -84,7 +84,7 @@ class ApiTests(unittest.TestCase):
         with server.connect() as db:
             user_id = db.execute('SELECT id FROM users WHERE login=?', (login,)).fetchone()[0]
             db.execute('UPDATE weeks SET settled=NULL WHERE user_id=? AND month=? AND week_index=0', (user_id, month))
-            db.execute('UPDATE weeks SET limit_amount=limit_amount+10000 WHERE user_id=? AND month=? AND week_index=?', (user_id, month, len(expected['weeks'])-1))
+            db.execute('UPDATE weeks SET limit_amount=limit_amount+4000 WHERE user_id=? AND month=? AND closed=0', (user_id, month))
 
         code, loaded = self.request(client, 'state')
         self.assertEqual(code, 200)
@@ -93,7 +93,7 @@ class ApiTests(unittest.TestCase):
         with server.connect() as db:
             raw = server.finance_store.load(db, user_id)['months'][month]
             self.assertNotIn('settled', raw['weeks'][0])
-            self.assertEqual(raw['weeks'][-1]['limit'], expected['weeks'][-1]['limit'] + 10000)
+            self.assertEqual(raw['weeks'][-1]['limit'], expected['weeks'][-1]['limit'] + 4000)
 
         body = dict(revision=revision, operationId=uuid.uuid4().hex, action=dict(
             type='expense', month=month, week=1, date='2026-11-09', amount=555, category='Кафе'))

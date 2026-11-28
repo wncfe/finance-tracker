@@ -168,7 +168,7 @@ function assertRemaining(m, expected) {
 
 const repaired = reconcileBudgets(structuredClone(legacy));
 const m = repaired.months[month];
-assertRemaining(m, [550000, 150000]);
+assertRemaining(m, [512500, 187500]);
 assert.equal(m.budget - spent(m), 700000);
 assert.equal(m.weeks[0].settled, 1575000);
 assert.equal(m.weeks[0].limit, 1500000);
@@ -181,6 +181,13 @@ assert.deepEqual(reconcileBudgets(structuredClone(stale)), repaired);
 const underallocated = structuredClone(repaired);
 underallocated.months[month].weeks[4].limit -= 1;
 assert.deepEqual(reconcileBudgets(underallocated), repaired);
+
+const capped = structuredClone(stale);
+capped.months[month].weeks[3].limit = 1065000;
+capped.months[month].weeks[4].limit = 10000;
+const cappedMonth = reconcileBudgets(capped).months[month];
+assertRemaining(cappedMonth, [700000, 0]);
+assert.equal(cappedMonth.weeks[4].limit, 0);
 
 const insufficient = structuredClone(stale);
 insufficient.months[month].budget = 4900000;

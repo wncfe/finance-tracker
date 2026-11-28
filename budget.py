@@ -96,15 +96,17 @@ def reconcile_budgets(state):
         allocated = sum(w['limit'] for w in open_weeks)
         adjustment = max(0, m['budget'] - reserved) - allocated
         if adjustment > 0:
-            open_weeks[-1]['limit'] += adjustment
-        # Keep earlier limits intact when the later weeks can absorb the correction.
-        deficit = -adjustment
-        for w in reversed(open_weeks):
-            if deficit <= 0:
-                break
-            take = min(w['limit'], deficit)
-            w['limit'] -= take
-            deficit -= take
+            shares = allocate(adjustment, [1] * len(open_weeks))
+            for w, share in zip(open_weeks, shares):
+                w['limit'] += share
+        elif adjustment < 0:
+            # Cap smaller limits first, then split the remaining debit equally.
+            by_limit = sorted(open_weeks, key=lambda w: w['limit'])
+            deficit = -adjustment
+            for i, w in enumerate(by_limit):
+                take = min(w['limit'], deficit // (len(by_limit) - i))
+                w['limit'] -= take
+                deficit -= take
     return state
 
 

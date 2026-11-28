@@ -127,14 +127,24 @@ export function reconcileBudgets(state) {
     });
     const allocated = open.reduce((sum, i) => sum + m.weeks[i].limit, 0);
     const adjustment = Math.max(0, m.budget - reserved) - allocated;
-    if (adjustment > 0) m.weeks[open.at(-1)].limit += adjustment;
-    // Keep earlier limits intact when the later weeks can absorb the correction.
-    let deficit = -adjustment;
-    for (let i = open.length - 1; i >= 0 && deficit > 0; i--) {
-      const w = m.weeks[open[i]];
-      const take = Math.min(w.limit, deficit);
-      w.limit -= take;
-      deficit -= take;
+    if (adjustment > 0) {
+      const shares = allocate(adjustment, open.map(() => 1));
+      open.forEach((i, j) => (m.weeks[i].limit += shares[j]));
+    } else if (adjustment < 0) {
+      // Old records lack the closing mode. Split the debit across open weeks,
+      // capping smaller limits first so every week's limit stays nonnegative.
+      const byLimit = open
+        .map((i) => m.weeks[i])
+        .sort((a, b) => a.limit - b.limit);
+      let deficit = -adjustment;
+      byLimit.forEach((w, i) => {
+        const take = Math.min(
+          w.limit,
+          Math.floor(deficit / (byLimit.length - i)),
+        );
+        w.limit -= take;
+        deficit -= take;
+      });
     }
   }
   return state;
