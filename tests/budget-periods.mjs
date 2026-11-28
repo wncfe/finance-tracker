@@ -123,13 +123,15 @@ for (const date of ["2026-11-01", "2026-11-29", "2026-11-30"]) {
 const legacy = {
   months: {
     "2026-11": {
-      budget: 300000,
+      budget: 150000,
       weeks: [
         { start: 1, end: 1, days: 1, limit: 10000, closed: true, settled: 100 },
         { start: 2, end: 8, days: 7, limit: 79900, closed: false },
         { start: 9, end: 15, days: 7, limit: 70000, closed: false },
       ],
-      expenses: [],
+      expenses: [
+        { week: 0, amount: 100, date: "2026-11-01", category: "Кафе" },
+      ],
     },
   },
 };
@@ -141,7 +143,7 @@ const updated = apply(
   },
   "2026-12-31",
 );
-assert.equal(updated.months["2026-11"].expenses[0].week, 2);
+assert.equal(updated.months["2026-11"].expenses.at(-1).week, 2);
 assert.deepEqual(
   updated.months["2026-11"].weeks,
   legacy.months["2026-11"].weeks,

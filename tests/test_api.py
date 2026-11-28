@@ -66,6 +66,44 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(self.request(client,'action',changed)[0],409)
         self.assertEqual(self.request(client,'import',{'revision':1,'backup':{}})[0],404)
 
+    def test_legacy_limit_is_correct_on_read_and_saved_once(self):
+        client = self.client()
+        login = 'legacy-week-limits'
+        month = '2026-11'
+        self.assertEqual(self.request(client, 'register', {'login': login, 'password': 'test-password-123'})[0], 200)
+        revision = 0
+        for action in (
+            dict(type='budget', amount=300000),
+            dict(type='expense', week=0, date='2026-11-01', amount=90000, category='Кафе'),
+            dict(type='close', week=0, mode='next'),
+        ):
+            code, result = self.request(client, 'action', dict(revision=revision, action=dict(action, month=month)))
+            self.assertEqual(code, 200)
+            revision = result['revision']
+        expected = result['state']['months'][month]
+        with server.connect() as db:
+            user_id = db.execute('SELECT id FROM users WHERE login=?', (login,)).fetchone()[0]
+            db.execute('UPDATE weeks SET settled=NULL WHERE user_id=? AND month=? AND week_index=0', (user_id, month))
+            db.execute('UPDATE weeks SET limit_amount=limit_amount+4000 WHERE user_id=? AND month=? AND closed=0', (user_id, month))
+
+        code, loaded = self.request(client, 'state')
+        self.assertEqual(code, 200)
+        self.assertEqual(loaded['revision'], revision)
+        self.assertEqual(loaded['state']['months'][month], expected)
+        with server.connect() as db:
+            raw = server.finance_store.load(db, user_id)['months'][month]
+            self.assertNotIn('settled', raw['weeks'][0])
+            self.assertEqual(raw['weeks'][-1]['limit'], expected['weeks'][-1]['limit'] + 4000)
+
+        body = dict(revision=revision, operationId=uuid.uuid4().hex, action=dict(
+            type='expense', month=month, week=1, date='2026-11-09', amount=555, category='Кафе'))
+        saved = self.request(client, 'action', body)
+        self.assertEqual(saved[0], 200)
+        self.assertEqual(self.request(client, 'action', body), saved)
+        self.assertEqual(saved[1]['state']['months'][month]['weeks'], expected['weeks'])
+        with server.connect() as db:
+            self.assertEqual(server.finance_store.load(db, user_id), saved[1]['state'])
+
     def test_batch_rejection_retry_and_revision(self):
         client=self.client()
         self.assertEqual(self.request(client,'register',{'login':'batch-user','password':'test-password-123'})[0],200)

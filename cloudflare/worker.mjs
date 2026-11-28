@@ -4,7 +4,7 @@ import {
   createHash,
   timingSafeEqual,
 } from "node:crypto";
-import { apply, todayAt } from "./budget.mjs";
+import { apply, reconcileBudgets, todayAt } from "./budget.mjs";
 import { loadFinance, financeWrites } from "./finance-store.mjs";
 import { companion } from "./companion.mjs";
 const hash = (value) => createHash("sha256").update(value).digest("hex");
@@ -14,8 +14,9 @@ const pw = (value, salt) =>
     r: 8,
     p: 1,
   }).toString("hex");
-const json = (status, value, cookie) =>
-  new Response(
+const json = (status, value, cookie) => {
+  if (status === 200 && value.state) reconcileBudgets(value.state);
+  return new Response(
     JSON.stringify(
       status === 200
         ? { ...value, today: todayAt(), timeZone: "Asia/Yekaterinburg" }
@@ -31,6 +32,7 @@ const json = (status, value, cookie) =>
       },
     },
   );
+};
 // Unknown logins still pay for one scrypt so response time does not reveal which accounts exist.
 const DUMMY_SALT = "00".repeat(16);
 const CONFLICT = "Данные изменены в другой вкладке. Обновите страницу";

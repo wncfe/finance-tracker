@@ -113,7 +113,42 @@ export const spent = (m, i) =>
     .reduce((s, e) => s + e.amount, 0);
 const OVERSPEND_ERROR =
   "Перерасход больше, чем осталось на следующие недели. Увеличьте бюджет месяца";
-const accounted = (w) => w.settled ?? w.limit;
+const openWeeks = (m) => m.weeks.flatMap((w, i) => (w.closed ? [] : [i]));
+
+export function reconcileBudgets(state) {
+  for (const m of Object.values(state.months)) {
+    const open = openWeeks(m);
+    if (!open.length) continue;
+    let reserved = 0;
+    m.weeks.forEach((w, i) => {
+      if (!w.closed) return;
+      w.settled = spent(m, i);
+      reserved += w.settled;
+    });
+    const allocated = open.reduce((sum, i) => sum + m.weeks[i].limit, 0);
+    const adjustment = Math.max(0, m.budget - reserved) - allocated;
+    if (adjustment > 0) {
+      const shares = allocate(adjustment, open.map(() => 1));
+      open.forEach((i, j) => (m.weeks[i].limit += shares[j]));
+    } else if (adjustment < 0) {
+      // Old records lack the closing mode. Split the debit across open weeks,
+      // capping smaller limits first so every week's limit stays nonnegative.
+      const byLimit = open
+        .map((i) => m.weeks[i])
+        .sort((a, b) => a.limit - b.limit);
+      let deficit = -adjustment;
+      byLimit.forEach((w, i) => {
+        const take = Math.min(
+          w.limit,
+          Math.floor(deficit / (byLimit.length - i)),
+        );
+        w.limit -= take;
+        deficit -= take;
+      });
+    }
+  }
+  return state;
+}
 function validDate(value, key, w) {
   check(
     typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value),
@@ -131,16 +166,16 @@ function validDate(value, key, w) {
 }
 function redistribute(m) {
   const available = m.budget;
-  const ids = m.weeks.flatMap((w, i) => (w.closed ? [] : [i]));
+  const ids = openWeeks(m);
   if (ids.length) {
     const reserved = m.weeks
       .filter((w) => w.closed)
-      .reduce((sum, w) => sum + accounted(w), 0);
+      .reduce((sum, w) => sum + w.settled, 0);
     rebalance(m, ids, available - reserved);
   } else {
     const reserved = m.weeks
       .slice(0, -1)
-      .reduce((sum, w) => sum + accounted(w), 0);
+      .reduce((sum, _, i) => sum + spent(m, i), 0);
     check(available >= reserved, "Бюджета недостаточно для закрытых недель");
     m.weeks.at(-1).limit = available - reserved;
     delete m.weeks.at(-1).settled;
@@ -151,6 +186,10 @@ export function todayAt(instant = new Date()) {
   return new Date(instant.getTime() + 5 * 3600000).toISOString().slice(0, 10);
 }
 export function apply(original, action, today = todayAt()) {
+  return applyAction(reconcileBudgets(structuredClone(original)), action, today);
+}
+
+function applyAction(state, action, today) {
   if (action.type === "transfer")
     throw Error("Переносы между месяцами больше не поддерживаются");
   if (action.type === "category_save") {
@@ -173,8 +212,7 @@ export function apply(original, action, today = todayAt()) {
         item.name.trim().length <= 60,
       "Название категории: от 1 до 60 символов",
     );
-    const state = structuredClone(original),
-      known = availableCategories(state);
+    const known = availableCategories(state);
     check(
       !(state.userCategories || []).some((c) => c.id === item.id),
       "Некорректный идентификатор категории",
@@ -229,11 +267,10 @@ export function apply(original, action, today = todayAt()) {
     );
     check(
       typeof item.category === "string" &&
-        availableCategories(original).includes(item.category),
+        availableCategories(state).includes(item.category),
       "Выберите категорию магазина",
     );
     check(typeof item.hidden === "boolean", "Некорректный статус магазина");
-    const state = structuredClone(original);
     const merchants = (state.merchants || []).filter((m) => m.id !== item.id);
     merchants.push({
       id: item.id,
@@ -258,7 +295,6 @@ export function apply(original, action, today = todayAt()) {
         action.items.length <= 50,
       "Добавьте от 1 до 50 расходов",
     );
-    let result = structuredClone(original);
     for (const item of action.items) {
       check(
         item && typeof item === "object" && !Array.isArray(item),
@@ -270,12 +306,12 @@ export function apply(original, action, today = todayAt()) {
       );
       const month = item.date.slice(0, 7),
         day = Number(item.date.slice(8));
-      const week = ensure(result, month).weeks.findIndex(
+      const week = ensure(state, month).weeks.findIndex(
         (w) => w.start <= day && day <= w.end,
       );
-      result = apply(result, { ...item, type: "expense", month, week }, today);
+      applyAction(state, { ...item, type: "expense", month, week }, today);
     }
-    return result;
+    return state;
   }
   if (action.type === "expense_update") {
     check(Number.isInteger(action.week), "Некорректная неделя");
@@ -294,8 +330,7 @@ export function apply(original, action, today = todayAt()) {
       ),
       "Неизвестные поля изменения расхода",
     );
-    const state = structuredClone(original),
-      source = state.months[action.month];
+    const source = state.months[action.month];
     const expense = source?.expenses.find(
       (e) => e.id === action.id && e.week === action.week,
     );
@@ -361,14 +396,13 @@ export function apply(original, action, today = todayAt()) {
     }
     return state;
   }
-  const state = structuredClone(original),
-    key = action.month,
+  const key = action.month,
     m = ensure(state, key),
     effective = m.budget,
     type = action.type;
-  const open = () => m.weeks.flatMap((w, i) => (w.closed ? [] : [i])),
+  const open = () => openWeeks(m),
     closedTotal = () =>
-      m.weeks.filter((w) => w.closed).reduce((s, w) => s + accounted(w), 0);
+      m.weeks.filter((w) => w.closed).reduce((s, w) => s + w.settled, 0);
   if (type === "budget") {
     m.budget = amount(action.amount);
     redistribute(m);
